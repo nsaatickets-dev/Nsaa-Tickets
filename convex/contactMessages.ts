@@ -1,5 +1,15 @@
-import { mutation } from "./_generated/server";
+import { mutation, internalAction } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { v } from "convex/values";
+import { escapeHtml, sendBrevoEmail, SENDERS, renderEmailLayout, paragraph } from "./email";
+
+const TOPIC_LABEL: Record<string, string> = {
+  support: "support",
+  payments: "a payment",
+  press: "press",
+  partnerships: "a partnership",
+  other: "your message",
+};
 
 export const create = mutation({
   args: {
@@ -15,10 +25,44 @@ export const create = mutation({
     message: v.string(),
   },
   handler: async (ctx, args) => {
-    return await ctx.db.insert("contactMessages", {
+    const id = await ctx.db.insert("contactMessages", {
       ...args,
       status: "new",
       createdAt: Date.now(),
+    });
+
+    await ctx.scheduler.runAfter(0, internal.contactMessages.sendAcknowledgement, {
+      name: args.name,
+      email: args.email,
+      topic: args.topic,
+    });
+
+    return id;
+  },
+});
+
+export const sendAcknowledgement = internalAction({
+  args: {
+    name: v.string(),
+    email: v.string(),
+    topic: v.string(),
+  },
+  handler: async (ctx, { name, email, topic }) => {
+    const topicLabel = TOPIC_LABEL[topic] ?? "your message";
+    await sendBrevoEmail({
+      sender: SENDERS.support,
+      to: [{ email, name }],
+      subject: "We've received your message",
+      htmlContent: renderEmailLayout({
+        heading: "We've received your message",
+        bodyHtml:
+          paragraph(`Hi ${escapeHtml(name)},`) +
+          paragraph(
+            `Thanks for reaching out to Nsaa Tickets about ${escapeHtml(topicLabel)}. Our support team has received your message and will get back to you shortly.`,
+          ) +
+          paragraph("&mdash; Nsaa Tickets Support"),
+        footerNote: "You're receiving this because you contacted Nsaa Tickets support.",
+      }),
     });
   },
 });

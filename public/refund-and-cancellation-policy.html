@@ -30,26 +30,22 @@
             <i class="ph ph-x" aria-hidden="true"></i>
           </button>
           <div class="nsaa-nav-links" id="nsaa-nav-links">
-            <a href="search-results.html" class="nsaa-nav-link">Search</a>
+            <a href="search-results.html" class="nsaa-nav-link">Browse</a>
             <a href="about.html" class="nsaa-nav-link">About</a>
-            <a href="organizer-inquiry.html" class="nsaa-nav-link">List event</a>
-            <a href="organizer-dashboard.html" class="nsaa-nav-link">Dashboard</a>
             <a href="wallet.html" class="nsaa-nav-link">My tickets</a>
+            <span class="nsaa-nav-sep" aria-hidden="true"></span>
+            <a href="organizer-inquiry.html" class="nsaa-nav-link nsaa-nav-link--quiet">List your event</a>
+            <a href="organizer-dashboard.html" class="nsaa-nav-link nsaa-nav-link--quiet">Dashboard</a>
             <div id="clerk-auth-slot"></div>
           </div>
         </div>
       </div>
     </nav>
 
-    <script
-      async
-      crossorigin="anonymous"
-      data-clerk-publishable-key="pk_test_REPLACE_ME"
-      src="https://REPLACE_ME.clerk.accounts.dev/npm/@clerk/clerk-js@5/dist/clerk.browser.js"
-      type="text/javascript"
-    ></script>
+    <script src="js/clerk-config.js"></script>
+    <script src="js/clerk-loader.js"></script>
 
-    <main class="container py-5" style="max-width: 760px;">
+<main class="container py-5" style="max-width: 760px;">
       <p class="nsaa-eyebrow mb-2">Legal</p>
       <h1 class="h2 mb-2">Refund &amp; Cancellation Policy</h1>
       <p class="nsaa-faint small mb-5">Last updated: 9 July 2026</p>

@@ -2,67 +2,96 @@ import { internalMutation, internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { issueTickets } from "./tickets";
+import { escapeHtml, sendBrevoEmail, SENDERS, renderEmailLayout, paragraph } from "./email";
 
-// Called from convex/http.ts when Moolre POSTs a payment status update.
-// This is the single place that flips an order from "reserved" to
-// "paid" - never trust the client to report its own payment success.
-export const handleWebhookEvent = internalMutation({
-  args: {
-    moolreReference: v.string(),
-    status: v.optional(v.string()),
+// Called from convex/http.ts when Moolre POSTs to our webhook, after it
+// has already parsed the `order:<id>` prefix off data.externalref.
+//
+// Moolre's docs (docs.moolre.com/ai/payment-webhook) don't specify any
+// signature header or HMAC scheme for verifying a webhook actually came
+// from Moolre, so we don't trust the POSTed body's status at all. Instead
+// the webhook is treated purely as a "check now" nudge: re-fetch the
+// authoritative status straight from Moolre's own status endpoint using
+// the exact externalref we originally sent, and only ever act on that
+// response.
+export const verifyAndProcessPayment = internalAction({
+  args: { externalref: v.string(), orderId: v.id("orders") },
+  handler: async (ctx, { externalref, orderId }) => {
+    let txstatus: number | undefined;
+    let transactionId: string | undefined;
+
+    try {
+      const response = await fetch(`${process.env.MOOLRE_API_BASE}/open/transact/status`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-API-USER": process.env.MOOLRE_API_USER ?? "",
+          "X-API-PUBKEY": process.env.MOOLRE_API_PUBKEY ?? "",
+        },
+        body: JSON.stringify({
+          type: 1,
+          idtype: "1",
+          id: externalref,
+          accountnumber: process.env.MOOLRE_ACCOUNT_NUMBER ?? "",
+        }),
+      });
+      const payload = await response.json();
+      txstatus = payload?.data?.txstatus;
+      transactionId = payload?.data?.transactionid;
+    } catch (err) {
+      console.error("Moolre status check failed", err);
+      return;
+    }
+
+    await ctx.runMutation(internal.moolre.applyVerifiedStatus, {
+      orderId,
+      isSuccess: txstatus === 1,
+      transactionId,
+    });
   },
-  handler: async (ctx, { moolreReference, status }) => {
-    const order = await ctx.db
-      .query("orders")
-      .withIndex("by_moolre_reference", (q) =>
-        q.eq("moolreReference", moolreReference),
-      )
-      .first();
+});
 
+// This is the single place that flips an order from "reserved" to
+// "paid" - only ever called with a status we fetched ourselves above,
+// never with client- or webhook-supplied data directly.
+export const applyVerifiedStatus = internalMutation({
+  args: {
+    orderId: v.id("orders"),
+    isSuccess: v.boolean(),
+    transactionId: v.optional(v.string()),
+  },
+  handler: async (ctx, { orderId, isSuccess, transactionId }) => {
+    // Not a confirmed success - Moolre's docs don't document failure-state
+    // txstatus values, so rather than guess and prematurely kill a
+    // reservation that might still be mid-approval, we do nothing and let
+    // the existing 10-minute reservation timeout / cron sweep be the
+    // backstop for a real failure or no-show.
+    if (!isSuccess) return;
+
+    const order = await ctx.db.get(orderId);
     if (!order) {
-      console.error(`No order found for Moolre reference ${moolreReference}`);
+      console.error(`No order found for id ${orderId}`);
       return;
     }
 
-    // Idempotency guard: webhooks can and do fire more than once. If
-    // we've already processed this order into "paid", do nothing further
-    // rather than issuing duplicate tickets.
-    if (order.status === "paid") {
-      return;
-    }
+    // Idempotency guard: the webhook can and does fire more than once,
+    // and this action can be re-triggered - don't issue duplicate tickets.
+    if (order.status === "paid") return;
+    // Already expired/failed - don't resurrect a dead reservation.
+    if (order.status !== "reserved") return;
 
-    const isSuccess = status === "success" || status === "completed";
+    await ctx.db.patch(order._id, {
+      status: "paid",
+      moolreStatus: "success",
+      moolreReference: transactionId ?? order.moolreReference,
+      paidAt: Date.now(),
+    });
 
-    if (isSuccess) {
-      await ctx.db.patch(order._id, {
-        status: "paid",
-        moolreStatus: status,
-        paidAt: Date.now(),
-      });
+    await issueTickets(ctx, order._id);
 
-      await issueTickets(ctx, order._id);
-
-      await ctx.scheduler.runAfter(0, internal.moolre.sendConfirmation, {
-        orderId: order._id,
-      });
-    } else {
-      await ctx.db.patch(order._id, {
-        status: "failed",
-        moolreStatus: status,
-      });
-
-      // Release the reservation immediately rather than waiting for the
-      // timeout sweep, since we now know for certain payment failed.
-      const ticketType = await ctx.db.get(order.ticketTypeId);
-      if (ticketType) {
-        await ctx.db.patch(order.ticketTypeId, {
-          quantityReserved: Math.max(
-            0,
-            ticketType.quantityReserved - order.quantity,
-          ),
-        });
-      }
-    }
+    await ctx.scheduler.runAfter(0, internal.moolre.sendConfirmation, {
+      orderId: order._id,
+    });
   },
 });
 
@@ -80,18 +109,20 @@ export const sendConfirmation = internalAction({
     const message = `Nsaa Tickets: your order is confirmed. GHS ${order.totalGHS} paid. Your ticket(s) are ready in the app.`;
 
     // --- Moolre SMS ---
-    // Confirm the real endpoint/payload shape against Moolre's SMS API
-    // docs before going live.
+    // Verified against docs.moolre.com (Send SMS). senderid must already
+    // be registered and approved in the Moolre dashboard before sends
+    // will succeed (code ASMS07 = unapproved sender).
     try {
-      await fetch(`${process.env.MOOLRE_API_BASE}/v1/sms/send`, {
+      await fetch(`${process.env.MOOLRE_API_BASE}/open/sms/send`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.MOOLRE_API_KEY}`,
+          "X-API-VASKEY": process.env.MOOLRE_VASKEY ?? "",
         },
         body: JSON.stringify({
-          to: order.buyerPhone,
-          message,
+          type: 1,
+          senderid: process.env.MOOLRE_SMS_SENDER_ID ?? "",
+          messages: [{ recipient: order.buyerPhone, message }],
         }),
       });
     } catch (err) {
@@ -100,23 +131,20 @@ export const sendConfirmation = internalAction({
 
     // --- Brevo transactional email (only if buyer gave an email) ---
     if (order.buyerEmail) {
-      try {
-        await fetch("https://api.brevo.com/v3/smtp/email", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "api-key": process.env.BREVO_API_KEY ?? "",
-          },
-          body: JSON.stringify({
-            sender: { name: "Nsaa Tickets", email: "tickets@nsaatickets.com" },
-            to: [{ email: order.buyerEmail, name: order.buyerName }],
-            subject: "Your Nsaa Tickets order is confirmed",
-            htmlContent: `<p>Hi ${order.buyerName},</p><p>Your order is confirmed. GHS ${order.totalGHS} was charged. Open the app to view your ticket QR code.</p>`,
-          }),
-        });
-      } catch (err) {
-        console.error("Brevo email failed", err);
-      }
+      await sendBrevoEmail({
+        sender: SENDERS.tickets,
+        to: [{ email: order.buyerEmail, name: order.buyerName }],
+        subject: "Your Nsaa Tickets order is confirmed",
+        htmlContent: renderEmailLayout({
+          heading: "Your order is confirmed",
+          bodyHtml:
+            paragraph(`Hi ${escapeHtml(order.buyerName)},`) +
+            paragraph(
+              `Your order is confirmed. <strong>GHS ${order.totalGHS}</strong> was charged. Open the app to view your ticket QR code.`,
+            ),
+          footerNote: "This email confirms a ticket purchase on Nsaa Tickets.",
+        }),
+      });
     }
   },
 });

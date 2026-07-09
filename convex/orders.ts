@@ -16,6 +16,38 @@ function computeServiceFee(ticketSubtotalGHS: number): number {
   return Math.round((percentageFee + flatFee) * 100) / 100;
 }
 
+// Moolre's collection API requires a `channel` telling it which network
+// to route the Mobile Money prompt to (13=MTN, 6=Telecel, 7=AirtelTigo).
+// We only collect a phone number at checkout, so the network is inferred
+// from Ghana's published numbering-plan prefixes rather than asking the
+// buyer to pick their own network. Coverage is best-effort - carrier
+// number ranges have shifted with the AirtelTigo/Telecel rebrands, so
+// confirm against real numbers on each network during sandbox testing.
+// If Moolre routes to the wrong network the collection request itself
+// fails (returned as an error code, not a silent misfire), so a wrong
+// guess here surfaces as a retryable error, not a lost payment.
+function detectMoolreChannel(phone: string): string {
+  const digits = phone.replace(/[\s\-()]/g, "");
+  const local = digits.startsWith("233")
+    ? `0${digits.slice(3)}`
+    : digits.startsWith("+233")
+      ? `0${digits.slice(4)}`
+      : digits;
+  const prefix2 = local.slice(0, 3); // "0XX"
+
+  const mtn = ["024", "025", "053", "054", "055", "059"];
+  const telecel = ["020", "030", "050"];
+  const airtelTigo = ["026", "027", "028", "056", "057"];
+
+  if (mtn.includes(prefix2)) return "13";
+  if (telecel.includes(prefix2)) return "6";
+  if (airtelTigo.includes(prefix2)) return "7";
+
+  throw new Error(
+    "Could not detect a mobile money network for this number. Please contact support.",
+  );
+}
+
 // Step 1 of checkout: reserve inventory, create a pending order.
 // This is what makes the reservation-with-timeout model work - the
 // ticket count visibly drops the instant someone starts checkout, not
@@ -163,8 +195,8 @@ export const getOrderSummary = query({
 // already-reserved order. Separated from createReservation so the UI
 // can show "reserved, now confirm payment" as a distinct step.
 export const initiateMoolrePayment = action({
-  args: { orderId: v.id("orders") },
-  handler: async (ctx, { orderId }): Promise<{ status: string }> => {
+  args: { orderId: v.id("orders"), otpcode: v.optional(v.string()) },
+  handler: async (ctx, { orderId, otpcode }): Promise<{ status: string }> => {
     const order = await ctx.runQuery(internal.orders.getOrderInternal, {
       orderId,
     });
@@ -174,36 +206,76 @@ export const initiateMoolrePayment = action({
     }
 
     // --- Moolre payment request ---
-    // Replace MOOLRE_API_BASE / credentials with real sandbox values.
-    // See: https://moolre.com developer docs for the exact payment
-    // initiation endpoint and payload shape - confirm field names against
-    // their current API reference before wiring this for real, since this
-    // is written against the general shape of a MoMo collection request.
-    const response = await fetch(`${process.env.MOOLRE_API_BASE}/v1/collect`, {
+    // Verified against docs.moolre.com (Initiate Payment): POST
+    // /open/transact/payment, X-API-USER + X-API-KEY headers, externalref
+    // must be unique per attempt so we use the order id (confirmed by
+    // sandbox testing: resubmitting the same externalref with otpcode
+    // does NOT hit the "must be unique" error - it's recognized as the
+    // OTP retry for the same pending request). Moolre has no documented
+    // per-request callback field - the webhook URL is registered once at
+    // the account level (Moolre dashboard settings, or POST
+    // /open/account/update with a `callback` field) pointing at
+    // https://<your-deployment>.convex.site/moolre/webhook.
+    const channel = detectMoolreChannel(order.buyerPhone);
+    // Prefixed so the shared webhook (convex/http.ts) can tell a customer
+    // payment apart from an organizer payout - both land on the same
+    // callback URL since Moolre registers one webhook per account, not
+    // per transaction type.
+    const externalref = `order:${order._id}`;
+
+    const response = await fetch(`${process.env.MOOLRE_API_BASE}/open/transact/payment`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.MOOLRE_API_KEY}`,
+        "X-API-USER": process.env.MOOLRE_API_USER ?? "",
+        "X-API-KEY": process.env.MOOLRE_API_KEY ?? "",
       },
       body: JSON.stringify({
-        amount: order.totalGHS,
+        type: 1,
+        channel,
         currency: "GHS",
-        phone: order.buyerPhone,
-        reference: order._id,
-        callback_url: `${process.env.CONVEX_SITE_URL}/moolre/webhook`,
-        description: "Nsaa Tickets order",
+        payer: order.buyerPhone,
+        amount: String(order.totalGHS),
+        externalref,
+        accountnumber: process.env.MOOLRE_ACCOUNT_NUMBER ?? "",
+        ...(otpcode ? { otpcode } : {}),
       }),
     });
 
     const data = await response.json();
 
+    // TP14: confirmed via sandbox testing - Moolre texts a verification
+    // code directly to the buyer's phone and won't process the collection
+    // until we resubmit this same request with that code as `otpcode`.
+    // Not every account/channel triggers this; treat it as optional.
+    if (data.code === "TP14") {
+      return { status: "otp_required" };
+    }
+
+    // TP15: wrong code, not a real failure - let the buyer retry entering
+    // it rather than killing their reservation over a typo.
+    if (data.code === "TP15") {
+      return { status: "otp_invalid" };
+    }
+
+    const accepted = data.status === 1;
+
     await ctx.runMutation(internal.orders.recordMoolreReference, {
       orderId,
-      moolreReference: data.reference ?? data.transactionId ?? "unknown",
-      moolreStatus: data.status ?? "initiated",
+      moolreReference:
+        accepted && typeof data.data === "string" ? data.data : (data.code ?? "unknown"),
+      moolreStatus: accepted ? "initiated" : "rejected",
     });
 
-    return { status: data.status ?? "initiated" };
+    if (!accepted) {
+      // Moolre rejected the request outright (bad number, duplicate
+      // externalref, wrong otpcode, etc). Fail fast rather than leaving
+      // the buyer waiting on a webhook that will never arrive.
+      await ctx.runMutation(internal.orders.markInitiationFailed, { orderId });
+      throw new Error(data.message || "Payment could not be started. Please try again.");
+    }
+
+    return { status: "initiated" };
   },
 });
 
@@ -222,5 +294,26 @@ export const recordMoolreReference = internalMutation({
   },
   handler: async (ctx, { orderId, moolreReference, moolreStatus }) => {
     await ctx.db.patch(orderId, { moolreReference, moolreStatus });
+  },
+});
+
+// Called when Moolre rejects a payment request outright at initiation
+// (not a later webhook failure) - releases the held inventory immediately
+// instead of leaving the buyer stuck waiting on a webhook that will never
+// fire.
+export const markInitiationFailed = internalMutation({
+  args: { orderId: v.id("orders") },
+  handler: async (ctx, { orderId }) => {
+    const order = await ctx.db.get(orderId);
+    if (!order || order.status !== "reserved") return;
+
+    const ticketType = await ctx.db.get(order.ticketTypeId);
+    if (ticketType) {
+      await ctx.db.patch(order.ticketTypeId, {
+        quantityReserved: Math.max(0, ticketType.quantityReserved - order.quantity),
+      });
+    }
+
+    await ctx.db.patch(orderId, { status: "failed" });
   },
 });

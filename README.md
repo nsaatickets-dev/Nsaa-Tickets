@@ -49,19 +49,31 @@ Clerk, Convex, Brevo, and Moolre.
 2. **Seed a demo event** - once `convex dev` is running, open the Convex
    dashboard's function runner and call `events:seedDemoEvent` once.
 
-3. **Clerk** - create an app at clerk.com, get your Frontend API URL and
-   publishable key, fill into `.env.local` and `convex/auth.config.ts`.
-   Note: checkout is guest-first by design. If a buyer is already signed
-   in, the reservation is linked to their Clerk identity for the wallet.
-   A post-purchase account-claim prompt is still a product follow-up.
+3. **Clerk** - create an app at clerk.com, activate the Convex integration,
+   then copy the Frontend API URL and publishable key.
 
-4. **Moolre** - get sandbox API credentials, set them via
-   `npx convex env set MOOLRE_API_KEY ...` (see `.env.example` for the
-   full list). **Confirm the actual request/response field names against
-   Moolre's current API docs** - `convex/orders.ts` and `convex/moolre.ts`
-   are written against a generic REST payment-collection shape and will
-   need field-name adjustments once you're looking at their real
-   reference docs.
+   - Put the browser values in `public/js/clerk-config.js`.
+   - Put `CLERK_FRONTEND_API_URL` in `.env.local` and set it for Convex with
+     `npx convex env set CLERK_FRONTEND_API_URL https://your-clerk-url`.
+
+   Checkout is guest-first by design. If a buyer is already signed in, the
+   reservation is linked to their Clerk identity for the wallet. A
+   post-purchase account-claim prompt is still a product follow-up.
+
+4. **Moolre** - create/access a Moolre account, then set (see
+   `.env.example` for the full list and `npx convex env set` commands):
+   `MOOLRE_API_BASE`, `MOOLRE_API_USER`, `MOOLRE_API_KEY`,
+   `MOOLRE_API_PUBKEY`, `MOOLRE_VASKEY`, `MOOLRE_ACCOUNT_NUMBER`,
+   `MOOLRE_SMS_SENDER_ID` (must be a pre-approved sender ID). The
+   collection, status-check, and SMS calls in `convex/orders.ts` and
+   `convex/moolre.ts` are written against the real endpoints documented at
+   docs.moolre.com - field names have been verified, not guessed.
+
+   Moolre doesn't document a webhook signature/verification scheme, so
+   `convex/http.ts`'s webhook handler doesn't trust the POSTed body at
+   all - it only reads which order to check, then re-fetches the
+   authoritative status from Moolre's own status endpoint before ever
+   marking an order paid (see `convex/moolre.ts:verifyAndProcessPayment`).
 
 5. **Brevo** - get an API key, set via
    `npx convex env set BREVO_API_KEY ...`.
@@ -69,9 +81,11 @@ Clerk, Convex, Brevo, and Moolre.
 6. **QR signing secret** - generate one with `openssl rand -hex 32`, set
    via `npx convex env set QR_SIGNING_SECRET ...`. Never commit this.
 
-7. **Webhook URL** - point Moolre's payment webhook at
-   `https://your-deployment.convex.site/moolre/webhook` (note: `.convex.site`,
-   not `.convex.cloud` - that's the HTTP actions domain).
+7. **Webhook URL** - Moolre has no per-request callback field; register
+   your webhook once at the account level in the Moolre dashboard (or via
+   `POST /open/account/update`'s `callback` field), pointing at
+   `https://your-deployment.convex.site/moolre/webhook` (note:
+   `.convex.site`, not `.convex.cloud` - that's the HTTP actions domain).
 
 ## Running the frontend locally
 
@@ -100,8 +114,9 @@ Serves `public/` on `http://localhost:8080`.
 - Admin/ops tooling (e.g. reviewing `organizerInquiries` submissions,
   which still land in the database with no UI to view/action them)
 - Clerk-based optional account claim after guest purchase
-- Moolre webhook signature verification (`convex/http.ts` has a `TODO`
-  - the webhook currently trusts the request body without verifying it
-  came from Moolre)
+- Moolre's OTP-required collection flow (response code `TP14`) isn't
+  handled - `initiateMoolrePayment` treats any `status: 1` response as
+  "accepted, wait for webhook," so a channel/account config that requires
+  OTP verification would need a retry-with-otpcode step added
 
 See the project's 6-month roadmap discussion for when these come in.

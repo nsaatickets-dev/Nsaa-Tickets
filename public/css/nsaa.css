@@ -23,6 +23,18 @@
   --nsaa-success-bg: rgba(129, 199, 132, 0.1);
   --nsaa-warning: #dfb36c;
   --nsaa-warning-bg: rgba(223, 179, 108, 0.1);
+  --nsaa-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 * {
@@ -174,12 +186,38 @@ a:hover {
   text-transform: uppercase;
 }
 
+.nsaa-nav-links {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 1.9rem;
+}
+
 .nsaa-nav-link {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.38rem;
   color: var(--nsaa-text-muted);
   font-size: 0.9rem;
-  font-weight: 500;
+  font-weight: 600;
+  line-height: 1;
   text-decoration: none;
-  transition: color 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  white-space: nowrap;
+  transition: color 0.15s ease;
+}
+
+.nsaa-nav-link::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0.2rem;
+  height: 1px;
+  background: var(--nsaa-gold);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.2s var(--nsaa-ease-out);
 }
 
 .nsaa-nav-link:hover,
@@ -187,108 +225,27 @@ a:hover {
   color: var(--nsaa-text);
 }
 
-.nsaa-nav-links {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 0.18rem;
-  padding: 0.24rem;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.014)),
-    rgba(255, 255, 255, 0.018);
-  border: 1px solid var(--nsaa-border);
-  border-radius: 4px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045);
+.nsaa-nav-link:hover::after,
+.nsaa-nav-link.active::after {
+  transform: scaleX(1);
 }
 
-.nsaa-nav-links .nsaa-nav-link {
-  position: relative;
-  z-index: 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.42rem;
-  min-height: 2.38rem;
-  padding: 0.64rem 0.74rem;
-  border: 1px solid transparent;
-  border-radius: 4px;
+.nsaa-nav-link--quiet {
+  color: var(--nsaa-text-faint);
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+
+.nsaa-nav-link--quiet:hover,
+.nsaa-nav-link--quiet.active {
   color: var(--nsaa-text-muted);
-  font-size: 0.9rem;
-  font-weight: 600;
-  line-height: 1;
-  text-decoration: none;
-  white-space: nowrap;
-  transition:
-    background-color 0.2s cubic-bezier(0.16, 1, 0.3, 1),
-    border-color 0.2s cubic-bezier(0.16, 1, 0.3, 1),
-    color 0.2s cubic-bezier(0.16, 1, 0.3, 1),
-    transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.nsaa-nav-links .nsaa-nav-link i {
-  color: currentColor;
-  font-size: 1rem;
-  line-height: 1;
-  opacity: 0.86;
-}
-
-.nsaa-nav-links .nsaa-nav-link:hover,
-.nsaa-nav-links .nsaa-nav-link.active {
-  color: var(--nsaa-text);
-}
-
-.nsaa-nav-links .nsaa-nav-link:hover {
-  transform: translateY(-1px);
-}
-
-.nsaa-nav-links .nsaa-nav-link:active {
-  transform: translateY(0);
-}
-
-.nsaa-nav-links .nsaa-nav-link.active {
-  font-weight: 700;
-}
-
-.nsaa-nav-links .nsaa-nav-link.active::after {
-  content: none;
-}
-
-.nsaa-nav-links .nsaa-nav-link[href$="organizer-inquiry.html"] {
-  background: var(--nsaa-gold);
-  border-color: var(--nsaa-gold);
-  color: var(--nsaa-gold-dark);
-  font-weight: 800;
-}
-
-.nsaa-nav-links .nsaa-nav-link[href$="organizer-inquiry.html"]:hover,
-.nsaa-nav-links .nsaa-nav-link[href$="organizer-inquiry.html"].active {
-  background: var(--nsaa-gold-hover);
-  border-color: var(--nsaa-gold-hover);
-  color: var(--nsaa-gold-dark);
-}
-
-.nsaa-nav-indicator {
-  position: absolute;
-  left: 0;
-  top: 0;
-  z-index: 0;
-  width: 0;
-  height: 0;
-  border: 1px solid rgba(223, 179, 108, 0.28);
-  border-radius: 4px;
-  background:
-    linear-gradient(180deg, rgba(223, 179, 108, 0.14), rgba(223, 179, 108, 0.055)),
-    rgba(255, 255, 255, 0.018);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    0 0 0 1px rgba(223, 179, 108, 0.045);
-  opacity: 0;
-  pointer-events: none;
-  transition:
-    transform 0.38s cubic-bezier(0.16, 1, 0.3, 1),
-    width 0.38s cubic-bezier(0.16, 1, 0.3, 1),
-    height 0.38s cubic-bezier(0.16, 1, 0.3, 1),
-    opacity 0.18s ease;
+.nsaa-nav-sep {
+  width: 1px;
+  height: 1.1rem;
+  background: var(--nsaa-border-strong);
+  flex: none;
 }
 
 .nsaa-nav-toggle {
@@ -393,12 +350,18 @@ a:hover {
     justify-content: flex-start;
     min-height: 3rem;
     padding: 0.86rem 0.9rem;
-    border-color: rgba(255, 255, 255, 0.045);
+    border: 1px solid transparent;
+    border-radius: 4px;
     background: rgba(255, 255, 255, 0.018);
+    transition: background-color 0.15s ease, color 0.15s ease;
   }
 
-  .nsaa-nav-links .nsaa-nav-link:hover {
-    transform: none;
+  .nsaa-nav-links .nsaa-nav-link::after {
+    content: none;
+  }
+
+  .nsaa-nav-links .nsaa-nav-link:active {
+    background: rgba(255, 255, 255, 0.04);
   }
 
   .nsaa-nav-links .nsaa-nav-link.active {
@@ -407,15 +370,10 @@ a:hover {
     color: var(--nsaa-text);
   }
 
-  .nsaa-nav-links .nsaa-nav-link[href$="organizer-inquiry.html"],
-  .nsaa-nav-links .nsaa-nav-link[href$="organizer-inquiry.html"].active {
-    background: var(--nsaa-gold);
-    border-color: var(--nsaa-gold);
-    color: var(--nsaa-gold-dark);
-  }
-
-  .nsaa-nav-indicator {
-    display: none;
+  .nsaa-nav-links .nsaa-nav-sep {
+    width: auto;
+    height: 1px;
+    margin: 0.2rem 0.4rem;
   }
 
   .nsaa-nav-links #clerk-auth-slot:not(:empty) {
@@ -489,7 +447,10 @@ a:hover {
   font-weight: 700;
   font-size: 0.92rem;
   padding: 0.65rem 1.25rem;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition:
+    background-color 0.2s var(--nsaa-ease-out),
+    border-color 0.2s var(--nsaa-ease-out),
+    transform 0.12s var(--nsaa-ease-out);
   letter-spacing: -0.01em;
 }
 
@@ -499,6 +460,10 @@ a:hover {
   border-color: var(--nsaa-gold-hover);
   color: var(--nsaa-gold-dark);
   transform: translateY(-1px);
+}
+
+.btn-nsaa:active {
+  transform: scale(0.97);
 }
 
 .btn-nsaa:disabled,
@@ -515,7 +480,10 @@ a:hover {
   font-weight: 600;
   font-size: 0.92rem;
   padding: 0.65rem 1.25rem;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition:
+    background-color 0.2s var(--nsaa-ease-out),
+    border-color 0.2s var(--nsaa-ease-out),
+    transform 0.12s var(--nsaa-ease-out);
 }
 
 .btn-outline-nsaa:hover,
@@ -526,6 +494,10 @@ a:hover {
   transform: translateY(-1px);
 }
 
+.btn-outline-nsaa:active {
+  transform: scale(0.97);
+}
+
 .form-control-nsaa,
 .form-select-nsaa {
   background-color: rgba(255, 255, 255, 0.015);
@@ -534,7 +506,10 @@ a:hover {
   color: var(--nsaa-text);
   min-height: 44px;
   font-size: 0.95rem;
-  transition: all 0.15s ease;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .form-control-nsaa::placeholder {
@@ -576,7 +551,7 @@ a:hover {
   border: 1px solid var(--nsaa-border-strong);
   border-radius: 6px;
   padding: 0.5rem;
-  transition: all 0.2s ease;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .nsaa-search-shell:focus-within {
@@ -736,7 +711,10 @@ a:hover {
   text-decoration: none;
   border: 1px solid var(--nsaa-border);
   border-radius: 4px;
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition:
+    border-color 0.3s var(--nsaa-ease-out),
+    transform 0.3s var(--nsaa-ease-out),
+    box-shadow 0.3s var(--nsaa-ease-out);
 }
 
 .nsaa-category-tile::before {
@@ -769,6 +747,23 @@ a:hover {
 .nsaa-category-tile:hover::before {
   opacity: 0.28;
   transform: scale(1.03);
+}
+
+@keyframes nsaaRise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.nsaa-category-tile,
+.nsaa-stagger-item {
+  animation: nsaaRise 0.45s var(--nsaa-ease-out) both;
+  animation-delay: calc(var(--stagger-index, 0) * 45ms);
 }
 
 .nsaa-category-count {
@@ -844,7 +839,10 @@ a:hover {
   overflow: hidden;
   position: relative;
   border: 1px solid var(--nsaa-border);
-  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  transition:
+    border-color 0.35s var(--nsaa-ease-out),
+    transform 0.35s var(--nsaa-ease-out),
+    box-shadow 0.35s var(--nsaa-ease-out);
 }
 
 .nsaa-event-card:hover .nsaa-event-media {
@@ -1253,8 +1251,8 @@ a:hover {
 }
 
 .nsaa-status-box {
-  animation: slideDownFade 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: slideDownFade 0.4s var(--nsaa-ease-out);
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
 }
 
 .nsaa-navbar {

@@ -40,26 +40,22 @@
             <i class="ph ph-x" aria-hidden="true"></i>
           </button>
           <div class="nsaa-nav-links" id="nsaa-nav-links">
-            <a href="search-results.html" class="nsaa-nav-link">Search</a>
+            <a href="search-results.html" class="nsaa-nav-link">Browse</a>
             <a href="about.html" class="nsaa-nav-link">About</a>
-            <a href="organizer-inquiry.html" class="nsaa-nav-link">List event</a>
-            <a href="organizer-dashboard.html" class="nsaa-nav-link">Dashboard</a>
             <a href="wallet.html" class="nsaa-nav-link">My tickets</a>
+            <span class="nsaa-nav-sep" aria-hidden="true"></span>
+            <a href="organizer-inquiry.html" class="nsaa-nav-link nsaa-nav-link--quiet">List your event</a>
+            <a href="organizer-dashboard.html" class="nsaa-nav-link nsaa-nav-link--quiet">Dashboard</a>
             <div id="clerk-auth-slot"></div>
           </div>
         </div>
       </div>
     </nav>
 
-    <script
-      async
-      crossorigin="anonymous"
-      data-clerk-publishable-key="pk_test_REPLACE_ME"
-      src="https://REPLACE_ME.clerk.accounts.dev/npm/@clerk/clerk-js@5/dist/clerk.browser.js"
-      type="text/javascript"
-    ></script>
+    <script src="js/clerk-config.js"></script>
+    <script src="js/clerk-loader.js"></script>
 
-    <header class="nsaa-hero-band">
+<header class="nsaa-hero-band">
       <div class="container nsaa-hero-inner">
         <div class="row align-items-center gy-5">
           <div class="col-lg-7">
@@ -292,11 +288,11 @@
 
       function renderCategories(counts = {}) {
         gridEl.innerHTML = NSAA.categories
-          .map((category) => {
+          .map((category, index) => {
             const count = counts[category.value] ?? 0;
             const countText = count === 1 ? "1 event" : `${count} events`;
             return `
-          <a class="nsaa-card nsaa-category-tile" href="category.html?category=${NSAA.escapeAttr(category.value)}" style="--category-image: url('${NSAA.escapeAttr(category.image)}');">
+          <a class="nsaa-card nsaa-category-tile" href="category.html?category=${NSAA.escapeAttr(category.value)}" style="--category-image: url('${NSAA.escapeAttr(category.image)}'); --stagger-index: ${index};">
             <span class="nsaa-chip" data-tone="${NSAA.escapeAttr(category.tone)}">${NSAA.escapeHtml(category.label)}</span>
             <span>
               <span class="d-block text-white fw-semibold">${NSAA.escapeHtml(category.description)}</span>
@@ -318,7 +314,7 @@
           .sort((a, b) => a.startsAt - b.startsAt)
           .slice(0, 6);
         featuredEl.innerHTML = sorted
-          .map((event) => NSAA.eventCard(event))
+          .map((event, index) => NSAA.eventCard(event, { index }))
           .join("");
       }
 

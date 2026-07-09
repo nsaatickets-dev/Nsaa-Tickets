@@ -1,6 +1,5 @@
 // Mounts Clerk's sign-in button or user avatar into the #clerk-auth-slot
-// element present in every page's navbar. Loaded after the Clerk script
-// tag (data-clerk-publishable-key) has already been injected in <head>.
+// element present in every page's navbar. Clerk is loaded by clerk-loader.js.
 //
 // This intentionally does NOT gate any page or action behind auth - per
 // the product decision that guest checkout is the default. Signing in
@@ -9,18 +8,22 @@
 
 window.addEventListener("load", async () => {
   const slot = document.getElementById("clerk-auth-slot");
-  if (!slot || !window.Clerk) return;
+  if (!slot) return;
 
   try {
-    await window.Clerk.load();
+    const clerk = window.NSAA?.getClerk
+      ? await window.NSAA.getClerk()
+      : await (window.NSAAClerkReady ?? Promise.resolve(window.Clerk));
 
-    if (window.Clerk.user) {
-      window.Clerk.mountUserButton(slot);
+    if (!clerk) return;
+
+    if (clerk.user || clerk.isSignedIn) {
+      clerk.mountUserButton(slot);
     } else {
       const signInBtn = document.createElement("button");
-      signInBtn.className = "btn btn-sm btn-nsaa";
+      signInBtn.className = "btn btn-sm btn-outline-nsaa";
       signInBtn.textContent = "Sign in";
-      signInBtn.addEventListener("click", () => window.Clerk.openSignIn());
+      signInBtn.addEventListener("click", () => clerk.openSignIn());
       slot.appendChild(signInBtn);
     }
   } catch (err) {

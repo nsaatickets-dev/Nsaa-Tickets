@@ -170,4 +170,25 @@ export default defineSchema({
     email: v.string(),
     createdAt: v.number(),
   }).index("by_email", ["email"]),
+
+  // Organizer payout ledger (the "escrow" model). Ticket revenue for an
+  // event isn't paid out to the organizer until the event's end date has
+  // passed and an admin explicitly triggers it (see convex/payouts.ts) -
+  // this table is what makes that a real accounting record rather than a
+  // one-off wire transfer with no trail. amountGHS is the organizer's cut
+  // only (ticketSubtotalGHS sum) - the service fee is always retained by
+  // the platform and never appears here.
+  payouts: defineTable({
+    eventId: v.id("events"),
+    organizerPayoutPhone: v.string(), // snapshotted at payout time
+    amountGHS: v.number(),
+    status: v.union(
+      v.literal("pending"), // transfer accepted by Moolre, awaiting confirmation
+      v.literal("paid"),
+      v.literal("failed"),
+    ),
+    moolreReference: v.optional(v.string()), // Moolre's transactionid once confirmed
+    createdAt: v.number(),
+    paidAt: v.optional(v.number()),
+  }).index("by_event", ["eventId"]),
 });

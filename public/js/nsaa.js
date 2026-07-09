@@ -1,5 +1,5 @@
 (function () {
-  const CONVEX_URL = "https://REPLACE_ME.convex.cloud";
+  const CONVEX_URL = "https://adjoining-aardvark-475.convex.cloud";
 
   const categories = [
     {
@@ -160,8 +160,9 @@
     const href =
       options.href || `event.html?id=${encodeURIComponent(event._id)}`;
     const cityLine = [event.venue, event.city].filter(Boolean).join(", ");
+    const staggerIndex = Number.isFinite(options.index) ? options.index : 0;
     return `
-      <div class="${escapeAttr(options.colClass || "col-md-6 col-xl-4")}">
+      <div class="${escapeAttr(options.colClass || "col-md-6 col-xl-4")} nsaa-stagger-item" style="--stagger-index: ${staggerIndex};">
         <a class="text-decoration-none d-block h-100" href="${escapeAttr(href)}">
           <article class="nsaa-card nsaa-event-card h-100">
             <div class="nsaa-event-media" style="background-image: linear-gradient(180deg, rgba(15,14,17,0.02), rgba(15,14,17,0.42)), url('${escapeAttr(image)}');"></div>
@@ -228,16 +229,26 @@
     return Boolean(CONVEX_URL && !CONVEX_URL.includes("REPLACE_ME"));
   }
 
+  async function getClerk() {
+    if (window.NSAAClerkReady) {
+      return await window.NSAAClerkReady;
+    }
+
+    return window.Clerk ?? null;
+  }
+
   async function attachConvexAuth(client) {
-    if (!client || !window.Clerk || typeof client.setAuth !== "function") {
+    if (!client || typeof client.setAuth !== "function") {
       return false;
     }
 
     try {
-      await window.Clerk.load();
+      const clerk = await getClerk();
+      if (!clerk) return false;
+
       client.setAuth(async () => {
-        if (!window.Clerk.session) return null;
-        return await window.Clerk.session.getToken({ template: "convex" });
+        if (!clerk.session) return null;
+        return await clerk.session.getToken({ template: "convex" });
       });
       return true;
     } catch (err) {
@@ -411,24 +422,6 @@
       if (!links) return;
 
       const navLinks = Array.from(links.querySelectorAll(".nsaa-nav-link"));
-      const iconByHref = {
-        "search-results.html": "ph-magnifying-glass",
-        "about.html": "ph-info",
-        "organizer-inquiry.html": "ph-calendar-plus",
-        "organizer-dashboard.html": "ph-squares-four",
-        "wallet.html": "ph-ticket",
-      };
-
-      navLinks.forEach((link) => {
-        const href = link.getAttribute("href");
-        const icon = iconByHref[href];
-        if (!icon || link.querySelector("i")) return;
-
-        const glyph = document.createElement("i");
-        glyph.className = `ph ${icon}`;
-        glyph.setAttribute("aria-hidden", "true");
-        link.prepend(glyph);
-      });
 
       const currentPage = window.location.pathname.split("/").pop() || "index.html";
       const inferredActiveHref =
@@ -450,44 +443,6 @@
           link.removeAttribute("aria-current");
         }
       });
-
-      const indicator = document.createElement("span");
-      indicator.className = "nsaa-nav-indicator";
-      indicator.setAttribute("aria-hidden", "true");
-      links.prepend(indicator);
-
-      let activeLink = links.querySelector(".nsaa-nav-link.active");
-
-      const canUseIndicator = (target) =>
-        target &&
-        window.innerWidth >= 992 &&
-        target.getAttribute("href") !== "organizer-inquiry.html";
-
-      const moveIndicator = (target) => {
-        if (!canUseIndicator(target)) {
-          indicator.style.opacity = "0";
-          return;
-        }
-
-        indicator.style.width = `${target.offsetWidth}px`;
-        indicator.style.height = `${target.offsetHeight}px`;
-        indicator.style.transform = `translate3d(${target.offsetLeft}px, ${target.offsetTop}px, 0)`;
-        indicator.style.opacity = "1";
-      };
-
-      navLinks.forEach((link) => {
-        link.addEventListener("mouseenter", () => moveIndicator(link));
-        link.addEventListener("focus", () => moveIndicator(link));
-      });
-
-      links.addEventListener("mouseleave", () => moveIndicator(activeLink));
-      links.addEventListener("focusout", () => {
-        window.requestAnimationFrame(() => {
-          if (!links.contains(document.activeElement)) moveIndicator(activeLink);
-        });
-      });
-
-      window.requestAnimationFrame(() => moveIndicator(activeLink));
 
       if (!toggle) return;
 
@@ -521,7 +476,6 @@
 
       window.addEventListener("resize", () => {
         if (window.innerWidth >= 992) close();
-        moveIndicator(activeLink);
       });
     });
   }
@@ -540,6 +494,7 @@
     eventImage,
     attachConvexAuth,
     formatDate,
+    getClerk,
     isConvexConfigured,
     loading,
     money,

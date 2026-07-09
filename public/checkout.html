@@ -28,15 +28,10 @@
       </div>
     </nav>
 
-    <script
-      async
-      crossorigin="anonymous"
-      data-clerk-publishable-key="pk_test_REPLACE_ME"
-      src="https://REPLACE_ME.clerk.accounts.dev/npm/@clerk/clerk-js@5/dist/clerk.browser.js"
-      type="text/javascript"
-    ></script>
+    <script src="js/clerk-config.js"></script>
+    <script src="js/clerk-loader.js"></script>
 
-    <main class="container py-5" style="max-width: 920px">
+<main class="container py-5" style="max-width: 920px">
       <div id="checkout-root">
         <div id="checkout-loading"></div>
       </div>
@@ -124,6 +119,14 @@
                 <p class="mb-0">Your ticket reservation is held while you start payment.</p>
               </div>
               <button id="pay-btn" class="btn btn-nsaa w-100" type="button">Send payment prompt</button>
+              <div id="otp-step" class="d-none mt-3">
+                <label class="form-label nsaa-muted small" for="otp-code">Verification code</label>
+                <div class="d-flex gap-2">
+                  <input id="otp-code" class="form-control form-control-nsaa" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="123456" />
+                  <button id="otp-submit-btn" class="btn btn-nsaa" type="button">Verify</button>
+                </div>
+                <p class="nsaa-faint small mt-2 mb-0">Moolre sent a verification code to your phone via SMS. Enter it above to continue.</p>
+              </div>
               <a id="status-link" class="btn btn-outline-nsaa w-100 mt-3" href="#">Open order status</a>
             </div>
           </section>
@@ -338,20 +341,40 @@
       `;
       }
 
-      document.addEventListener("click", async (event) => {
-        if (event.target?.id !== "pay-btn") return;
-        const payBtn = event.target;
-        payBtn.disabled = true;
+      async function submitMoolrePayment(otpcode) {
+        const payBtn = document.getElementById("pay-btn");
+        const otpStep = document.getElementById("otp-step");
+        const otpSubmitBtn = document.getElementById("otp-submit-btn");
+        const activeBtn = otpcode ? otpSubmitBtn : payBtn;
+        activeBtn.disabled = true;
+
         setPaymentState(
           "waiting",
-          "Sending payment prompt",
-          "Keep this page open. Your phone may ask you to approve the Mobile Money payment.",
+          otpcode ? "Verifying code" : "Sending payment prompt",
+          otpcode
+            ? "Confirming your verification code with Moolre."
+            : "Keep this page open. Your phone may ask you to approve the Mobile Money payment.",
         );
 
         try {
-          await client.action("orders:initiateMoolrePayment", {
+          const result = await client.action("orders:initiateMoolrePayment", {
             orderId: currentOrderId,
+            ...(otpcode ? { otpcode } : {}),
           });
+
+          if (result.status === "otp_required" || result.status === "otp_invalid") {
+            otpStep.classList.remove("d-none");
+            payBtn.disabled = true;
+            otpSubmitBtn.disabled = false;
+            setPaymentState(
+              "waiting",
+              result.status === "otp_invalid" ? "Incorrect code" : "Enter verification code",
+              "Moolre sent a code to your phone via SMS. Enter it above to continue.",
+            );
+            return;
+          }
+
+          otpStep.classList.add("d-none");
           setPaymentState(
             "waiting",
             "Waiting for confirmation",
@@ -365,6 +388,18 @@
             err.message || "Please try again.",
           );
           payBtn.disabled = false;
+          otpSubmitBtn.disabled = false;
+        }
+      }
+
+      document.addEventListener("click", async (event) => {
+        if (event.target?.id === "pay-btn") {
+          await submitMoolrePayment();
+        }
+        if (event.target?.id === "otp-submit-btn") {
+          const code = document.getElementById("otp-code").value.trim();
+          if (!code) return;
+          await submitMoolrePayment(code);
         }
       });
 
