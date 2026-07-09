@@ -322,14 +322,48 @@
         };
       }
 
+      const PLAN_OPTIONS = [
+        { tier: "free", label: "Free", fee: "0%", blurb: "Non-ticketed or free events." },
+        { tier: "essential", label: "Essential", fee: "4%", blurb: "Small to medium paid events." },
+        { tier: "pro", label: "Pro", fee: "6.5%", blurb: "Growth-focused, higher-volume events." },
+      ];
+
+      function planPickerHtml(currentTier) {
+        const selected = currentTier || "essential";
+        return `
+        <div class="nsaa-panel mb-4">
+          <h2 class="h5 mb-1">Your plan</h2>
+          <p class="nsaa-muted small mb-3">Applies to every event on your account. Nsaa's fee is a percentage of ticket price only - never charged on free tickets. Need a custom rate for a large event? <a href="contact.html">Contact us</a>.</p>
+          <div class="row g-2" id="plan-picker">
+            ${PLAN_OPTIONS.map(
+              (opt) => `
+              <div class="col-sm-4">
+                <label class="nsaa-meta-item d-block mb-0" style="cursor: pointer; ${opt.tier === selected ? "border-color: var(--nsaa-gold);" : ""}">
+                  <input type="radio" name="plan-tier" value="${opt.tier}" class="form-check-input me-2" ${opt.tier === selected ? "checked" : ""} />
+                  <span class="fw-semibold">${opt.label}</span>
+                  <span class="nsaa-faint small d-block mt-1">${opt.fee} per paid ticket</span>
+                  <span class="nsaa-faint small d-block">${opt.blurb}</span>
+                </label>
+              </div>
+            `,
+            ).join("")}
+          </div>
+        </div>
+      `;
+      }
+
       async function renderEditor(client, existingEvent) {
         const isEditing = Boolean(existingEvent);
+        const organizerProfile = isEditing
+          ? null
+          : await client.query("events:myOrganizerTier", {});
 
         root.innerHTML = `
         <a class="nsaa-nav-link d-inline-flex align-items-center gap-1 mb-4" href="organizer-dashboard.html">
           <i class="ph ph-arrow-left"></i> Back to my events
         </a>
         <div id="sales-summary-slot"></div>
+        ${isEditing ? "" : planPickerHtml(organizerProfile?.tier)}
         <div class="nsaa-panel mb-4">
           <div class="d-flex justify-content-between align-items-center mb-3">
             <h2 class="h4 mb-0">${isEditing ? "Edit event" : "New event"}</h2>
@@ -369,6 +403,9 @@
               });
               resultEl.innerHTML = `<div class="nsaa-status-box success"><p class="fw-semibold mb-1">Saved</p><p class="mb-0">Your event details were updated.</p></div>`;
             } else {
+              const selectedTier =
+                document.querySelector('input[name="plan-tier"]:checked')?.value || "essential";
+              await client.mutation("events:setOrganizerTier", { tier: selectedTier });
               const newId = await client.mutation("events:createEvent", fields);
               window.location.href = `organizer-dashboard.html?eventId=${encodeURIComponent(newId)}`;
               return;

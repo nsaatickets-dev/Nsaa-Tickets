@@ -1,6 +1,7 @@
 import { action, internalAction, internalMutation, query } from "./_generated/server";
 import { internal, api } from "./_generated/api";
 import { v } from "convex/values";
+import { requireAdminSecret } from "./admin";
 
 // Moolre's TRANSFER channel codes are different from their COLLECTION
 // channel codes (verified against docs.moolre.com) - MTN is 1 here vs 13
@@ -67,11 +68,16 @@ export const payoutsForEvent = query({
 // eligible only after the event's end date has passed, and there is no
 // self-serve organizer request flow or automatic batch job yet - this is
 // invoked manually, one event at a time, via `npx convex run
-// payouts:initiateOrganizerPayout '{"eventId":"..."}'` or the Convex
-// dashboard function runner.
+// payouts:initiateOrganizerPayout '{"adminSecret":"...","eventId":"..."}'`
+// or the Convex dashboard function runner.
 export const initiateOrganizerPayout = action({
-  args: { eventId: v.id("events") },
-  handler: async (ctx, { eventId }): Promise<{ status: string; amountGHS?: number }> => {
+  args: { adminSecret: v.string(), eventId: v.id("events") },
+  handler: async (
+    ctx,
+    { adminSecret, eventId },
+  ): Promise<{ status: string; amountGHS?: number }> => {
+    requireAdminSecret(adminSecret);
+
     const event = await ctx.runQuery(api.events.getById, { eventId });
     if (!event) throw new Error("Event not found");
     if (event.status === "cancelled") {

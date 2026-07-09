@@ -171,6 +171,23 @@ export default defineSchema({
     createdAt: v.number(),
   }).index("by_email", ["email"]),
 
+  // Self-serve organizer pricing tier (see convex/events.ts and
+  // convex/orders.ts:computeServiceFee). One profile per Clerk user -
+  // applies to every event that organizer runs, not chosen per event.
+  // No profile (legacy/seeded events, or an organizer who never picked a
+  // plan) falls back to the "essential" rate - see feePercentForTier.
+  organizerProfiles: defineTable({
+    organizerClerkUserId: v.string(),
+    tier: v.union(
+      v.literal("free"), // 0% - non-ticketed/free events only in practice, since fee only ever applies to paid tickets anyway
+      v.literal("essential"),
+      v.literal("pro"),
+      v.literal("custom"), // admin-assigned only, not self-serve
+    ),
+    customFeePercent: v.optional(v.number()), // only meaningful for "custom"
+    updatedAt: v.number(),
+  }).index("by_organizer", ["organizerClerkUserId"]),
+
   // Organizer payout ledger (the "escrow" model). Ticket revenue for an
   // event isn't paid out to the organizer until the event's end date has
   // passed and an admin explicitly triggers it (see convex/payouts.ts) -

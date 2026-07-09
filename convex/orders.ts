@@ -1,19 +1,21 @@
 import { mutation, query, internalMutation, action } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
+import { feePercentForTier } from "./events";
 
 // How long a reservation holds inventory before it's released back to
 // availability. Long enough to comfortably approve a MoMo prompt,
 // short enough that abandoned carts don't lock up tickets forever.
 const RESERVATION_MS = 10 * 60 * 1000; // 10 minutes
 
-// Nsaa's fee structure: 5% of ticket subtotal + a flat GHS 0.50.
-// This mirrors a standard, defensible ticketing fee shape. Adjust once
-// you've validated pricing with real organizers.
-function computeServiceFee(ticketSubtotalGHS: number): number {
-  const percentageFee = ticketSubtotalGHS * 0.05;
-  const flatFee = 0.5;
-  return Math.round((percentageFee + flatFee) * 100) / 100;
+// Nsaa's fee is a pure percentage of ticket subtotal, driven by the
+// organizer's pricing tier (see convex/events.ts:TIER_FEE_PERCENT) - no
+// flat add-on. Free tickets are never charged a fee, matching every
+// tier's intent (a percentage of zero is zero, but this also protects
+// against a future flat-fee re-add accidentally charging free tickets).
+function computeServiceFee(ticketSubtotalGHS: number, feePercent: number): number {
+  if (ticketSubtotalGHS <= 0) return 0;
+  return Math.round(ticketSubtotalGHS * feePercent * 100) / 100;
 }
 
 // Moolre's collection API requires a `channel` telling it which network
@@ -66,6 +68,8 @@ export const createReservation = mutation({
     const identity = await ctx.auth.getUserIdentity();
     const ticketType = await ctx.db.get(args.ticketTypeId);
     if (!ticketType) throw new Error("Ticket type not found");
+    const event = await ctx.db.get(args.eventId);
+    if (!event) throw new Error("Event not found");
 
     const available =
       ticketType.quantityTotal -
@@ -79,8 +83,23 @@ export const createReservation = mutation({
       );
     }
 
+    // Fee percentage is the organizer's own pricing tier, not a
+    // platform-wide constant - see convex/events.ts:setOrganizerTier.
+    const organizerProfile = event.organizerClerkUserId
+      ? await ctx.db
+          .query("organizerProfiles")
+          .withIndex("by_organizer", (q) =>
+            q.eq("organizerClerkUserId", event.organizerClerkUserId!),
+          )
+          .unique()
+      : null;
+    const feePercent = feePercentForTier(
+      organizerProfile?.tier,
+      organizerProfile?.customFeePercent,
+    );
+
     const ticketSubtotalGHS = ticketType.priceGHS * args.quantity;
-    const serviceFeeGHS = computeServiceFee(ticketSubtotalGHS);
+    const serviceFeeGHS = computeServiceFee(ticketSubtotalGHS, feePercent);
     const totalGHS =
       Math.round((ticketSubtotalGHS + serviceFeeGHS) * 100) / 100;
 

@@ -33,6 +33,22 @@ Clerk, Convex, Brevo, and Moolre.
   on `events` and always derived server-side from the verified identity,
   never a client-supplied id. `seedDemoEvent` is unrelated/still
   available for local demo data (seeded events have no organizer owner).
+- **Organizer pricing tiers** (`convex/events.ts`, `organizerProfiles`
+  table) - Free (0%), Essential (4%), Pro (6.5%) self-serve at event
+  creation, plus an admin-only Custom tier with a per-organizer rate.
+  Adapted from a competitor's public pricing (egotickets.com/pricing),
+  kept slightly below theirs. `orders.ts` looks up the event's
+  organizer's tier when computing the checkout service fee - no tier on
+  file (legacy/seeded events) falls back to the Essential rate. Fee is a
+  pure percentage of ticket price with no flat add-on, and is never
+  charged on free tickets.
+- **Organizer payout / escrow ledger** (`convex/payouts.ts`,
+  `payouts` table) - admin-triggered per event, only once the event's
+  end date has passed. Computes what's owed (paid orders' ticket
+  subtotal, i.e. the organizer's cut - the service fee is never part of
+  a payout) minus anything already paid/pending, then transfers via
+  Moolre. Same "verify via Moolre's own status endpoint" pattern as
+  collections, since Moolre documents no webhook signature scheme.
 
 ## What you MUST fill in before this runs for real
 
@@ -86,6 +102,13 @@ Clerk, Convex, Brevo, and Moolre.
    `POST /open/account/update`'s `callback` field), pointing at
    `https://your-deployment.convex.site/moolre/webhook` (note:
    `.convex.site`, not `.convex.cloud` - that's the HTTP actions domain).
+
+8. **Admin secret** - generate one with `openssl rand -hex 32`, set via
+   `npx convex env set ADMIN_SECRET ...`. Required by
+   `payouts:initiateOrganizerPayout` and `events:setOrganizerTierAdmin` -
+   see `convex/admin.ts` for why (there's no real admin-role system yet,
+   so this is the only thing stopping anyone who knows your deployment
+   URL from triggering a payout or setting an organizer's fee rate).
 
 ## Running the frontend locally
 

@@ -1,6 +1,105 @@
 import { mutation, query, MutationCtx } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { v } from "convex/values";
+import { requireAdminSecret } from "./admin";
+
+// Organizer pricing tiers, adapted from a competitor's public pricing
+// (egotickets.com/pricing: Free 0%, Essential 5%, Pro 7.5%) - kept
+// slightly below theirs per product decision. "custom" has no listed
+// rate; an admin sets customFeePercent per organizer via
+// setOrganizerTierAdmin, same "contact us" pattern as the reference.
+export const TIER_FEE_PERCENT: Record<string, number> = {
+  free: 0,
+  essential: 0.04,
+  pro: 0.065,
+};
+
+// Pure function (no DB access) so orders.ts can reuse it without an extra
+// query round-trip - callers already have the organizerProfiles row (or
+// know there isn't one) from their own query.
+export function feePercentForTier(
+  tier: string | undefined,
+  customFeePercent?: number,
+): number {
+  if (!tier) return TIER_FEE_PERCENT.essential; // no profile yet - legacy/seeded events
+  if (tier === "custom") return customFeePercent ?? TIER_FEE_PERCENT.pro;
+  return TIER_FEE_PERCENT[tier] ?? TIER_FEE_PERCENT.essential;
+}
+
+export const myOrganizerTier = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+    return await ctx.db
+      .query("organizerProfiles")
+      .withIndex("by_organizer", (q) => q.eq("organizerClerkUserId", identity.subject))
+      .unique();
+  },
+});
+
+// Self-serve - organizers can pick their own plan when creating an event.
+// "custom" is deliberately excluded here (admin-only, see
+// setOrganizerTierAdmin) so nobody can self-assign an arbitrary rate.
+export const setOrganizerTier = mutation({
+  args: {
+    tier: v.union(v.literal("free"), v.literal("essential"), v.literal("pro")),
+  },
+  handler: async (ctx, { tier }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Sign in required.");
+
+    const existing = await ctx.db
+      .query("organizerProfiles")
+      .withIndex("by_organizer", (q) => q.eq("organizerClerkUserId", identity.subject))
+      .unique();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, { tier, updatedAt: Date.now() });
+    } else {
+      await ctx.db.insert("organizerProfiles", {
+        organizerClerkUserId: identity.subject,
+        tier,
+        updatedAt: Date.now(),
+      });
+    }
+  },
+});
+
+// Admin-only (the "Custom / Contact Us" tier) - callable via
+// `npx convex run events:setOrganizerTierAdmin '{"adminSecret":"...","organizerClerkUserId":"...","tier":"custom","customFeePercent":0.03}'`
+export const setOrganizerTierAdmin = mutation({
+  args: {
+    adminSecret: v.string(),
+    organizerClerkUserId: v.string(),
+    tier: v.union(
+      v.literal("free"),
+      v.literal("essential"),
+      v.literal("pro"),
+      v.literal("custom"),
+    ),
+    customFeePercent: v.optional(v.number()),
+  },
+  handler: async (ctx, { adminSecret, organizerClerkUserId, tier, customFeePercent }) => {
+    requireAdminSecret(adminSecret);
+
+    const existing = await ctx.db
+      .query("organizerProfiles")
+      .withIndex("by_organizer", (q) => q.eq("organizerClerkUserId", organizerClerkUserId))
+      .unique();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, { tier, customFeePercent, updatedAt: Date.now() });
+    } else {
+      await ctx.db.insert("organizerProfiles", {
+        organizerClerkUserId,
+        tier,
+        customFeePercent,
+        updatedAt: Date.now(),
+      });
+    }
+  },
+});
 
 // List all published events, most recent first.
 export const listPublished = query({
