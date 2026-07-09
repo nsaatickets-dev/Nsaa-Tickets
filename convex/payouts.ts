@@ -2,6 +2,7 @@ import { action, internalAction, internalMutation, query } from "./_generated/se
 import { internal, api } from "./_generated/api";
 import { v } from "convex/values";
 import { requireAdminSecret } from "./admin";
+import { alertCritical } from "./alerts";
 
 // Moolre's TRANSFER channel codes are different from their COLLECTION
 // channel codes (verified against docs.moolre.com) - MTN is 1 here vs 13
@@ -189,7 +190,13 @@ export const verifyAndProcessPayout = internalAction({
       txstatus = payload?.data?.txstatus;
       transactionId = payload?.data?.transactionid;
     } catch (err) {
-      console.error("Moolre payout status check failed", err);
+      // Real money left the platform (a transfer to an organizer) and we
+      // can't confirm it went through - worth a human looking at
+      // promptly, not just a routine failure.
+      await alertCritical(
+        "Moolre payout status check failed",
+        `Could not verify payout status for payout ${payoutId} (externalref ${externalref}): ${err instanceof Error ? err.message : String(err)}`,
+      );
       return;
     }
 

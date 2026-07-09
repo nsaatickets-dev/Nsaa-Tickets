@@ -487,6 +487,42 @@
 
   initNavToggle();
 
+  // Global safety net: an uncaught error or unhandled promise rejection
+  // anywhere on the page shows a small, dismissible banner instead of the
+  // page silently hanging (e.g. a stuck loading skeleton with no
+  // explanation). Deliberately a banner, not a full-page takeover - it
+  // doesn't know what state the rest of the page's own error handling is
+  // in, so it shouldn't clobber it.
+  function initGlobalErrorBanner() {
+    let shown = false;
+
+    function showBanner() {
+      if (shown) return;
+      shown = true;
+
+      document.addEventListener("DOMContentLoaded", renderBanner);
+      if (document.readyState !== "loading") renderBanner();
+    }
+
+    function renderBanner() {
+      if (document.getElementById("nsaa-global-error-banner")) return;
+      const banner = document.createElement("div");
+      banner.id = "nsaa-global-error-banner";
+      banner.setAttribute("role", "alert");
+      banner.style.cssText =
+        "position:fixed; left:0; right:0; bottom:0; z-index:2000; background:#c43d3d; color:#fff; padding:0.85rem 1rem; text-align:center; font-family:'Instrument Sans',sans-serif; font-size:0.92rem;";
+      banner.innerHTML =
+        'Something went wrong loading part of this page. <button type="button" style="margin-left:0.75rem; background:#fff; color:#c43d3d; border:none; border-radius:4px; padding:0.3rem 0.75rem; font-weight:700; cursor:pointer;">Refresh</button>';
+      banner.querySelector("button").addEventListener("click", () => window.location.reload());
+      document.body.appendChild(banner);
+    }
+
+    window.addEventListener("error", () => showBanner());
+    window.addEventListener("unhandledrejection", () => showBanner());
+  }
+
+  initGlobalErrorBanner();
+
   window.NSAA = {
     CONVEX_URL,
     categories,

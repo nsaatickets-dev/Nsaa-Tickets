@@ -9,6 +9,7 @@
     "serve": "npx http-server public -p 8080"
   },
   "dependencies": {
+    "@convex-dev/rate-limiter": "^0.3.2",
     "convex": "^1.17.0",
     "qrcode": "^1.5.4"
   },

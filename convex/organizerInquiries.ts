@@ -2,6 +2,8 @@ import { mutation, internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { escapeHtml, sendBrevoEmail, SENDERS, renderEmailLayout, paragraph } from "./email";
+import { requireNonEmpty, requireValidEmail, requireValidGhanaPhone, requirePositiveInteger } from "./validation";
+import { rateLimiter } from "./rateLimit";
 
 export const create = mutation({
   args: {
@@ -15,19 +17,42 @@ export const create = mutation({
     message: v.string(),
   },
   handler: async (ctx, args) => {
+    const organizerName = requireNonEmpty(args.organizerName, "Organizer name", 140);
+    const contactName = requireNonEmpty(args.contactName, "Contact name", 120);
+    const phone = requireValidGhanaPhone(args.phone);
+    const email = args.email ? requireValidEmail(args.email) : undefined;
+    const eventType = requireNonEmpty(args.eventType, "Event type", 60);
+    const eventCity = requireNonEmpty(args.eventCity, "Event city", 80);
+    const message = requireNonEmpty(args.message, "Message", 4000);
+    const expectedAttendance =
+      args.expectedAttendance !== undefined
+        ? requirePositiveInteger(args.expectedAttendance, "Expected attendance", 1_000_000)
+        : undefined;
+
+    // Keyed on phone, not email - phone is always required here, email
+    // isn't (guest-first, same pattern as checkout).
+    await rateLimiter.limit(ctx, "organizerInquiryByPhone", { key: phone, throws: true });
+
     const id = await ctx.db.insert("organizerInquiries", {
-      ...args,
+      organizerName,
+      contactName,
+      phone,
+      email,
+      eventType,
+      eventCity,
+      expectedAttendance,
+      message,
       status: "new",
       createdAt: Date.now(),
     });
 
     // Email is optional on this form (phone is the primary contact,
     // guest-first like checkout) - only send if they gave one.
-    if (args.email) {
+    if (email) {
       await ctx.scheduler.runAfter(0, internal.organizerInquiries.sendAcknowledgement, {
-        contactName: args.contactName,
-        organizerName: args.organizerName,
-        email: args.email,
+        contactName,
+        organizerName,
+        email,
       });
     }
 

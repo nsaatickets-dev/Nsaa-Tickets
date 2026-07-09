@@ -85,8 +85,12 @@ export default defineSchema({
     createdAt: v.number(),
     paidAt: v.optional(v.number()),
   })
-    .index("by_status", ["status"])
-    .index("by_moolre_reference", ["moolreReference"])
+    // No standalone by_status index - by_reserved_until's leading column
+    // (status) already serves pure status-equality lookups as a prefix,
+    // so a separate index would just add write overhead for no read
+    // benefit. No by_moolre_reference either - the Moolre webhook/status
+    // rewrite looks orders up directly by _id (parsed from the
+    // order:<id> externalref), never by searching this field.
     .index("by_reserved_until", ["status", "reservedUntil"])
     .index("by_clerk_user", ["clerkUserId"])
     .index("by_event", ["eventId"]),
@@ -121,8 +125,10 @@ export default defineSchema({
 
     createdAt: v.number(),
   })
+    // No by_qr_token index - validateScan looks a ticket up by its _id
+    // (the first segment of the token), never by searching for a token
+    // value, so this would just add write overhead with no read benefit.
     .index("by_order", ["orderId"])
-    .index("by_qr_token", ["qrToken"])
     .index("by_event", ["eventId"]),
 
   organizerInquiries: defineTable({

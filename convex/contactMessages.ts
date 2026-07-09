@@ -2,6 +2,8 @@ import { mutation, internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { escapeHtml, sendBrevoEmail, SENDERS, renderEmailLayout, paragraph } from "./email";
+import { requireNonEmpty, requireValidEmail } from "./validation";
+import { rateLimiter } from "./rateLimit";
 
 const TOPIC_LABEL: Record<string, string> = {
   support: "support",
@@ -25,15 +27,24 @@ export const create = mutation({
     message: v.string(),
   },
   handler: async (ctx, args) => {
+    const name = requireNonEmpty(args.name, "Name", 120);
+    const email = requireValidEmail(args.email);
+    const message = requireNonEmpty(args.message, "Message", 4000);
+
+    await rateLimiter.limit(ctx, "contactByEmail", { key: email, throws: true });
+
     const id = await ctx.db.insert("contactMessages", {
-      ...args,
+      name,
+      email,
+      topic: args.topic,
+      message,
       status: "new",
       createdAt: Date.now(),
     });
 
     await ctx.scheduler.runAfter(0, internal.contactMessages.sendAcknowledgement, {
-      name: args.name,
-      email: args.email,
+      name,
+      email,
       topic: args.topic,
     });
 

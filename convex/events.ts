@@ -2,6 +2,13 @@ import { mutation, query, MutationCtx } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { requireAdminSecret } from "./admin";
+import {
+  requireNonEmpty,
+  optionalTrimmed,
+  requireValidGhanaPhone,
+  requirePositiveNumber,
+  requirePositiveInteger,
+} from "./validation";
 
 // Organizer pricing tiers, adapted from a competitor's public pricing
 // (egotickets.com/pricing: Free 0%, Essential 5%, Pro 7.5%) - kept
@@ -304,6 +311,42 @@ const eventFields = {
   organizerPayoutPhone: v.optional(v.string()),
 };
 
+interface RawEventFields {
+  title: string;
+  description: string;
+  venue: string;
+  address: string;
+  city: string;
+  startsAt: number;
+  endsAt?: number;
+  heroImageUrl?: string;
+  category: string;
+  organizerName: string;
+  organizerPayoutPhone?: string;
+}
+
+// Shared by createEvent/updateEvent - trims and length-bounds every
+// free-text field. Client-side forms already discourage garbage input,
+// but that's UX only; this is the real gate, since these fields render
+// on public event pages and in search results.
+function sanitizeEventFields(fields: RawEventFields) {
+  return {
+    title: requireNonEmpty(fields.title, "Event title", 140),
+    description: requireNonEmpty(fields.description, "Description", 4000),
+    venue: requireNonEmpty(fields.venue, "Venue", 140),
+    address: requireNonEmpty(fields.address, "Address", 200),
+    city: requireNonEmpty(fields.city, "City", 80),
+    startsAt: fields.startsAt,
+    endsAt: fields.endsAt,
+    heroImageUrl: optionalTrimmed(fields.heroImageUrl, 2000),
+    category: requireNonEmpty(fields.category, "Category", 40),
+    organizerName: requireNonEmpty(fields.organizerName, "Organizer name", 140),
+    organizerPayoutPhone: fields.organizerPayoutPhone
+      ? requireValidGhanaPhone(fields.organizerPayoutPhone)
+      : undefined,
+  };
+}
+
 export const createEvent = mutation({
   args: eventFields,
   handler: async (ctx, args) => {
@@ -311,7 +354,7 @@ export const createEvent = mutation({
     if (!identity) throw new Error("Sign in required to create an event.");
 
     return await ctx.db.insert("events", {
-      ...args,
+      ...sanitizeEventFields(args),
       status: "draft",
       organizerClerkUserId: identity.subject,
       createdAt: Date.now(),
@@ -323,7 +366,7 @@ export const updateEvent = mutation({
   args: { eventId: v.id("events"), ...eventFields },
   handler: async (ctx, { eventId, ...fields }) => {
     await requireOwnedEvent(ctx, eventId);
-    await ctx.db.patch(eventId, fields);
+    await ctx.db.patch(eventId, sanitizeEventFields(fields));
   },
 });
 
@@ -353,9 +396,9 @@ export const createTicketType = mutation({
     await requireOwnedEvent(ctx, args.eventId);
     return await ctx.db.insert("ticketTypes", {
       eventId: args.eventId,
-      name: args.name,
-      priceGHS: args.priceGHS,
-      quantityTotal: args.quantityTotal,
+      name: requireNonEmpty(args.name, "Ticket type name", 80),
+      priceGHS: requirePositiveNumber(args.priceGHS, "Price", 100_000),
+      quantityTotal: requirePositiveInteger(args.quantityTotal, "Quantity", 100_000),
       quantitySold: 0,
       quantityReserved: 0,
     });
@@ -374,20 +417,17 @@ export const updateTicketType = mutation({
     if (!ticketType) throw new Error("Ticket type not found.");
     await requireOwnedEvent(ctx, ticketType.eventId);
 
-    if (
-      args.quantityTotal <
-      ticketType.quantitySold + ticketType.quantityReserved
-    ) {
+    const name = requireNonEmpty(args.name, "Ticket type name", 80);
+    const priceGHS = requirePositiveNumber(args.priceGHS, "Price", 100_000);
+    const quantityTotal = requirePositiveInteger(args.quantityTotal, "Quantity", 100_000);
+
+    if (quantityTotal < ticketType.quantitySold + ticketType.quantityReserved) {
       throw new Error(
         "Quantity can't be reduced below tickets already sold or reserved.",
       );
     }
 
-    await ctx.db.patch(args.ticketTypeId, {
-      name: args.name,
-      priceGHS: args.priceGHS,
-      quantityTotal: args.quantityTotal,
-    });
+    await ctx.db.patch(args.ticketTypeId, { name, priceGHS, quantityTotal });
   },
 });
 
@@ -411,10 +451,13 @@ export const deleteTicketType = mutation({
 // Seed demo events. Intended to be called once from the Convex dashboard
 // function runner for local/demo data - unrelated to organizer-created
 // events above (seeded events have no organizerClerkUserId, so they
-// won't appear in any organizer's dashboard).
+// won't appear in any organizer's dashboard). Admin-gated - this was
+// previously a fully public mutation, meaning anyone with the deployment
+// URL could spam-create fake events at will.
 export const seedDemoEvent = mutation({
-  args: {},
-  handler: async (ctx) => {
+  args: { adminSecret: v.string() },
+  handler: async (ctx, { adminSecret }) => {
+    requireAdminSecret(adminSecret);
     const now = Date.now();
     const day = 1000 * 60 * 60 * 24;
 

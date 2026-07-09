@@ -3,6 +3,7 @@ import { internal, api } from "./_generated/api";
 import { v } from "convex/values";
 import { issueTickets } from "./tickets";
 import { escapeHtml, sendBrevoEmail, SENDERS, renderEmailLayout, paragraph, ticketBlock } from "./email";
+import { alertCritical } from "./alerts";
 
 // Called from convex/http.ts when Moolre POSTs to our webhook, after it
 // has already parsed the `order:<id>` prefix off data.externalref.
@@ -39,7 +40,13 @@ export const verifyAndProcessPayment = internalAction({
       txstatus = payload?.data?.txstatus;
       transactionId = payload?.data?.transactionid;
     } catch (err) {
-      console.error("Moolre status check failed", err);
+      // We've lost visibility into whether this order was actually paid -
+      // not a routine decline, a real infrastructure failure worth a
+      // human looking at.
+      await alertCritical(
+        "Moolre status check failed",
+        `Could not verify payment status for order ${orderId} (externalref ${externalref}): ${err instanceof Error ? err.message : String(err)}`,
+      );
       return;
     }
 

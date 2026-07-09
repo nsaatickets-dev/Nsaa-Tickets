@@ -2,6 +2,7 @@ import { mutation, query, internalMutation, internalQuery } from "./_generated/s
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { requireAdminSecret } from "./admin";
+import { rateLimiter } from "./rateLimit";
 
 // --- Signed QR token ---
 // A ticket's QR encodes: ticketId.expiryUnixMs.signature
@@ -170,9 +171,24 @@ export const ticketsForCurrentUserDetailed = query({
 // scanning the same screenshotted code within the same second cannot
 // both succeed - whichever mutation commits first wins, the second
 // reliably sees status "used" and is rejected.
+// Gated by a shared scanner key (SCANNER_KEY), not the QR signature alone
+// - without this, anyone who observed or leaked a single valid ticket's
+// raw token (e.g. a photographed QR code before doors open) could call
+// this directly to pre-emptively mark it "used" and deny the real
+// holder entry, without ever needing to physically scan anything.
 export const validateScan = mutation({
-  args: { qrToken: v.string(), scannedBy: v.optional(v.string()) },
-  handler: async (ctx, { qrToken, scannedBy }) => {
+  args: { qrToken: v.string(), scannedBy: v.optional(v.string()), scannerKey: v.string() },
+  handler: async (ctx, { qrToken, scannedBy, scannerKey }) => {
+    const expectedScannerKey = process.env.SCANNER_KEY;
+    if (!expectedScannerKey || scannerKey !== expectedScannerKey) {
+      return { ok: false, reason: "Scanner not authorized" };
+    }
+
+    const scanLimit = await rateLimiter.limit(ctx, "scansByKey", { key: scannerKey });
+    if (!scanLimit.ok) {
+      return { ok: false, reason: "Scanning too fast - wait a moment and try again" };
+    }
+
     const [ticketId, expiryStr, signature] = qrToken.split(".");
     if (!ticketId || !expiryStr || !signature) {
       return { ok: false, reason: "Malformed code" };

@@ -2,6 +2,8 @@ import { mutation, query, internalMutation, action } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { feePercentForTier } from "./events";
+import { requireNonEmpty, requireValidEmail, requireValidGhanaPhone } from "./validation";
+import { rateLimiter } from "./rateLimit";
 
 // How long a reservation holds inventory before it's released back to
 // availability. Long enough to comfortably approve a MoMo prompt,
@@ -66,9 +68,13 @@ export const createReservation = mutation({
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(args.buyerEmail)) {
-      throw new Error("A valid email is required - your ticket receipt is sent there.");
-    }
+    const buyerName = requireNonEmpty(args.buyerName, "Full name", 120);
+    const buyerPhone = requireValidGhanaPhone(args.buyerPhone);
+    const buyerEmail = requireValidEmail(args.buyerEmail);
+
+    await rateLimiter.limit(ctx, "reservationsGlobal", { throws: true });
+    await rateLimiter.limit(ctx, "reservationsByPhone", { key: buyerPhone, throws: true });
+
     const ticketType = await ctx.db.get(args.ticketTypeId);
     if (!ticketType) throw new Error("Ticket type not found");
     const event = await ctx.db.get(args.eventId);
@@ -79,7 +85,9 @@ export const createReservation = mutation({
       ticketType.quantitySold -
       ticketType.quantityReserved;
 
-    if (args.quantity < 1) throw new Error("Quantity must be at least 1");
+    if (!Number.isInteger(args.quantity) || args.quantity < 1 || args.quantity > 20) {
+      throw new Error("Quantity must be a whole number between 1 and 20.");
+    }
     if (available < args.quantity) {
       throw new Error(
         `Only ${available} ticket(s) left for ${ticketType.name}`,
@@ -117,9 +125,9 @@ export const createReservation = mutation({
       eventId: args.eventId,
       ticketTypeId: args.ticketTypeId,
       quantity: args.quantity,
-      buyerName: args.buyerName,
-      buyerPhone: args.buyerPhone,
-      buyerEmail: args.buyerEmail,
+      buyerName,
+      buyerPhone,
+      buyerEmail,
       clerkUserId: identity?.subject,
       ticketSubtotalGHS,
       serviceFeeGHS,

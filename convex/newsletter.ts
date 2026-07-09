@@ -2,11 +2,15 @@ import { mutation, internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { sendBrevoEmail, SENDERS, renderEmailLayout, paragraph } from "./email";
+import { requireValidEmail } from "./validation";
+import { rateLimiter } from "./rateLimit";
 
 export const subscribe = mutation({
   args: { email: v.string() },
   handler: async (ctx, { email }) => {
-    const normalized = email.trim().toLowerCase();
+    const normalized = requireValidEmail(email);
+
+    await rateLimiter.limit(ctx, "newsletterByEmail", { key: normalized, throws: true });
 
     const existing = await ctx.db
       .query("newsletterSubscribers")
