@@ -248,7 +248,12 @@
 
       client.setAuth(async () => {
         if (!clerk.session) return null;
-        return await clerk.session.getToken({ template: "convex" });
+        // No named JWT template here on purpose - Clerk's current Convex
+        // integration (dashboard.clerk.com/apps/setup/convex) maps the
+        // `aud: "convex"` claim onto the default session token directly,
+        // it doesn't create a separate named template the way the older
+        // integration flow used to.
+        return await clerk.session.getToken();
       });
       return true;
     } catch (err) {

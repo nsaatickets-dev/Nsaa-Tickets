@@ -20,11 +20,12 @@ window.addEventListener("load", async () => {
     if (clerk.user || clerk.isSignedIn) {
       clerk.mountUserButton(slot);
     } else {
-      const signInBtn = document.createElement("button");
-      signInBtn.className = "btn btn-sm btn-outline-nsaa";
-      signInBtn.textContent = "Sign in";
-      signInBtn.addEventListener("click", () => clerk.openSignIn());
-      slot.appendChild(signInBtn);
+      const signInLink = document.createElement("a");
+      signInLink.className = "btn btn-sm btn-outline-nsaa";
+      signInLink.textContent = "Sign in";
+      const here = window.location.pathname.split("/").pop() || "index.html";
+      signInLink.href = `signin.html?redirect_url=${encodeURIComponent(here)}`;
+      slot.appendChild(signInLink);
     }
   } catch (err) {
     console.error("Clerk failed to load", err);

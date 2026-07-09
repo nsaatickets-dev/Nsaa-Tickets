@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-bs-theme="dark">
+<html lang="en" data-bs-theme="light">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -150,15 +150,13 @@
       }
 
       function signInGate() {
+        const redirectUrl = `organizer-dashboard.html${window.location.search}`;
         root.innerHTML = NSAA.emptyState(
           "Sign in to manage your events",
           "The organizer dashboard is tied to your Nsaa account so only you can edit or publish your own events.",
-          '<button id="dashboard-sign-in" class="btn btn-nsaa">Sign in</button>',
+          `<a id="dashboard-sign-in" class="btn btn-nsaa" href="signin.html?redirect_url=${encodeURIComponent(redirectUrl)}">Sign in</a>`,
         );
         newEventBtn.classList.add("d-none");
-        document
-          .getElementById("dashboard-sign-in")
-          ?.addEventListener("click", () => clerk?.openSignIn());
       }
 
       // ---- List view ----

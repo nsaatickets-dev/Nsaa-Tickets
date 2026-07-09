@@ -628,3 +628,57 @@ export const seedDemoEvent = mutation({
     return eventIds;
   },
 });
+
+// Admin-only cleanup for the fake/seeded demo events (no real organizer,
+// stock Unsplash photos, placeholder payout phone) - deletes each such
+// event along with its ticket types and any orders/tickets against it.
+// Real organizer-owned events (organizerClerkUserId set) are untouched.
+// Run via `npx convex run events:deleteSeedData '{"adminSecret":"..."}'`.
+export const deleteSeedData = mutation({
+  args: { adminSecret: v.string() },
+  handler: async (ctx, { adminSecret }) => {
+    requireAdminSecret(adminSecret);
+
+    const seededEvents = await ctx.db
+      .query("events")
+      .filter((q) => q.eq(q.field("organizerClerkUserId"), undefined))
+      .collect();
+
+    let deletedEvents = 0;
+    let deletedTicketTypes = 0;
+    let deletedOrders = 0;
+    let deletedTickets = 0;
+
+    for (const event of seededEvents) {
+      const ticketTypes = await ctx.db
+        .query("ticketTypes")
+        .withIndex("by_event", (q) => q.eq("eventId", event._id))
+        .collect();
+      const orders = await ctx.db
+        .query("orders")
+        .withIndex("by_event", (q) => q.eq("eventId", event._id))
+        .collect();
+      const tickets = await ctx.db
+        .query("tickets")
+        .withIndex("by_event", (q) => q.eq("eventId", event._id))
+        .collect();
+
+      for (const ticket of tickets) {
+        await ctx.db.delete(ticket._id);
+        deletedTickets++;
+      }
+      for (const order of orders) {
+        await ctx.db.delete(order._id);
+        deletedOrders++;
+      }
+      for (const ticketType of ticketTypes) {
+        await ctx.db.delete(ticketType._id);
+        deletedTicketTypes++;
+      }
+      await ctx.db.delete(event._id);
+      deletedEvents++;
+    }
+
+    return { deletedEvents, deletedTicketTypes, deletedOrders, deletedTickets };
+  },
+});
