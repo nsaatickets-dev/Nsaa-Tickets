@@ -1,6 +1,7 @@
-import { mutation, query, internalMutation } from "./_generated/server";
+import { mutation, query, internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
+import { requireAdminSecret } from "./admin";
 
 // --- Signed QR token ---
 // A ticket's QR encodes: ticketId.expiryUnixMs.signature
@@ -99,6 +100,17 @@ export const ticketsForOrder = query({
       .query("tickets")
       .withIndex("by_order", (q) => q.eq("orderId", orderId))
       .collect();
+  },
+});
+
+// Used by the /tickets/qr HTTP route (convex/http.ts) to look up a
+// ticket's signed token before rendering its QR image. Internal - the
+// route itself is the only thing that should resolve a bare ticket id
+// into a token.
+export const getTicketInternal = internalQuery({
+  args: { ticketId: v.id("tickets") },
+  handler: async (ctx, { ticketId }) => {
+    return await ctx.db.get(ticketId);
   },
 });
 
@@ -214,5 +226,59 @@ export const validateScan = mutation({
       ownerName: ticket.ownerName,
       ticketTypeId: ticket.ticketTypeId,
     };
+  },
+});
+
+// TEMPORARY test utility - creates one real paid order with real issued
+// tickets (through the same issueTickets() path production payments use,
+// so the QR tokens are genuinely representative) purely so QR rendering
+// can be checked in an actual browser. No organizerClerkUserId, so it's
+// removable later via events:deleteSeedData like any other test fixture.
+export const debugCreatePaidTestOrder = mutation({
+  args: { adminSecret: v.string(), buyerEmail: v.string() },
+  handler: async (ctx, { adminSecret, buyerEmail }) => {
+    requireAdminSecret(adminSecret);
+
+    const eventId = await ctx.db.insert("events", {
+      title: "QR Preview Test Event",
+      description: "Temporary event for previewing QR ticket rendering. Safe to delete.",
+      venue: "Test Venue",
+      address: "Test Address, Accra",
+      city: "Accra",
+      startsAt: Date.now() + 1000 * 60 * 60 * 24 * 7,
+      category: "concert",
+      status: "published",
+      organizerName: "Nsaa Tickets (test)",
+      createdAt: Date.now(),
+    });
+
+    const ticketTypeId = await ctx.db.insert("ticketTypes", {
+      eventId,
+      name: "General",
+      priceGHS: 50,
+      quantityTotal: 10,
+      quantitySold: 0,
+      quantityReserved: 0,
+    });
+
+    const orderId = await ctx.db.insert("orders", {
+      eventId,
+      ticketTypeId,
+      quantity: 3,
+      buyerName: "Test Buyer",
+      buyerPhone: "0240000000",
+      buyerEmail,
+      ticketSubtotalGHS: 150,
+      serviceFeeGHS: 6,
+      totalGHS: 156,
+      status: "paid",
+      reservedUntil: Date.now(),
+      createdAt: Date.now(),
+      paidAt: Date.now(),
+    });
+
+    await issueTickets(ctx, orderId);
+
+    return { orderId, eventId };
   },
 });

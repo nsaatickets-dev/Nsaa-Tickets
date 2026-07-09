@@ -61,11 +61,14 @@ export const createReservation = mutation({
     quantity: v.number(),
     buyerName: v.string(),
     buyerPhone: v.string(),
-    buyerEmail: v.optional(v.string()),
+    buyerEmail: v.string(),
     clerkUserId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(args.buyerEmail)) {
+      throw new Error("A valid email is required - your ticket receipt is sent there.");
+    }
     const ticketType = await ctx.db.get(args.ticketTypeId);
     if (!ticketType) throw new Error("Ticket type not found");
     const event = await ctx.db.get(args.eventId);
@@ -295,6 +298,75 @@ export const initiateMoolrePayment = action({
     }
 
     return { status: "initiated" };
+  },
+});
+
+// Card payment alternative to the direct MoMo collection above. Moolre
+// has no direct card-charge endpoint - this generates a one-time hosted
+// checkout link (POST /embed/link) that the buyer is redirected to;
+// Moolre handles card entry/PCI compliance on their own page, not us.
+// Confirmation still flows through the same webhook + status-check path
+// as MoMo (convex/moolre.ts:verifyAndProcessPayment) since it's the same
+// underlying externalref/order:<id> convention - this is untested against
+// a real card in sandbox yet, confirm the confirmation path fires before
+// relying on it for real payments.
+export const initiateCardPayment = action({
+  args: { orderId: v.id("orders") },
+  handler: async (ctx, { orderId }): Promise<{ authorizationUrl: string }> => {
+    const order = await ctx.runQuery(internal.orders.getOrderInternal, {
+      orderId,
+    });
+    if (!order) throw new Error("Order not found");
+    if (order.status !== "reserved") {
+      throw new Error(`Order is ${order.status}, cannot pay`);
+    }
+
+    const externalref = `order:${order._id}`;
+    const siteUrl = process.env.CONVEX_SITE_URL ?? "";
+
+    const response = await fetch(`${process.env.MOOLRE_API_BASE}/embed/link`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-API-USER": process.env.MOOLRE_API_USER ?? "",
+        "X-API-PUBKEY": process.env.MOOLRE_API_PUBKEY ?? "",
+      },
+      body: JSON.stringify({
+        type: 1,
+        amount: String(order.totalGHS),
+        // Moolre's own "business email" field for their hosted page, not
+        // the buyer's - buyer email is optional in guest checkout so it
+        // can't be relied on here.
+        email: "tickets@nsaatickets.com",
+        externalref,
+        reusable: 0,
+        currency: "GHS",
+        accountnumber: process.env.MOOLRE_ACCOUNT_NUMBER ?? "",
+        redirect: siteUrl ? `${siteUrl}/order-status.html?orderId=${order._id}` : undefined,
+      }),
+    });
+
+    const data = await response.json();
+    const accepted = data.status === 1;
+
+    await ctx.runMutation(internal.orders.recordMoolreReference, {
+      orderId,
+      moolreReference: accepted ? (data.data?.reference ?? "unknown") : (data.code ?? "unknown"),
+      moolreStatus: accepted ? "initiated" : "rejected",
+    });
+
+    if (!accepted) {
+      await ctx.runMutation(internal.orders.markInitiationFailed, { orderId });
+      throw new Error(data.message || "Card payment could not be started. Please try again.");
+    }
+
+    const authorizationUrl = data.data?.authorization_url;
+    if (!authorizationUrl) {
+      await ctx.runMutation(internal.orders.markInitiationFailed, { orderId });
+      throw new Error("Moolre did not return a checkout link.");
+    }
+
+    return { authorizationUrl };
   },
 });
 

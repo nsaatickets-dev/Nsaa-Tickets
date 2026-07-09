@@ -62,7 +62,7 @@ export default defineSchema({
 
     buyerName: v.string(),
     buyerPhone: v.string(), // MoMo number, also identity for guest checkout
-    buyerEmail: v.optional(v.string()),
+    buyerEmail: v.string(), // required - the ticket receipt (with QR codes) is emailed here
     clerkUserId: v.optional(v.string()), // set if buyer is signed in
 
     ticketSubtotalGHS: v.number(), // priceGHS * quantity

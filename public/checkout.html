@@ -83,7 +83,7 @@
             <div id="details-step" class="nsaa-panel">
               <p class="nsaa-eyebrow mb-2">Guest checkout</p>
               <h1 class="h3 mb-2">Your details</h1>
-              <p class="nsaa-muted mb-4">No account required. Your phone number is used for the Mobile Money prompt and ticket delivery.</p>
+              <p class="nsaa-muted mb-4">No account required. Your phone number is used for the Mobile Money prompt, and your ticket receipt - with your scannable QR code - is emailed to you.</p>
 
               <form id="details-form" novalidate>
                 <div class="row g-3">
@@ -96,8 +96,8 @@
                     <input id="buyer-phone" class="form-control form-control-nsaa" type="tel" autocomplete="tel" placeholder="024 000 0000" required />
                   </div>
                   <div class="col-md-6">
-                    <label class="form-label nsaa-muted small" for="buyer-email">Email optional</label>
-                    <input id="buyer-email" class="form-control form-control-nsaa" type="email" autocomplete="email" placeholder="name@email.com" />
+                    <label class="form-label nsaa-muted small" for="buyer-email">Email</label>
+                    <input id="buyer-email" class="form-control form-control-nsaa" type="email" autocomplete="email" placeholder="name@email.com" required />
                   </div>
                   <div class="col-md-6">
                     <label class="form-label nsaa-muted small" for="buyer-quantity">Quantity</label>
@@ -127,6 +127,7 @@
                 </div>
                 <p class="nsaa-faint small mt-2 mb-0">Moolre sent a verification code to your phone via SMS. Enter it above to continue.</p>
               </div>
+              <button id="pay-card-btn" class="btn btn-outline-nsaa w-100 mt-3" type="button">Pay with card instead</button>
               <a id="status-link" class="btn btn-outline-nsaa w-100 mt-3" href="#">Open order status</a>
             </div>
           </section>
@@ -239,10 +240,10 @@
           document.getElementById("buyer-phone").classList.add("is-valid");
         }
 
-        if (buyerEmail && !NSAA.isValidEmail(buyerEmail)) {
+        if (!buyerEmail || !NSAA.isValidEmail(buyerEmail)) {
           document.getElementById("buyer-email").classList.add("is-invalid");
           hasError = true;
-        } else if (buyerEmail) {
+        } else {
           document.getElementById("buyer-email").classList.add("is-valid");
         }
 
@@ -272,7 +273,7 @@
             quantity: requestedQuantity,
             buyerName,
             buyerPhone,
-            buyerEmail: buyerEmail || undefined,
+            buyerEmail,
           });
 
           currentOrderId = result.orderId;
@@ -400,6 +401,30 @@
           const code = document.getElementById("otp-code").value.trim();
           if (!code) return;
           await submitMoolrePayment(code);
+        }
+        if (event.target?.id === "pay-card-btn") {
+          const cardBtn = event.target;
+          cardBtn.disabled = true;
+          cardBtn.textContent = "Redirecting to card checkout...";
+          setPaymentState(
+            "waiting",
+            "Opening card checkout",
+            "You'll be redirected to a secure Moolre checkout page to enter your card details.",
+          );
+          try {
+            const result = await client.action("orders:initiateCardPayment", {
+              orderId: currentOrderId,
+            });
+            window.location.href = result.authorizationUrl;
+          } catch (err) {
+            setPaymentState(
+              "failed",
+              "Could not start card payment",
+              err.message || "Please try again.",
+            );
+            cardBtn.disabled = false;
+            cardBtn.textContent = "Pay with card instead";
+          }
         }
       });
 

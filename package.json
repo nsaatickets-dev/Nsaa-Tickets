@@ -9,7 +9,8 @@
     "serve": "npx http-server public -p 8080"
   },
   "dependencies": {
-    "convex": "^1.17.0"
+    "convex": "^1.17.0",
+    "qrcode": "^1.5.4"
   },
   "devDependencies": {
     "http-server": "^14.1.1"

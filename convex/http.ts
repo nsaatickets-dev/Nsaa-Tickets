@@ -58,4 +58,46 @@ http.route({
   }),
 });
 
+// Serves a ticket's QR code as a real fetchable PNG, so the confirmation
+// email (convex/moolre.ts:sendConfirmation) can use a normal <img
+// src="..."> instead of an inline base64 data: URI - Gmail strips inline
+// data: image URIs from HTML email, so a hosted URL is the only approach
+// that renders everywhere. Generation happens on-demand (not cached in
+// storage) since a ticket's token never changes once issued.
+http.route({
+  path: "/tickets/qr",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    const url = new URL(request.url);
+    const ticketId = url.searchParams.get("ticketId");
+    if (!ticketId) {
+      return new Response("Missing ticketId", { status: 400 });
+    }
+
+    const ticket = await ctx.runQuery(internal.tickets.getTicketInternal, {
+      ticketId: ticketId as Id<"tickets">,
+    });
+    if (!ticket) {
+      return new Response("Not found", { status: 404 });
+    }
+
+    const base64: string = await ctx.runAction(internal.qrImage.tokenToPngBase64, {
+      token: ticket.qrToken,
+    });
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+
+    return new Response(bytes, {
+      status: 200,
+      headers: {
+        "Content-Type": "image/png",
+        "Cache-Control": "public, max-age=31536000, immutable",
+      },
+    });
+  }),
+});
+
 export default http;

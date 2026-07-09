@@ -1,8 +1,8 @@
 import { internalMutation, internalAction } from "./_generated/server";
-import { internal } from "./_generated/api";
+import { internal, api } from "./_generated/api";
 import { v } from "convex/values";
 import { issueTickets } from "./tickets";
-import { escapeHtml, sendBrevoEmail, SENDERS, renderEmailLayout, paragraph } from "./email";
+import { escapeHtml, sendBrevoEmail, SENDERS, renderEmailLayout, paragraph, ticketBlock } from "./email";
 
 // Called from convex/http.ts when Moolre POSTs to our webhook, after it
 // has already parsed the `order:<id>` prefix off data.externalref.
@@ -129,8 +129,27 @@ export const sendConfirmation = internalAction({
       console.error("Moolre SMS failed", err);
     }
 
-    // --- Brevo transactional email (only if buyer gave an email) ---
-    if (order.buyerEmail) {
+    // --- Brevo transactional email: the receipt IS the ticket ---
+    // The buyer's email is required at checkout specifically so this can
+    // carry the actual scannable QR code(s), not just point back at the
+    // app - someone should be able to walk in on a forwarded/printed copy
+    // of this email alone.
+    const detailed = await ctx.runQuery(api.tickets.ticketsForOrderDetailed, { orderId });
+    if (detailed && detailed.tickets.length > 0) {
+      const siteUrl = process.env.CONVEX_SITE_URL ?? "";
+      const ticketTypeName = detailed.ticketType?.name ?? "Ticket";
+      const ticketsHtml = detailed.tickets
+        .map((ticket, index) =>
+          ticketBlock({
+            qrImageUrl: `${siteUrl}/tickets/qr?ticketId=${ticket._id}`,
+            ticketTypeName,
+            ownerName: ticket.ownerName,
+            index,
+            total: detailed.tickets.length,
+          }),
+        )
+        .join("");
+
       await sendBrevoEmail({
         sender: SENDERS.tickets,
         to: [{ email: order.buyerEmail, name: order.buyerName }],
@@ -140,8 +159,9 @@ export const sendConfirmation = internalAction({
           bodyHtml:
             paragraph(`Hi ${escapeHtml(order.buyerName)},`) +
             paragraph(
-              `Your order is confirmed. <strong>GHS ${order.totalGHS}</strong> was charged. Open the app to view your ticket QR code.`,
-            ),
+              `Your order is confirmed. <strong>GHS ${order.totalGHS}</strong> was charged. Your ticket${detailed.tickets.length > 1 ? "s are" : " is"} below - each code can only be scanned once, so keep this email or a screenshot handy at the door.`,
+            ) +
+            ticketsHtml,
           footerNote: "This email confirms a ticket purchase on Nsaa Tickets.",
         }),
       });

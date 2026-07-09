@@ -28,6 +28,32 @@ export function paragraph(html: string): string {
   return `<p style="margin:0 0 14px; font-size:15px; line-height:1.6; color:#33333a;">${html}</p>`;
 }
 
+// One scannable ticket block for the confirmation email: the QR PNG
+// (a real hosted URL served by the /tickets/qr HTTP route in
+// convex/http.ts - NOT an inline base64 data: URI, since Gmail strips
+// those from HTML email) plus enough context that a printed/screenshotted
+// copy is self-explanatory at the door without needing the app open.
+export function ticketBlock(params: {
+  qrImageUrl: string;
+  ticketTypeName: string;
+  ownerName: string;
+  index: number;
+  total: number;
+}): string {
+  const { qrImageUrl, ticketTypeName, ownerName, index, total } = params;
+  const label = total > 1 ? `Ticket ${index + 1} of ${total}` : "Your ticket";
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 16px; border:1px solid #e8e3d8; border-radius:4px;">
+    <tr>
+      <td style="padding:16px; text-align:center;">
+        <p style="margin:0 0 10px; font-size:11px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:#9a9a9f;">${escapeHtml(label)}</p>
+        <img src="${qrImageUrl}" width="180" height="180" alt="Ticket QR code" style="display:block; margin:0 auto 12px; width:180px; height:180px;" />
+        <p style="margin:0; font-size:15px; font-weight:700; color:#1a1a1d;">${escapeHtml(ticketTypeName)}</p>
+        <p style="margin:2px 0 0; font-size:13px; color:#6b6b72;">${escapeHtml(ownerName)}</p>
+      </td>
+    </tr>
+  </table>`;
+}
+
 // Wraps email body content in a branded "paper ledger" letterhead: white
 // card, gold header band, dashed divider, muted footer. Mirrors the QR
 // ticket shell's sanctioned white/printed-object exception (see
