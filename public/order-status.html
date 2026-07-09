@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en" data-bs-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Order status | Nsaa Tickets</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link href="css/nsaa.css" rel="stylesheet" />
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  </head>
+  <body class="checkout-body">
+    <nav class="navbar nsaa-navbar">
+      <div class="container">
+        <a
+          class="nsaa-brand-lockup"
+          href="index.html"
+          aria-label="Nsaa Tickets home"
+        >
+          <span class="nsaa-wordmark">Nsaa</span>
+          <span class="nsaa-brand-tickets" aria-label="Tickets"
+            >T I C K E T S</span
+          >
+        </a>
+        <span class="ms-auto nsaa-muted small">Order status</span>
+      </div>
+    </nav>
+
+    <main class="container py-5" style="max-width: 760px">
+      <div id="status-root"></div>
+    </main>
+
+    <script src="js/nsaa.js"></script>
+    <script type="module">
+      import { ConvexClient } from "https://esm.sh/convex/browser";
+
+      const params = new URLSearchParams(window.location.search);
+      const orderId =
+        params.get("orderId") ||
+        window.localStorage.getItem("nsaa:lastOrderId");
+      const root = document.getElementById("status-root");
+
+      function statusCopy(order) {
+        if (order.status === "paid") {
+          return {
+            kind: "success",
+            title: "Payment confirmed",
+            body: "Your ticket QR code is ready.",
+            activeStep: 3,
+          };
+        }
+        if (order.status === "failed") {
+          return {
+            kind: "failed",
+            title: "Payment failed",
+            body: "No ticket was issued. You can start checkout again from the event page.",
+            activeStep: 1,
+          };
+        }
+        if (order.status === "expired") {
+          return {
+            kind: "failed",
+            title: "Reservation expired",
+            body: "The ticket hold ended before payment was confirmed. Inventory has been released.",
+            activeStep: 1,
+          };
+        }
+        if (order.status === "refunded") {
+          return {
+            kind: "failed",
+            title: "Order refunded",
+            body: "This order has been refunded because the event was cancelled.",
+            activeStep: 3,
+          };
+        }
+        return {
+          kind: "waiting",
+          title: "Waiting for Mobile Money confirmation",
+          body: "If you already approved the prompt, keep this page open. Nsaa updates the moment Moolre confirms payment.",
+          activeStep: 2,
+        };
+      }
+
+      function render(summary) {
+        if (!summary) {
+          root.innerHTML = NSAA.emptyState(
+            "Order not found",
+            "Check the link from your SMS or email and try again.",
+            '<a class="btn btn-nsaa" href="index.html">Back to discovery</a>',
+          );
+          return;
+        }
+
+        const { order, event, ticketType } = summary;
+        const copy = statusCopy(order);
+        const walletLink = `wallet.html?orderId=${encodeURIComponent(order._id)}`;
+        const eventLink = event
+          ? `event.html?id=${encodeURIComponent(event._id)}`
+          : "index.html";
+
+        root.innerHTML = `
+        <section class="nsaa-panel">
+          <p class="nsaa-eyebrow mb-2">Order ${NSAA.escapeHtml(order._id.slice(-6).toUpperCase())}</p>
+          <h1 class="h2 mb-3">${NSAA.escapeHtml(copy.title)}</h1>
+          <div class="nsaa-status-box ${NSAA.escapeAttr(copy.kind)} mb-4">
+            <p class="fw-semibold mb-1">${NSAA.escapeHtml(copy.title)} ${copy.kind === "waiting" ? '<span class="nsaa-progress-dots" aria-hidden="true"><span></span><span></span><span></span></span>' : ""}</p>
+            <p class="mb-0">${NSAA.escapeHtml(copy.body)}</p>
+          </div>
+
+          <div class="nsaa-order-timeline mb-4">
+            <div class="nsaa-timeline-step active">
+              <span class="nsaa-timeline-dot"></span>
+              <div>
+                <p class="mb-0 fw-semibold">Reservation created</p>
+                <p class="nsaa-muted small mb-0">${NSAA.escapeHtml(NSAA.formatDate(order.createdAt))}</p>
+              </div>
+            </div>
+            <div class="nsaa-timeline-step ${copy.activeStep >= 2 ? "active" : ""}">
+              <span class="nsaa-timeline-dot"></span>
+              <div>
+                <p class="mb-0 fw-semibold">Mobile Money confirmation</p>
+                <p class="nsaa-muted small mb-0">${order.moolreStatus ? NSAA.escapeHtml(order.moolreStatus) : "Awaiting Moolre update"}</p>
+              </div>
+            </div>
+            <div class="nsaa-timeline-step ${copy.activeStep >= 3 ? "active" : ""}">
+              <span class="nsaa-timeline-dot"></span>
+              <div>
+                <p class="mb-0 fw-semibold">Ticket issued</p>
+                <p class="nsaa-muted small mb-0">${order.paidAt ? NSAA.escapeHtml(NSAA.formatDate(order.paidAt)) : "Issued after successful payment"}</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="nsaa-price-breakdown p-3 mb-4">
+            <div class="d-flex justify-content-between py-1">
+              <span class="nsaa-muted">Event</span>
+              <span class="text-end">${NSAA.escapeHtml(event?.title || "Event")}</span>
+            </div>
+            <div class="d-flex justify-content-between py-1">
+              <span class="nsaa-muted">Ticket</span>
+              <span>${NSAA.escapeHtml(ticketType?.name || "Ticket")}</span>
+            </div>
+            <div class="d-flex justify-content-between py-1">
+              <span class="nsaa-muted">Subtotal</span>
+              <span>${NSAA.money(order.ticketSubtotalGHS)}</span>
+            </div>
+            <div class="d-flex justify-content-between py-1">
+              <span class="nsaa-muted">Service fee</span>
+              <span>${NSAA.money(order.serviceFeeGHS)}</span>
+            </div>
+            <div class="d-flex justify-content-between fw-semibold pt-2 mt-2 nsaa-divider-dashed">
+              <span>Total</span>
+              <span style="color: var(--nsaa-gold);">${NSAA.money(order.totalGHS)}</span>
+            </div>
+          </div>
+
+          <div class="d-grid gap-2 d-sm-flex">
+            ${order.status === "paid" ? `<a class="btn btn-nsaa" href="${NSAA.escapeAttr(walletLink)}">View tickets</a>` : ""}
+            ${order.status === "reserved" ? `<a class="btn btn-outline-nsaa" href="${NSAA.escapeAttr(walletLink)}">Check ticket wallet</a>` : ""}
+            <a class="btn btn-outline-nsaa" href="${NSAA.escapeAttr(eventLink)}">Back to event</a>
+          </div>
+        </section>
+      `;
+      }
+
+      if (!orderId) {
+        root.innerHTML = NSAA.emptyState(
+          "No order selected",
+          "Open the status link from checkout, SMS, or email.",
+          '<a class="btn btn-nsaa" href="index.html">Back to discovery</a>',
+        );
+      } else if (!NSAA.isConvexConfigured()) {
+        root.innerHTML = NSAA.setupNotice("Order status");
+      } else {
+        root.innerHTML = NSAA.loading("Checking order status");
+        const client = new ConvexClient(NSAA.CONVEX_URL);
+        client.onUpdate("orders:getOrderSummary", { orderId }, render);
+      }
+    </script>
+  </body>
+</html>

@@ -1,0 +1,17 @@
+{
+  "name": "nsaa-tickets",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Nsaa Tickets - premium event ticketing for Ghana",
+  "scripts": {
+    "dev": "convex dev",
+    "deploy": "convex deploy",
+    "serve": "npx http-server public -p 8080"
+  },
+  "dependencies": {
+    "convex": "^1.17.0"
+  },
+  "devDependencies": {
+    "http-server": "^14.1.1"
+  }
+}

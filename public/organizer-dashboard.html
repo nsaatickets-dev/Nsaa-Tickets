@@ -1,0 +1,548 @@
+<!doctype html>
+<html lang="en" data-bs-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Organizer dashboard | Nsaa Tickets</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link href="css/nsaa.css" rel="stylesheet" />
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  </head>
+  <body>
+    <nav class="navbar nsaa-navbar navbar-expand sticky-top">
+      <div class="container">
+        <a
+          class="nsaa-brand-lockup"
+          href="index.html"
+          aria-label="Nsaa Tickets home"
+        >
+          <span class="nsaa-wordmark">Nsaa</span>
+          <span class="nsaa-brand-tickets" aria-label="Tickets"
+            >T I C K E T S</span
+          >
+        </a>
+        <div class="ms-auto d-flex align-items-center gap-2">
+          <button
+            class="nsaa-nav-toggle"
+            type="button"
+            aria-label="Open menu"
+            aria-expanded="false"
+            aria-controls="nsaa-nav-links"
+          >
+            <i class="ph ph-list" aria-hidden="true"></i>
+            <i class="ph ph-x" aria-hidden="true"></i>
+          </button>
+          <div class="nsaa-nav-links" id="nsaa-nav-links">
+            <a href="search-results.html" class="nsaa-nav-link">Search</a>
+            <a href="about.html" class="nsaa-nav-link">About</a>
+            <a href="organizer-inquiry.html" class="nsaa-nav-link">List event</a>
+            <a href="organizer-dashboard.html" class="nsaa-nav-link active">Dashboard</a>
+            <a href="wallet.html" class="nsaa-nav-link">My tickets</a>
+            <div id="clerk-auth-slot"></div>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <script
+      async
+      crossorigin="anonymous"
+      data-clerk-publishable-key="pk_test_REPLACE_ME"
+      src="https://REPLACE_ME.clerk.accounts.dev/npm/@clerk/clerk-js@5/dist/clerk.browser.js"
+      type="text/javascript"
+    ></script>
+
+    <main class="container py-5" style="max-width: 980px">
+      <div
+        class="d-flex flex-column flex-md-row justify-content-between gap-3 mb-4"
+      >
+        <div>
+          <p class="nsaa-eyebrow mb-2">Dashboard</p>
+          <h1 class="nsaa-section-title mb-0">Your events</h1>
+        </div>
+        <a
+          id="new-event-btn"
+          class="btn btn-nsaa align-self-md-end"
+          href="organizer-dashboard.html?new=1"
+          >New event</a
+        >
+      </div>
+      <div id="dashboard-root"></div>
+    </main>
+
+    <footer class="nsaa-footer">
+      <div class="container">
+        <div class="row g-4 pb-4">
+          <div class="col-lg-4">
+            <a class="nsaa-brand-lockup d-inline-flex mb-3" href="index.html">
+              <span class="nsaa-wordmark">Nsaa</span>
+              <span class="nsaa-brand-tickets" aria-label="Tickets">T I C K E T S</span>
+            </a>
+            <p class="nsaa-muted small mb-3" style="max-width: 320px;">
+              Ghana-first ticketing with clear fees and fraud-resistant entry.
+            </p>
+            <div class="d-flex gap-2">
+              <a href="#" class="nsaa-icon-badge" aria-label="Nsaa on X"><i class="ph ph-x-logo nsaa-trust-icon"></i></a>
+              <a href="#" class="nsaa-icon-badge" aria-label="Nsaa on Instagram"><i class="ph ph-instagram-logo nsaa-trust-icon"></i></a>
+              <a href="#" class="nsaa-icon-badge" aria-label="Nsaa on Facebook"><i class="ph ph-facebook-logo nsaa-trust-icon"></i></a>
+            </div>
+          </div>
+          <div class="col-6 col-lg-2">
+            <p class="nsaa-faint small text-uppercase mb-3">Discover</p>
+            <ul class="list-unstyled d-grid gap-2 mb-0">
+              <li><a href="search-results.html" class="nsaa-muted text-decoration-none">Search</a></li>
+              <li><a href="category.html" class="nsaa-muted text-decoration-none">Categories</a></li>
+              <li><a href="organizer-inquiry.html" class="nsaa-muted text-decoration-none">List an event</a></li>
+            </ul>
+          </div>
+          <div class="col-6 col-lg-2">
+            <p class="nsaa-faint small text-uppercase mb-3">Company</p>
+            <ul class="list-unstyled d-grid gap-2 mb-0">
+              <li><a href="about.html" class="nsaa-muted text-decoration-none">About</a></li>
+              <li><a href="faq.html" class="nsaa-muted text-decoration-none">FAQ</a></li>
+              <li><a href="contact.html" class="nsaa-muted text-decoration-none">Contact</a></li>
+              <li><a href="blog.html" class="nsaa-muted text-decoration-none">News</a></li>
+            </ul>
+          </div>
+          <div class="col-6 col-lg-2">
+            <p class="nsaa-faint small text-uppercase mb-3">Legal</p>
+            <ul class="list-unstyled d-grid gap-2 mb-0">
+              <li><a href="privacy-policy.html" class="nsaa-muted text-decoration-none">Privacy</a></li>
+              <li><a href="terms-of-service.html" class="nsaa-muted text-decoration-none">Terms</a></li>
+              <li><a href="refund-and-cancellation-policy.html" class="nsaa-muted text-decoration-none">Refunds</a></li>
+              <li><a href="sitemap.html" class="nsaa-muted text-decoration-none">All pages</a></li>
+            </ul>
+          </div>
+          <div class="col-lg-2">
+            <p class="nsaa-faint small text-uppercase mb-3">Stay updated</p>
+            <form class="d-flex flex-column gap-2" data-newsletter-form>
+              <input type="email" class="form-control form-control-nsaa" placeholder="you@example.com" required />
+              <button class="btn btn-outline-nsaa btn-sm" type="submit">Subscribe</button>
+            </form>
+          </div>
+        </div>
+        <div
+          class="pt-4 d-flex flex-column flex-md-row justify-content-between gap-2"
+          style="border-top: 1px solid var(--nsaa-border);"
+        >
+          <span class="nsaa-faint small">&copy; 2026 Nsaa Tickets. All rights reserved.</span>
+          <span class="nsaa-faint small">Accra, Ghana</span>
+        </div>
+      </div>
+    </footer>
+
+    <script src="js/nsaa.js"></script>
+    <script type="module">
+      import { ConvexClient } from "https://esm.sh/convex/browser";
+
+      const root = document.getElementById("dashboard-root");
+      const newEventBtn = document.getElementById("new-event-btn");
+      const params = new URLSearchParams(window.location.search);
+      const eventId = params.get("eventId");
+      const isNew = params.has("new");
+
+      function statusChip(status) {
+        const tone =
+          status === "published" ? "green" : status === "cancelled" ? "rose" : "blue";
+        const label =
+          status === "published" ? "Published" : status === "cancelled" ? "Cancelled" : "Draft";
+        return `<span class="nsaa-chip" data-tone="${NSAA.escapeAttr(tone)}">${NSAA.escapeHtml(label)}</span>`;
+      }
+
+      function signInGate() {
+        root.innerHTML = NSAA.emptyState(
+          "Sign in to manage your events",
+          "The organizer dashboard is tied to your Nsaa account so only you can edit or publish your own events.",
+          '<button id="dashboard-sign-in" class="btn btn-nsaa">Sign in</button>',
+        );
+        newEventBtn.classList.add("d-none");
+        document
+          .getElementById("dashboard-sign-in")
+          ?.addEventListener("click", () => window.Clerk?.openSignIn());
+      }
+
+      // ---- List view ----
+      function renderList(events) {
+        if (!events || events.length === 0) {
+          root.innerHTML = NSAA.emptyState(
+            "No events yet",
+            "Create your first event to start selling tickets.",
+            '<a class="btn btn-nsaa" href="organizer-dashboard.html?new=1">New event</a>',
+          );
+          return;
+        }
+
+        root.innerHTML = events
+          .map(
+            (event) => `
+          <a class="text-decoration-none d-block mb-3" href="organizer-dashboard.html?eventId=${NSAA.escapeAttr(event._id)}">
+            <div class="nsaa-panel d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-2">
+              <div>
+                <div class="d-flex align-items-center gap-2 mb-2">
+                  ${statusChip(event.status)}
+                  <span class="nsaa-chip" data-tone="${NSAA.escapeAttr(NSAA.categoryMeta(event.category).tone)}">${NSAA.escapeHtml(NSAA.categoryMeta(event.category).shortLabel)}</span>
+                </div>
+                <h2 class="h5 mb-1">${NSAA.escapeHtml(event.title)}</h2>
+                <p class="nsaa-muted small mb-0">${NSAA.escapeHtml(event.venue)}, ${NSAA.escapeHtml(event.city)} &middot; ${NSAA.escapeHtml(NSAA.formatDate(event.startsAt))}</p>
+              </div>
+              <i class="ph ph-caret-right nsaa-muted"></i>
+            </div>
+          </a>
+        `,
+          )
+          .join("");
+      }
+
+      // ---- Editor view (create or edit) ----
+      function eventFormHtml(event) {
+        const startsAtValue = event?.startsAt
+          ? new Date(event.startsAt).toISOString().slice(0, 16)
+          : "";
+        return `
+        <form id="event-form">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label nsaa-muted small" for="ef-title">Event title</label>
+              <input id="ef-title" class="form-control form-control-nsaa" type="text" value="${NSAA.escapeAttr(event?.title || "")}" required />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label nsaa-muted small" for="ef-category">Category</label>
+              <select id="ef-category" class="form-select form-select-nsaa" required></select>
+            </div>
+            <div class="col-12">
+              <label class="form-label nsaa-muted small" for="ef-description">Description</label>
+              <textarea id="ef-description" class="form-control form-control-nsaa" rows="3" required>${NSAA.escapeHtml(event?.description || "")}</textarea>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label nsaa-muted small" for="ef-venue">Venue</label>
+              <input id="ef-venue" class="form-control form-control-nsaa" type="text" value="${NSAA.escapeAttr(event?.venue || "")}" required />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label nsaa-muted small" for="ef-city">City</label>
+              <input id="ef-city" class="form-control form-control-nsaa" type="text" value="${NSAA.escapeAttr(event?.city || "")}" required />
+            </div>
+            <div class="col-12">
+              <label class="form-label nsaa-muted small" for="ef-address">Address</label>
+              <input id="ef-address" class="form-control form-control-nsaa" type="text" value="${NSAA.escapeAttr(event?.address || "")}" required />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label nsaa-muted small" for="ef-starts">Starts at</label>
+              <input id="ef-starts" class="form-control form-control-nsaa" type="datetime-local" value="${startsAtValue}" required />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label nsaa-muted small" for="ef-image">Hero image URL optional</label>
+              <input id="ef-image" class="form-control form-control-nsaa" type="url" value="${NSAA.escapeAttr(event?.heroImageUrl || "")}" placeholder="https://..." />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label nsaa-muted small" for="ef-organizer-name">Organizer display name</label>
+              <input id="ef-organizer-name" class="form-control form-control-nsaa" type="text" value="${NSAA.escapeAttr(event?.organizerName || "")}" required />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label nsaa-muted small" for="ef-payout-phone">Payout Mobile Money number optional</label>
+              <input id="ef-payout-phone" class="form-control form-control-nsaa" type="tel" value="${NSAA.escapeAttr(event?.organizerPayoutPhone || "")}" placeholder="024 000 0000" />
+            </div>
+          </div>
+          <div id="event-form-result" class="mt-3"></div>
+          <button id="event-form-submit" class="btn btn-nsaa mt-4" type="submit">
+            ${event ? "Save changes" : "Create event"}
+          </button>
+        </form>
+      `;
+      }
+
+      function ticketTypeRowHtml(t) {
+        return `
+        <div class="nsaa-meta-item d-flex justify-content-between align-items-center mb-2" data-ticket-type-id="${NSAA.escapeAttr(t._id)}">
+          <div>
+            <p class="mb-0 fw-semibold">${NSAA.escapeHtml(t.name)}</p>
+            <p class="nsaa-muted small mb-0">${NSAA.money(t.priceGHS)} &middot; ${t.quantityAvailable} of ${t.quantityTotal} available &middot; ${t.quantitySold} sold</p>
+          </div>
+          <button class="btn btn-outline-nsaa btn-sm delete-ticket-type" type="button" ${t.quantitySold + t.quantityReserved > 0 ? "disabled title=\"Can't delete a ticket type with sold or reserved tickets\"" : ""}>
+            Remove
+          </button>
+        </div>
+      `;
+      }
+
+      function salesSummaryHtml(summary) {
+        return `
+        <div class="row g-3 mb-4">
+          <div class="col-6 col-md-3">
+            <div class="nsaa-meta-item">
+              <p class="nsaa-faint small mb-1">Tickets sold</p>
+              <p class="h5 mb-0">${summary.ticketsSold}</p>
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="nsaa-meta-item">
+              <p class="nsaa-faint small mb-1">Gross revenue</p>
+              <p class="h5 mb-0" style="color: var(--nsaa-gold);">${NSAA.money(summary.grossRevenueGHS)}</p>
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="nsaa-meta-item">
+              <p class="nsaa-faint small mb-1">Paid orders</p>
+              <p class="h5 mb-0">${summary.ordersPaid}</p>
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="nsaa-meta-item">
+              <p class="nsaa-faint small mb-1">Pending orders</p>
+              <p class="h5 mb-0">${summary.ordersPending}</p>
+            </div>
+          </div>
+        </div>
+      `;
+      }
+
+      function populateCategorySelect(selected) {
+        const select = document.getElementById("ef-category");
+        if (!select) return;
+        select.innerHTML = NSAA.categories
+          .map(
+            (item) =>
+              `<option value="${NSAA.escapeAttr(item.value)}" ${item.value === selected ? "selected" : ""}>${NSAA.escapeHtml(item.label)}</option>`,
+          )
+          .join("");
+      }
+
+      function readEventForm() {
+        return {
+          title: document.getElementById("ef-title").value.trim(),
+          description: document.getElementById("ef-description").value.trim(),
+          venue: document.getElementById("ef-venue").value.trim(),
+          city: document.getElementById("ef-city").value.trim(),
+          address: document.getElementById("ef-address").value.trim(),
+          startsAt: new Date(document.getElementById("ef-starts").value).getTime(),
+          heroImageUrl: document.getElementById("ef-image").value.trim() || undefined,
+          category: document.getElementById("ef-category").value,
+          organizerName: document.getElementById("ef-organizer-name").value.trim(),
+          organizerPayoutPhone:
+            document.getElementById("ef-payout-phone").value.trim() || undefined,
+        };
+      }
+
+      async function renderEditor(client, existingEvent) {
+        const isEditing = Boolean(existingEvent);
+
+        root.innerHTML = `
+        <a class="nsaa-nav-link d-inline-flex align-items-center gap-1 mb-4" href="organizer-dashboard.html">
+          <i class="ph ph-arrow-left"></i> Back to my events
+        </a>
+        <div id="sales-summary-slot"></div>
+        <div class="nsaa-panel mb-4">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 class="h4 mb-0">${isEditing ? "Edit event" : "New event"}</h2>
+            ${isEditing ? `<span id="status-slot">${statusChip(existingEvent.status)}</span>` : ""}
+          </div>
+          ${eventFormHtml(existingEvent)}
+        </div>
+        <div id="ticket-types-slot"></div>
+      `;
+
+        populateCategorySelect(existingEvent?.category);
+
+        const form = document.getElementById("event-form");
+        const resultEl = document.getElementById("event-form-result");
+        const submitBtn = document.getElementById("event-form-submit");
+
+        form.addEventListener("submit", async (evt) => {
+          evt.preventDefault();
+          resultEl.innerHTML = "";
+          const fields = readEventForm();
+
+          if (!fields.title || !fields.description || !fields.venue || !fields.city || !fields.address || !fields.organizerName || !fields.startsAt || Number.isNaN(fields.startsAt)) {
+            resultEl.innerHTML = NSAA.errorState(
+              "Check event details",
+              "Title, description, venue, city, address, start time, and organizer name are all required.",
+            );
+            return;
+          }
+
+          submitBtn.disabled = true;
+          submitBtn.textContent = "Saving...";
+          try {
+            if (isEditing) {
+              await client.mutation("events:updateEvent", {
+                eventId: existingEvent._id,
+                ...fields,
+              });
+              resultEl.innerHTML = `<div class="nsaa-status-box success"><p class="fw-semibold mb-1">Saved</p><p class="mb-0">Your event details were updated.</p></div>`;
+            } else {
+              const newId = await client.mutation("events:createEvent", fields);
+              window.location.href = `organizer-dashboard.html?eventId=${encodeURIComponent(newId)}`;
+              return;
+            }
+          } catch (err) {
+            resultEl.innerHTML = NSAA.errorState(
+              "Could not save event",
+              err.message || "Please try again.",
+            );
+          } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = isEditing ? "Save changes" : "Create event";
+          }
+        });
+
+        if (!isEditing) return;
+
+        // Publish / unpublish toggle
+        const statusSlot = document.getElementById("status-slot");
+        const toggleBtn = document.createElement("button");
+        toggleBtn.className = "btn btn-outline-nsaa btn-sm ms-2";
+        toggleBtn.type = "button";
+        toggleBtn.textContent =
+          existingEvent.status === "published" ? "Unpublish" : "Publish";
+        toggleBtn.addEventListener("click", async () => {
+          toggleBtn.disabled = true;
+          try {
+            const nextStatus =
+              existingEvent.status === "published" ? "draft" : "published";
+            await client.mutation("events:setEventStatus", {
+              eventId: existingEvent._id,
+              status: nextStatus,
+            });
+            existingEvent.status = nextStatus;
+            statusSlot.innerHTML = statusChip(nextStatus);
+            statusSlot.appendChild(toggleBtn);
+            toggleBtn.textContent =
+              nextStatus === "published" ? "Unpublish" : "Publish";
+          } catch (err) {
+            resultEl.innerHTML = NSAA.errorState(
+              "Could not update status",
+              err.message || "Please try again.",
+            );
+          } finally {
+            toggleBtn.disabled = false;
+          }
+        });
+        statusSlot.appendChild(toggleBtn);
+
+        // Sales summary + ticket types (reactive)
+        client.onUpdate(
+          "events:salesSummaryForEvent",
+          { eventId: existingEvent._id },
+          (summary) => {
+            if (!summary) return;
+            document.getElementById("sales-summary-slot").innerHTML =
+              salesSummaryHtml(summary);
+            renderTicketTypes(client, existingEvent._id, summary.ticketTypes);
+          },
+        );
+      }
+
+      function renderTicketTypes(client, eventId, ticketTypes) {
+        const slot = document.getElementById("ticket-types-slot");
+        slot.innerHTML = `
+        <div class="nsaa-panel">
+          <h2 class="h5 mb-3">Ticket types</h2>
+          <div id="ticket-type-list">
+            ${ticketTypes.length ? ticketTypes.map(ticketTypeRowHtml).join("") : '<p class="nsaa-muted small mb-3">No ticket types yet.</p>'}
+          </div>
+          <form id="ticket-type-form" class="row g-2 align-items-end mt-2">
+            <div class="col-sm-4">
+              <label class="form-label nsaa-muted small" for="tt-name">Name</label>
+              <input id="tt-name" class="form-control form-control-nsaa" type="text" placeholder="Regular" required />
+            </div>
+            <div class="col-sm-3">
+              <label class="form-label nsaa-muted small" for="tt-price">Price GHS</label>
+              <input id="tt-price" class="form-control form-control-nsaa" type="number" min="0" step="0.01" placeholder="80" required />
+            </div>
+            <div class="col-sm-3">
+              <label class="form-label nsaa-muted small" for="tt-quantity">Quantity</label>
+              <input id="tt-quantity" class="form-control form-control-nsaa" type="number" min="1" placeholder="100" required />
+            </div>
+            <div class="col-sm-2">
+              <button class="btn btn-nsaa w-100" type="submit">Add</button>
+            </div>
+          </form>
+          <div id="ticket-type-result" class="mt-2"></div>
+        </div>
+      `;
+
+        slot.querySelectorAll(".delete-ticket-type").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            const row = btn.closest("[data-ticket-type-id]");
+            const ticketTypeId = row.dataset.ticketTypeId;
+            btn.disabled = true;
+            try {
+              await client.mutation("events:deleteTicketType", { ticketTypeId });
+            } catch (err) {
+              document.getElementById("ticket-type-result").innerHTML =
+                NSAA.errorState("Could not remove ticket type", err.message || "Please try again.");
+              btn.disabled = false;
+            }
+          });
+        });
+
+        const ttForm = document.getElementById("ticket-type-form");
+        ttForm.addEventListener("submit", async (evt) => {
+          evt.preventDefault();
+          const resultEl = document.getElementById("ticket-type-result");
+          resultEl.innerHTML = "";
+          const name = document.getElementById("tt-name").value.trim();
+          const priceGHS = Number(document.getElementById("tt-price").value);
+          const quantityTotal = Number(document.getElementById("tt-quantity").value);
+
+          if (!name || Number.isNaN(priceGHS) || priceGHS < 0 || !Number.isInteger(quantityTotal) || quantityTotal < 1) {
+            resultEl.innerHTML = NSAA.errorState(
+              "Check ticket type",
+              "Provide a name, a price of 0 or more, and a whole-number quantity of at least 1.",
+            );
+            return;
+          }
+
+          try {
+            await client.mutation("events:createTicketType", {
+              eventId,
+              name,
+              priceGHS,
+              quantityTotal,
+            });
+            ttForm.reset();
+          } catch (err) {
+            resultEl.innerHTML = NSAA.errorState(
+              "Could not add ticket type",
+              err.message || "Please try again.",
+            );
+          }
+        });
+      }
+
+      // ---- Boot ----
+      if (!NSAA.isConvexConfigured()) {
+        root.innerHTML = NSAA.setupNotice("Organizer dashboard");
+        newEventBtn.classList.add("d-none");
+      } else {
+        root.innerHTML = NSAA.loading("Loading dashboard");
+        const client = new ConvexClient(NSAA.CONVEX_URL);
+        await NSAA.attachConvexAuth(client);
+
+        if (!window.Clerk?.user) {
+          signInGate();
+        } else if (isNew) {
+          newEventBtn.classList.add("d-none");
+          renderEditor(client, null);
+        } else if (eventId) {
+          newEventBtn.classList.add("d-none");
+          const event = await client.query("events:getById", { eventId });
+          if (!event) {
+            root.innerHTML = NSAA.emptyState(
+              "Event not found",
+              "It may have been removed, or the link is incorrect.",
+              '<a class="btn btn-nsaa" href="organizer-dashboard.html">Back to my events</a>',
+            );
+          } else {
+            renderEditor(client, event);
+          }
+        } else {
+          client.onUpdate("events:eventsForCurrentOrganizer", {}, renderList);
+        }
+      }
+    </script>
+    <script src="js/clerk-nav.js"></script>
+  </body>
+</html>

@@ -1,0 +1,1350 @@
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,300..900;1,300..900&display=swap');
+
+:root {
+  --nsaa-bg: #070709;
+  --nsaa-bg-soft: #0b0b0e;
+  --nsaa-surface: #101013;
+  --nsaa-surface-2: #16161a;
+  --nsaa-border: rgba(255, 255, 255, 0.07);
+  --nsaa-border-strong: rgba(255, 255, 255, 0.14);
+  --nsaa-gold: #dfb36c;
+  --nsaa-gold-hover: #edd39a;
+  --nsaa-gold-dark: #120e06;
+  --nsaa-teal: #4adbb8;
+  --nsaa-rose: #f07b8a;
+  --nsaa-blue: #5fa5f9;
+  --nsaa-green: #81c784;
+  --nsaa-text: #f3f3f5;
+  --nsaa-text-muted: #95989f;
+  --nsaa-text-faint: #5b5e66;
+  --nsaa-danger: #f26b6b;
+  --nsaa-danger-bg: rgba(242, 107, 107, 0.1);
+  --nsaa-success: #81c784;
+  --nsaa-success-bg: rgba(129, 199, 132, 0.1);
+  --nsaa-warning: #dfb36c;
+  --nsaa-warning-bg: rgba(223, 179, 108, 0.1);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  min-height: 100vh;
+  background-color: var(--nsaa-bg);
+  background-image: 
+    radial-gradient(circle at 50% 0%, rgba(223, 179, 108, 0.045) 0%, rgba(223, 179, 108, 0) 65%),
+    linear-gradient(rgba(255, 255, 255, 0.007) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.007) 1px, transparent 1px);
+  background-size: 100% 100%, 64px 64px, 64px 64px;
+  background-position: center top;
+  color: var(--nsaa-text);
+  font-family:
+    'Instrument Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+body.checkout-body,
+body.scanner-body {
+  background-color: var(--nsaa-bg);
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.007) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.007) 1px, transparent 1px);
+  background-size: 64px 64px;
+}
+
+/* Ledger paper grain - a tactile texture, not a light source. Fixed,
+   pointer-events: none, and above everything so it never gets clipped
+   by a scrolling container; overlay blend keeps it inert on light
+   surfaces (the QR shell) and near-invisible until you look for it. */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  pointer-events: none;
+  opacity: 0.035;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+a {
+  color: inherit;
+  transition: color 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+a:hover {
+  color: var(--nsaa-gold);
+}
+
+::selection {
+  background: rgba(223, 179, 108, 0.25);
+}
+
+:focus-visible {
+  outline: 2px solid var(--nsaa-gold);
+  outline-offset: 2px;
+}
+
+.nsaa-navbar {
+  min-height: 72px;
+  background:
+    linear-gradient(180deg, rgba(11, 11, 14, 0.86), rgba(7, 7, 9, 0.72)),
+    rgba(7, 7, 9, 0.72);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.085);
+  backdrop-filter: blur(18px) saturate(130%);
+  -webkit-backdrop-filter: blur(18px) saturate(130%);
+  padding: 0.75rem 0;
+  z-index: 1040;
+  transition:
+    min-height 0.2s ease,
+    padding 0.2s ease,
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.nsaa-navbar.is-scrolled {
+  min-height: 64px;
+  background:
+    linear-gradient(180deg, rgba(11, 11, 14, 0.94), rgba(7, 7, 9, 0.84)),
+    rgba(7, 7, 9, 0.84);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.nsaa-brand-lockup {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.72rem;
+  min-height: 44px;
+  padding: 0.25rem 0;
+  color: var(--nsaa-text);
+  text-decoration: none;
+}
+
+.nsaa-brand-lockup::before {
+  content: "N";
+  display: inline-grid;
+  place-items: center;
+  width: 2.2rem;
+  height: 2.2rem;
+  flex: none;
+  background: rgba(223, 179, 108, 0.1);
+  border: 1px solid rgba(223, 179, 108, 0.34);
+  border-radius: 4px;
+  color: var(--nsaa-gold);
+  font-size: 0.95rem;
+  font-weight: 850;
+  line-height: 1;
+  transition:
+    background-color 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    color 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.nsaa-brand-lockup:hover::before {
+  background: var(--nsaa-gold);
+  border-color: var(--nsaa-gold);
+  color: var(--nsaa-gold-dark);
+  transform: translateY(-1px);
+}
+
+.nsaa-wordmark {
+  color: var(--nsaa-text);
+  font-family: 'Instrument Sans', sans-serif;
+  font-weight: 800;
+  font-size: 1.45rem;
+  letter-spacing: -0.04em;
+  text-transform: uppercase;
+  line-height: 1;
+}
+
+.nsaa-brand-tickets {
+  color: var(--nsaa-gold);
+  font-family: 'Instrument Sans', sans-serif;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.nsaa-nav-link {
+  color: var(--nsaa-text-muted);
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: color 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.nsaa-nav-link:hover,
+.nsaa-nav-link.active {
+  color: var(--nsaa-text);
+}
+
+.nsaa-nav-links {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.18rem;
+  padding: 0.24rem;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.014)),
+    rgba(255, 255, 255, 0.018);
+  border: 1px solid var(--nsaa-border);
+  border-radius: 4px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045);
+}
+
+.nsaa-nav-links .nsaa-nav-link {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.42rem;
+  min-height: 2.38rem;
+  padding: 0.64rem 0.74rem;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--nsaa-text-muted);
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    background-color 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    color 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.nsaa-nav-links .nsaa-nav-link i {
+  color: currentColor;
+  font-size: 1rem;
+  line-height: 1;
+  opacity: 0.86;
+}
+
+.nsaa-nav-links .nsaa-nav-link:hover,
+.nsaa-nav-links .nsaa-nav-link.active {
+  color: var(--nsaa-text);
+}
+
+.nsaa-nav-links .nsaa-nav-link:hover {
+  transform: translateY(-1px);
+}
+
+.nsaa-nav-links .nsaa-nav-link:active {
+  transform: translateY(0);
+}
+
+.nsaa-nav-links .nsaa-nav-link.active {
+  font-weight: 700;
+}
+
+.nsaa-nav-links .nsaa-nav-link.active::after {
+  content: none;
+}
+
+.nsaa-nav-links .nsaa-nav-link[href$="organizer-inquiry.html"] {
+  background: var(--nsaa-gold);
+  border-color: var(--nsaa-gold);
+  color: var(--nsaa-gold-dark);
+  font-weight: 800;
+}
+
+.nsaa-nav-links .nsaa-nav-link[href$="organizer-inquiry.html"]:hover,
+.nsaa-nav-links .nsaa-nav-link[href$="organizer-inquiry.html"].active {
+  background: var(--nsaa-gold-hover);
+  border-color: var(--nsaa-gold-hover);
+  color: var(--nsaa-gold-dark);
+}
+
+.nsaa-nav-indicator {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 0;
+  width: 0;
+  height: 0;
+  border: 1px solid rgba(223, 179, 108, 0.28);
+  border-radius: 4px;
+  background:
+    linear-gradient(180deg, rgba(223, 179, 108, 0.14), rgba(223, 179, 108, 0.055)),
+    rgba(255, 255, 255, 0.018);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 0 0 1px rgba(223, 179, 108, 0.045);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform 0.38s cubic-bezier(0.16, 1, 0.3, 1),
+    width 0.38s cubic-bezier(0.16, 1, 0.3, 1),
+    height 0.38s cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 0.18s ease;
+}
+
+.nsaa-nav-toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  flex: none;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.012)),
+    rgba(255, 255, 255, 0.018);
+  border: 1px solid var(--nsaa-border);
+  border-radius: 4px;
+  color: var(--nsaa-text);
+  font-size: 1.18rem;
+  line-height: 1;
+  transition:
+    background-color 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    color 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.nsaa-nav-toggle:hover,
+.nsaa-nav-toggle:focus-visible {
+  background-color: rgba(255, 255, 255, 0.03);
+  border-color: var(--nsaa-border-strong);
+}
+
+.nsaa-nav-toggle:active {
+  transform: translateY(1px);
+}
+
+.nsaa-nav-toggle .ph-x {
+  display: none;
+}
+
+.nsaa-nav-toggle[aria-expanded="true"] .ph-list {
+  display: none;
+}
+
+.nsaa-nav-toggle[aria-expanded="true"] .ph-x {
+  display: inline;
+}
+
+#clerk-auth-slot:not(:empty) {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  padding-left: 0.32rem;
+}
+
+@media (max-width: 991.98px) {
+  .nsaa-navbar {
+    min-height: 64px;
+    padding: 0.58rem 0;
+  }
+
+  .nsaa-nav-toggle {
+    display: inline-flex;
+  }
+
+  .nsaa-nav-links {
+    position: absolute;
+    top: calc(100% + 0.55rem);
+    left: auto;
+    right: 0.75rem;
+    width: min(20rem, calc(100vw - 1.5rem));
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.28rem;
+    max-height: calc(100dvh - 5.5rem);
+    overflow-y: auto;
+    padding: 0.5rem;
+    background:
+      linear-gradient(180deg, rgba(22, 22, 26, 0.98), rgba(11, 11, 14, 0.98)),
+      var(--nsaa-bg-soft);
+    border: 1px solid var(--nsaa-border-strong);
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-8px) scale(0.985);
+    transform-origin: top right;
+    visibility: hidden;
+    transition:
+      opacity 0.18s ease,
+      transform 0.24s cubic-bezier(0.16, 1, 0.3, 1),
+      visibility 0.18s ease;
+  }
+
+  .nsaa-nav-links.is-open {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0) scale(1);
+    visibility: visible;
+  }
+
+  .nsaa-nav-links .nsaa-nav-link {
+    justify-content: flex-start;
+    min-height: 3rem;
+    padding: 0.86rem 0.9rem;
+    border-color: rgba(255, 255, 255, 0.045);
+    background: rgba(255, 255, 255, 0.018);
+  }
+
+  .nsaa-nav-links .nsaa-nav-link:hover {
+    transform: none;
+  }
+
+  .nsaa-nav-links .nsaa-nav-link.active {
+    background: rgba(223, 179, 108, 0.1);
+    border-color: rgba(223, 179, 108, 0.28);
+    color: var(--nsaa-text);
+  }
+
+  .nsaa-nav-links .nsaa-nav-link[href$="organizer-inquiry.html"],
+  .nsaa-nav-links .nsaa-nav-link[href$="organizer-inquiry.html"].active {
+    background: var(--nsaa-gold);
+    border-color: var(--nsaa-gold);
+    color: var(--nsaa-gold-dark);
+  }
+
+  .nsaa-nav-indicator {
+    display: none;
+  }
+
+  .nsaa-nav-links #clerk-auth-slot:not(:empty) {
+    padding: 0.28rem 0 0;
+  }
+
+  .nsaa-nav-links #clerk-auth-slot .btn {
+    width: 100%;
+    min-height: 2.75rem;
+  }
+
+  body.nsaa-nav-open {
+    overflow: hidden;
+  }
+}
+
+.nsaa-muted {
+  color: var(--nsaa-text-muted);
+}
+
+.nsaa-faint {
+  color: var(--nsaa-text-faint);
+}
+
+.nsaa-eyebrow {
+  color: var(--nsaa-gold);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.nsaa-page-title {
+  font-family: 'Instrument Sans', sans-serif;
+  font-weight: 850;
+  font-size: clamp(2.3rem, 6.5vw, 4.2rem);
+  line-height: 0.95;
+  letter-spacing: -0.04em;
+}
+
+.nsaa-section-title {
+  font-family: 'Instrument Sans', sans-serif;
+  font-weight: 800;
+  font-size: clamp(1.65rem, 4vw, 2.4rem);
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+}
+
+.nsaa-card,
+.nsaa-panel {
+  background-color: var(--nsaa-bg-soft);
+  border: 1px solid var(--nsaa-border);
+  border-radius: 4px;
+}
+
+.nsaa-panel {
+  padding: 1.5rem;
+}
+
+.nsaa-soft-panel {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+}
+
+.btn-nsaa {
+  background-color: var(--nsaa-gold);
+  border: 1px solid var(--nsaa-gold);
+  border-radius: 4px;
+  color: var(--nsaa-gold-dark);
+  font-weight: 700;
+  font-size: 0.92rem;
+  padding: 0.65rem 1.25rem;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  letter-spacing: -0.01em;
+}
+
+.btn-nsaa:hover,
+.btn-nsaa:focus {
+  background-color: var(--nsaa-gold-hover);
+  border-color: var(--nsaa-gold-hover);
+  color: var(--nsaa-gold-dark);
+  transform: translateY(-1px);
+}
+
+.btn-nsaa:disabled,
+.btn-nsaa.disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.btn-outline-nsaa {
+  background: transparent;
+  border: 1px solid var(--nsaa-border);
+  border-radius: 4px;
+  color: var(--nsaa-text);
+  font-weight: 600;
+  font-size: 0.92rem;
+  padding: 0.65rem 1.25rem;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn-outline-nsaa:hover,
+.btn-outline-nsaa:focus {
+  background-color: rgba(255, 255, 255, 0.03);
+  border-color: var(--nsaa-border-strong);
+  color: var(--nsaa-text);
+  transform: translateY(-1px);
+}
+
+.form-control-nsaa,
+.form-select-nsaa {
+  background-color: rgba(255, 255, 255, 0.015);
+  border: 1px solid var(--nsaa-border);
+  border-radius: 4px;
+  color: var(--nsaa-text);
+  min-height: 44px;
+  font-size: 0.95rem;
+  transition: all 0.15s ease;
+}
+
+.form-control-nsaa::placeholder {
+  color: var(--nsaa-text-faint);
+}
+
+.form-control-nsaa:focus,
+.form-select-nsaa:focus {
+  background-color: rgba(255, 255, 255, 0.03);
+  border-color: var(--nsaa-gold);
+  box-shadow: 0 0 0 3px rgba(223, 179, 108, 0.08);
+  color: var(--nsaa-text);
+}
+
+.form-select-nsaa option {
+  background: var(--nsaa-bg-soft);
+  color: var(--nsaa-text);
+}
+
+.nsaa-hero-band {
+  min-height: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  padding: 6.5rem 0 5rem;
+  border-bottom: 1px solid var(--nsaa-border);
+  overflow: hidden;
+}
+
+.nsaa-hero-inner {
+  width: 100%;
+  position: relative;
+  z-index: 2;
+}
+
+.nsaa-search-shell {
+  background: var(--nsaa-bg-soft);
+  border: 1px solid var(--nsaa-border-strong);
+  border-radius: 6px;
+  padding: 0.5rem;
+  transition: all 0.2s ease;
+}
+
+.nsaa-search-shell:focus-within {
+  border-color: var(--nsaa-gold);
+  box-shadow: 0 0 0 3px rgba(223, 179, 108, 0.12);
+}
+
+.nsaa-hero-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.75rem 2.5rem;
+  margin: 2rem 0 0;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--nsaa-border);
+}
+
+.nsaa-hero-facts dt {
+  color: var(--nsaa-text-muted);
+  font-size: 0.8rem;
+  font-weight: 500;
+  margin-bottom: 0.2rem;
+}
+
+.nsaa-hero-facts dd {
+  color: var(--nsaa-text);
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.nsaa-hero-stub {
+  width: 100%;
+  max-width: 280px;
+  background: var(--nsaa-text);
+  color: var(--nsaa-bg);
+  border-radius: 8px;
+  padding: 1.5rem 1.5rem 1.25rem;
+  transform: rotate(-4deg);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+}
+
+.nsaa-hero-stub-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.1rem;
+}
+
+.nsaa-hero-stub-label {
+  font-weight: 800;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.nsaa-hero-stub-cat {
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(7, 7, 9, 0.55);
+}
+
+.nsaa-hero-stub-title {
+  font-family: "Instrument Sans", sans-serif;
+  font-weight: 800;
+  font-size: 1.3rem;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.35rem;
+}
+
+.nsaa-hero-stub-meta {
+  font-size: 0.82rem;
+  color: rgba(7, 7, 9, 0.6);
+}
+
+.nsaa-hero-stub-perf {
+  position: relative;
+  height: 1px;
+  margin: 1.4rem -1.5rem;
+  background-image: repeating-linear-gradient(
+    90deg,
+    rgba(7, 7, 9, 0.2) 0 6px,
+    transparent 6px 12px
+  );
+}
+
+.nsaa-hero-stub-perf::before,
+.nsaa-hero-stub-perf::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 20px;
+  height: 20px;
+  background: var(--nsaa-bg);
+  border-radius: 50%;
+  transform: translateY(-50%);
+}
+
+.nsaa-hero-stub-perf::before {
+  left: -10px;
+}
+
+.nsaa-hero-stub-perf::after {
+  right: -10px;
+}
+
+.nsaa-hero-stub-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.nsaa-hero-stub-stamp {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: rgba(7, 7, 9, 0.7);
+}
+
+.nsaa-hero-stub-stamp-icon {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--nsaa-gold);
+  color: var(--nsaa-gold-dark);
+  font-size: 0.65rem;
+}
+
+.nsaa-hero-stub-qr {
+  font-size: 1.5rem;
+  line-height: 1;
+  color: rgba(7, 7, 9, 0.85);
+}
+
+.nsaa-category-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.nsaa-category-tile {
+  min-height: 142px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden;
+  padding: 1.25rem;
+  position: relative;
+  text-decoration: none;
+  border: 1px solid var(--nsaa-border);
+  border-radius: 4px;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.nsaa-category-tile::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--category-image);
+  background-position: center;
+  background-size: cover;
+  opacity: 0.16;
+  transition: opacity 0.3s ease, transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.nsaa-category-tile::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(7, 7, 9, 0.1) 0%,
+    rgba(7, 7, 9, 0.85) 100%
+  );
+}
+
+.nsaa-category-tile > * {
+  position: relative;
+  z-index: 2;
+}
+
+.nsaa-category-tile:hover::before {
+  opacity: 0.28;
+  transform: scale(1.03);
+}
+
+.nsaa-category-count {
+  align-self: flex-start;
+  color: var(--nsaa-text-muted);
+  font-size: 0.76rem;
+  font-weight: 500;
+}
+
+.nsaa-chip,
+.nsaa-badge-gold {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 4px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  min-height: 24px;
+  padding: 0.15rem 0.55rem;
+  text-transform: uppercase;
+}
+
+.nsaa-badge-gold {
+  background-color: var(--nsaa-gold);
+  color: var(--nsaa-gold-dark);
+}
+
+.nsaa-chip {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  color: var(--nsaa-text-muted);
+}
+
+.nsaa-chip[data-tone="teal"] {
+  background: rgba(74, 219, 184, 0.04);
+  border-color: rgba(74, 219, 184, 0.2);
+  color: var(--nsaa-teal);
+}
+
+.nsaa-chip[data-tone="rose"] {
+  background: rgba(240, 123, 138, 0.04);
+  border-color: rgba(240, 123, 138, 0.2);
+  color: var(--nsaa-rose);
+}
+
+.nsaa-chip[data-tone="blue"] {
+  background: rgba(95, 165, 249, 0.04);
+  border-color: rgba(95, 165, 249, 0.2);
+  color: var(--nsaa-blue);
+}
+
+.nsaa-chip[data-tone="green"] {
+  background: rgba(129, 199, 132, 0.04);
+  border-color: rgba(129, 199, 132, 0.2);
+  color: var(--nsaa-green);
+}
+
+.nsaa-event-card {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.nsaa-event-media {
+  aspect-ratio: 16 / 10;
+  background-color: var(--nsaa-bg-soft);
+  background-position: center;
+  background-size: cover;
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+  border: 1px solid var(--nsaa-border);
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.nsaa-event-card:hover .nsaa-event-media {
+  border-color: var(--nsaa-gold);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+}
+
+.nsaa-event-body {
+  padding: 1rem 0 0;
+  transition: color 0.2s ease;
+}
+
+.nsaa-event-card:hover .nsaa-event-body h3 {
+  color: var(--nsaa-gold) !important;
+}
+
+.nsaa-meta-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+}
+
+.nsaa-meta-item {
+  background: rgba(255, 255, 255, 0.015);
+  border: 1px solid var(--nsaa-border);
+  border-radius: 4px;
+  padding: 1rem 1.25rem;
+}
+
+.nsaa-event-detail-hero {
+  min-height: 48vh;
+  display: flex;
+  align-items: end;
+  background-position: center;
+  background-size: cover;
+  position: relative;
+  border-bottom: 1px solid var(--nsaa-border);
+}
+
+.nsaa-event-detail-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(7, 7, 9, 0.2) 0%,
+      rgba(7, 7, 9, 0.9) 100%
+    ),
+    linear-gradient(
+      90deg,
+      rgba(7, 7, 9, 0.8) 0%,
+      rgba(7, 7, 9, 0.2) 100%
+    );
+}
+
+.nsaa-event-detail-hero > .container {
+  position: relative;
+  z-index: 1;
+}
+
+.nsaa-ticket-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.9rem;
+}
+
+.nsaa-price-breakdown {
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px dashed var(--nsaa-border-strong);
+  border-radius: 8px;
+}
+
+.nsaa-divider-dashed {
+  border-top: 1px dashed var(--nsaa-border-strong);
+}
+
+.nsaa-status-box {
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.nsaa-status-box.waiting {
+  background: var(--nsaa-warning-bg);
+  border: 1px solid rgba(242, 200, 121, 0.35);
+  color: var(--nsaa-warning);
+}
+
+.nsaa-status-box.success {
+  background: var(--nsaa-success-bg);
+  border: 1px solid rgba(159, 210, 122, 0.4);
+  color: var(--nsaa-success);
+}
+
+.nsaa-status-box.failed {
+  background: var(--nsaa-danger-bg);
+  border: 1px solid rgba(240, 149, 149, 0.4);
+  color: var(--nsaa-danger);
+}
+
+.nsaa-progress-dots {
+  display: inline-flex;
+  gap: 0.34rem;
+  vertical-align: middle;
+}
+
+.nsaa-progress-dots span {
+  width: 0.44rem;
+  height: 0.44rem;
+  animation: nsaaPulse 1.2s infinite ease-in-out;
+  background: currentColor;
+  border-radius: 999px;
+  opacity: 0.42;
+}
+
+.nsaa-progress-dots span:nth-child(2) {
+  animation-delay: 120ms;
+}
+
+.nsaa-progress-dots span:nth-child(3) {
+  animation-delay: 240ms;
+}
+
+@keyframes nsaaPulse {
+  0%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.35;
+  }
+  50% {
+    transform: translateY(-3px);
+    opacity: 1;
+  }
+}
+
+.nsaa-order-timeline {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.nsaa-timeline-step {
+  align-items: start;
+  display: grid;
+  gap: 0.7rem;
+  grid-template-columns: 1.6rem 1fr;
+}
+
+.nsaa-timeline-dot {
+  width: 1.2rem;
+  height: 1.2rem;
+  border: 1px solid var(--nsaa-border-strong);
+  border-radius: 999px;
+  margin-top: 0.15rem;
+}
+
+.nsaa-timeline-step.active .nsaa-timeline-dot {
+  background: var(--nsaa-gold);
+  border-color: var(--nsaa-gold);
+}
+
+.nsaa-qr-shell {
+  background: #fff;
+  border-radius: 8px;
+  display: inline-flex;
+  padding: 0.7rem;
+}
+
+/* Ticket stub: a punched-hole notch on each edge, like a torn physical
+   ticket. Circles are the sanctioned full-round exception (true
+   circular elements), colored to match the page background so they
+   read as cut-outs rather than decoration - no gradient, no glow. */
+.nsaa-ticket-stub {
+  position: relative;
+}
+
+.nsaa-ticket-stub::before,
+.nsaa-ticket-stub::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 999px;
+  background: var(--nsaa-bg);
+  border: 1px solid var(--nsaa-border);
+  transform: translateY(-50%);
+  z-index: 1;
+}
+
+.nsaa-ticket-stub::before {
+  left: -0.55rem;
+}
+
+.nsaa-ticket-stub::after {
+  right: -0.55rem;
+}
+
+.nsaa-ticket-perforation {
+  border-top: 1px dashed var(--nsaa-border-strong);
+  margin: 0 -1rem 1rem;
+}
+
+.ticket-status-valid {
+  color: var(--nsaa-success);
+}
+
+.ticket-status-used,
+.ticket-status-void {
+  color: var(--nsaa-danger);
+}
+
+#scanner-video {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  background: #000;
+  border: 1px solid var(--nsaa-border);
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.scanner-console {
+  min-height: 132px;
+  display: grid;
+  place-items: center;
+}
+
+.scan-result-ok,
+.scan-result-fail,
+.scan-result-wait {
+  border-radius: 8px;
+}
+
+.scan-result-ok {
+  background-color: var(--nsaa-success-bg);
+  border: 1px solid rgba(159, 210, 122, 0.45);
+  color: var(--nsaa-success);
+}
+
+.scan-result-fail {
+  background-color: var(--nsaa-danger-bg);
+  border: 1px solid rgba(240, 149, 149, 0.45);
+  color: var(--nsaa-danger);
+}
+
+.scan-result-wait {
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid var(--nsaa-border);
+  color: var(--nsaa-text-muted);
+}
+
+.nsaa-empty {
+  min-height: 260px;
+  align-items: center;
+  display: grid;
+  justify-items: center;
+  text-align: center;
+}
+
+.nsaa-footer {
+  border-top: 1px solid var(--nsaa-border);
+  color: var(--nsaa-text-faint);
+  font-size: 0.88rem;
+  padding: 3rem 0;
+  margin-top: 6rem;
+}
+
+@media (min-width: 576px) {
+  .nsaa-category-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .nsaa-meta-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 992px) {
+  .nsaa-category-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .nsaa-ticket-row {
+    align-items: center;
+    grid-template-columns: 1fr auto;
+  }
+
+  .nsaa-panel {
+    padding: 1.5rem;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .nsaa-hero-band {
+    min-height: auto;
+  }
+
+  .nsaa-hero-inner {
+    padding: 3.5rem 0 3.5rem;
+  }
+
+  .nsaa-nav-links .nsaa-nav-link {
+    font-size: 0.86rem;
+  }
+
+  .nsaa-wordmark {
+    font-size: 1.35rem;
+  }
+}
+
+/* Shimmer animations & placeholder loading */
+@keyframes skeletonShimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--nsaa-surface) 25%,
+    var(--nsaa-surface-2) 50%,
+    var(--nsaa-surface) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeletonShimmer 1.5s infinite linear;
+}
+
+.nsaa-event-card-skeleton {
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+}
+
+.skeleton-image {
+  aspect-ratio: 16 / 10;
+  width: 100%;
+  border-radius: 4px;
+  border: 1px solid var(--nsaa-border);
+}
+
+.skeleton-chip {
+  width: 60px;
+  height: 20px;
+  border-radius: 4px;
+}
+
+.skeleton-title {
+  width: 80%;
+  height: 24px;
+  border-radius: 4px;
+}
+
+.skeleton-text-medium {
+  width: 60%;
+  height: 16px;
+  border-radius: 4px;
+}
+
+.skeleton-text-short {
+  width: 40%;
+  height: 16px;
+  border-radius: 4px;
+}
+
+/* Custom Styled Input Validation */
+.form-control-nsaa.is-invalid,
+.form-select-nsaa.is-invalid {
+  border-color: var(--nsaa-danger) !important;
+  background-image: none !important;
+  padding-right: 0.75rem !important;
+}
+
+.form-control-nsaa.is-invalid:focus,
+.form-select-nsaa.is-invalid:focus {
+  box-shadow: 0 0 0 3px rgba(242, 107, 107, 0.12) !important;
+}
+
+.form-control-nsaa.is-valid,
+.form-select-nsaa.is-valid {
+  border-color: var(--nsaa-success) !important;
+  background-image: none !important;
+  padding-right: 0.75rem !important;
+}
+
+.form-control-nsaa.is-valid:focus,
+.form-select-nsaa.is-valid:focus {
+  box-shadow: 0 0 0 3px rgba(129, 199, 132, 0.12) !important;
+}
+
+/* Status Box Animations */
+@keyframes slideDownFade {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.nsaa-status-box {
+  animation: slideDownFade 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.nsaa-navbar {
+  box-shadow: 0 10px 35px rgba(0, 0, 0, 0.25);
+}
+
+.nsaa-brand-lockup:hover .nsaa-wordmark {
+  color: var(--nsaa-gold);
+}
+
+.nsaa-hero-band {
+  padding: 7.5rem 0 5.75rem;
+}
+
+.nsaa-hero-band::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at top left, rgba(223, 179, 108, 0.16), transparent 48%);
+  pointer-events: none;
+}
+
+.nsaa-page-title {
+  text-shadow: 0 10px 40px rgba(0, 0, 0, 0.35);
+}
+
+.nsaa-search-shell {
+  padding: 0.7rem;
+}
+
+.nsaa-search-shell .form-control-nsaa,
+.nsaa-search-shell .form-select-nsaa {
+  min-height: 48px;
+}
+
+.nsaa-category-grid {
+  gap: 1.15rem;
+}
+
+.nsaa-category-tile {
+  min-height: 166px;
+  padding: 1.25rem;
+}
+
+.nsaa-category-tile::after {
+  background: linear-gradient(180deg, rgba(7, 7, 9, 0.05) 0%, rgba(7, 7, 9, 0.92) 100%);
+}
+
+.nsaa-category-tile:hover {
+  border-color: rgba(223, 179, 108, 0.35);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+}
+
+.nsaa-trust-card {
+  min-height: 100%;
+}
+
+.nsaa-trust-icon {
+  color: var(--nsaa-gold);
+  font-size: 1.1rem;
+}
+
+/* Icon badge: same hairline-border + 4px-radius + faint-fill recipe as
+   cards and inputs, just sized for a single glyph. Gives trust/feature
+   icons visual weight without a shadow, glow, or a circle. */
+.nsaa-icon-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 1px solid var(--nsaa-border);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.015);
+  color: var(--nsaa-gold);
+  font-size: 1.15rem;
+}
+
+.nsaa-footer {
+  margin-top: 4.5rem;
+  padding: 2.5rem 0 3.25rem;
+}
+
+.nsaa-cookie-banner {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1000;
+  background: var(--nsaa-bg-soft);
+  border-top: 1px solid var(--nsaa-border);
+}

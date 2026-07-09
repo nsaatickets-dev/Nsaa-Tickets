@@ -1,0 +1,411 @@
+<!doctype html>
+<html lang="en" data-bs-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Checkout | Nsaa Tickets</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link href="css/nsaa.css" rel="stylesheet" />
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  </head>
+  <body class="checkout-body">
+    <nav class="navbar nsaa-navbar">
+      <div class="container">
+        <a
+          class="nsaa-brand-lockup"
+          href="index.html"
+          aria-label="Nsaa Tickets home"
+        >
+          <span class="nsaa-wordmark">Nsaa</span>
+          <span class="nsaa-brand-tickets" aria-label="Tickets"
+            >T I C K E T S</span
+          >
+        </a>
+        <span class="ms-auto nsaa-muted small">Secure checkout</span>
+      </div>
+    </nav>
+
+    <script
+      async
+      crossorigin="anonymous"
+      data-clerk-publishable-key="pk_test_REPLACE_ME"
+      src="https://REPLACE_ME.clerk.accounts.dev/npm/@clerk/clerk-js@5/dist/clerk.browser.js"
+      type="text/javascript"
+    ></script>
+
+    <main class="container py-5" style="max-width: 920px">
+      <div id="checkout-root">
+        <div id="checkout-loading"></div>
+      </div>
+    </main>
+
+    <script src="js/nsaa.js"></script>
+    <script type="module">
+      import { ConvexClient } from "https://esm.sh/convex/browser";
+
+      const params = new URLSearchParams(window.location.search);
+      const eventId = params.get("eventId");
+      const ticketTypeId = params.get("ticketTypeId");
+      const root = document.getElementById("checkout-root");
+
+      let client = null;
+      let eventRecord = null;
+      let ticketType = null;
+      let quantity = 1;
+      let currentOrderId = null;
+      let checkoutRendered = false;
+
+      function serviceFee(subtotal) {
+        return Math.round((subtotal * 0.05 + 0.5) * 100) / 100;
+      }
+
+      function totalsFor(qty) {
+        const subtotal = (ticketType?.priceGHS ?? 0) * qty;
+        const fee = serviceFee(subtotal);
+        return {
+          subtotal,
+          fee,
+          total: Math.round((subtotal + fee) * 100) / 100,
+        };
+      }
+
+      function renderShell() {
+        if (!eventRecord || !ticketType) return;
+        if (checkoutRendered) {
+          updateSummary();
+          return;
+        }
+        checkoutRendered = true;
+        const available = ticketType.quantityAvailable ?? 0;
+        quantity = Math.min(Math.max(quantity, 1), Math.max(available, 1));
+
+        root.innerHTML = `
+        <div class="row g-4 align-items-start">
+          <section class="col-lg-7">
+            <div id="details-step" class="nsaa-panel">
+              <p class="nsaa-eyebrow mb-2">Guest checkout</p>
+              <h1 class="h3 mb-2">Your details</h1>
+              <p class="nsaa-muted mb-4">No account required. Your phone number is used for the Mobile Money prompt and ticket delivery.</p>
+
+              <form id="details-form" novalidate>
+                <div class="row g-3">
+                  <div class="col-12">
+                    <label class="form-label nsaa-muted small" for="buyer-name">Full name</label>
+                    <input id="buyer-name" class="form-control form-control-nsaa" type="text" autocomplete="name" placeholder="Ama Mensah" required />
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label nsaa-muted small" for="buyer-phone">Mobile Money number</label>
+                    <input id="buyer-phone" class="form-control form-control-nsaa" type="tel" autocomplete="tel" placeholder="024 000 0000" required />
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label nsaa-muted small" for="buyer-email">Email optional</label>
+                    <input id="buyer-email" class="form-control form-control-nsaa" type="email" autocomplete="email" placeholder="name@email.com" />
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label nsaa-muted small" for="buyer-quantity">Quantity</label>
+                    <input id="buyer-quantity" class="form-control form-control-nsaa" type="number" min="1" max="${NSAA.escapeAttr(available)}" value="${NSAA.escapeAttr(quantity)}" required />
+                  </div>
+                </div>
+
+                <div id="details-error" class="mt-3"></div>
+                <button id="reserve-btn" class="btn btn-nsaa w-100 mt-4" type="submit" ${available <= 0 ? "disabled" : ""}>Reserve and continue</button>
+              </form>
+            </div>
+
+            <div id="payment-step" class="nsaa-panel d-none">
+              <p class="nsaa-eyebrow mb-2">Mobile Money</p>
+              <h2 class="h3 mb-2">Approve payment on your phone</h2>
+              <p class="nsaa-muted mb-4">Nsaa will send a Mobile Money prompt to the number you entered. Confirmation can take a little time after approval.</p>
+              <div id="payment-status" class="nsaa-status-box waiting mb-3">
+                <p class="fw-semibold mb-1">Waiting to send request</p>
+                <p class="mb-0">Your ticket reservation is held while you start payment.</p>
+              </div>
+              <button id="pay-btn" class="btn btn-nsaa w-100" type="button">Send payment prompt</button>
+              <a id="status-link" class="btn btn-outline-nsaa w-100 mt-3" href="#">Open order status</a>
+            </div>
+          </section>
+
+          <aside class="col-lg-5">
+            <div class="nsaa-panel position-sticky" style="top: 88px;">
+              <p class="nsaa-eyebrow mb-2">Order summary</p>
+              <h2 class="h4 mb-1">${NSAA.escapeHtml(eventRecord.title)}</h2>
+              <p class="nsaa-muted mb-3">${NSAA.escapeHtml(ticketType.name)} at ${NSAA.escapeHtml(eventRecord.venue)}</p>
+              <div class="d-flex justify-content-between py-2">
+                <span class="nsaa-muted">Ticket price</span>
+                <span id="summary-ticket-price">${NSAA.money(ticketType.priceGHS)}</span>
+              </div>
+              <div class="d-flex justify-content-between py-2">
+                <span class="nsaa-muted">Quantity</span>
+                <span id="summary-quantity">${quantity}</span>
+              </div>
+              <div class="d-flex justify-content-between py-2 nsaa-divider-dashed">
+                <span class="nsaa-muted">Ticket subtotal</span>
+                <span id="summary-subtotal"></span>
+              </div>
+              <div class="d-flex justify-content-between py-2">
+                <span class="nsaa-muted">Service fee</span>
+                <span id="summary-fee"></span>
+              </div>
+              <div class="d-flex justify-content-between py-3 fs-5 fw-semibold nsaa-divider-dashed">
+                <span>Total due</span>
+                <span id="summary-total" style="color: var(--nsaa-gold);"></span>
+              </div>
+              <p class="nsaa-faint small mb-0">${available <= 0 ? "This ticket type is sold out." : `${available} currently available. Availability updates live.`}</p>
+            </div>
+          </aside>
+        </div>
+      `;
+
+        bindCheckout();
+        updateSummary();
+      }
+
+      function updateSummary() {
+        const qtyInput = document.getElementById("buyer-quantity");
+        if (qtyInput) {
+          quantity = Math.max(1, Number(qtyInput.value || 1));
+        }
+        const totals = totalsFor(quantity);
+        document.getElementById("summary-quantity").textContent = quantity;
+        document.getElementById("summary-subtotal").textContent = NSAA.money(
+          totals.subtotal,
+        );
+        document.getElementById("summary-fee").textContent = NSAA.money(
+          totals.fee,
+        );
+        document.getElementById("summary-total").textContent = NSAA.money(
+          totals.total,
+        );
+      }
+
+      function bindCheckout() {
+        document
+          .getElementById("buyer-quantity")
+          .addEventListener("input", updateSummary);
+        document
+          .getElementById("details-form")
+          .addEventListener("submit", reserveOrder);
+
+        const fields = ["buyer-name", "buyer-phone", "buyer-email", "buyer-quantity"];
+        fields.forEach(id => {
+          const el = document.getElementById(id);
+          if (el) {
+            el.addEventListener("input", () => {
+              el.classList.remove("is-invalid");
+            });
+          }
+        });
+      }
+
+      async function reserveOrder(event) {
+        event.preventDefault();
+        const errorEl = document.getElementById("details-error");
+        const reserveBtn = document.getElementById("reserve-btn");
+        errorEl.innerHTML = "";
+
+        const buyerName = document.getElementById("buyer-name").value.trim();
+        const buyerPhone = document.getElementById("buyer-phone").value.trim();
+        const buyerEmail = document.getElementById("buyer-email").value.trim();
+        const requestedQuantity = Number(
+          document.getElementById("buyer-quantity").value || 1,
+        );
+
+        let hasError = false;
+        
+        // Reset states
+        const fields = ["buyer-name", "buyer-phone", "buyer-email", "buyer-quantity"];
+        fields.forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.classList.remove("is-invalid", "is-valid");
+        });
+
+        if (!buyerName) {
+          document.getElementById("buyer-name").classList.add("is-invalid");
+          hasError = true;
+        } else {
+          document.getElementById("buyer-name").classList.add("is-valid");
+        }
+
+        if (!buyerPhone || !NSAA.isValidGhanaPhone(buyerPhone)) {
+          document.getElementById("buyer-phone").classList.add("is-invalid");
+          hasError = true;
+        } else {
+          document.getElementById("buyer-phone").classList.add("is-valid");
+        }
+
+        if (buyerEmail && !NSAA.isValidEmail(buyerEmail)) {
+          document.getElementById("buyer-email").classList.add("is-invalid");
+          hasError = true;
+        } else if (buyerEmail) {
+          document.getElementById("buyer-email").classList.add("is-valid");
+        }
+
+        const maxAvailable = ticketType?.quantityAvailable ?? 1;
+        if (requestedQuantity < 1 || requestedQuantity > maxAvailable) {
+          document.getElementById("buyer-quantity").classList.add("is-invalid");
+          hasError = true;
+        } else {
+          document.getElementById("buyer-quantity").classList.add("is-valid");
+        }
+
+        if (hasError) {
+          errorEl.innerHTML = NSAA.errorState(
+            "Check details",
+            "Please check the highlighted fields. Provide a valid name, active Ghanaian MoMo number, and quantity."
+          );
+          return;
+        }
+
+        reserveBtn.disabled = true;
+        reserveBtn.textContent = "Reserving tickets...";
+
+        try {
+          const result = await client.mutation("orders:createReservation", {
+            eventId,
+            ticketTypeId,
+            quantity: requestedQuantity,
+            buyerName,
+            buyerPhone,
+            buyerEmail: buyerEmail || undefined,
+          });
+
+          currentOrderId = result.orderId;
+          window.localStorage.setItem("nsaa:lastOrderId", currentOrderId);
+          showPaymentStep();
+        } catch (err) {
+          errorEl.innerHTML = NSAA.errorState(
+            "Could not reserve tickets",
+            err.message || "Please try again.",
+          );
+          reserveBtn.disabled = false;
+          reserveBtn.textContent = "Reserve and continue";
+        }
+      }
+
+      function showPaymentStep() {
+        document.getElementById("details-step").classList.add("d-none");
+        document.getElementById("payment-step").classList.remove("d-none");
+        document.getElementById("status-link").href =
+          `order-status.html?orderId=${encodeURIComponent(currentOrderId)}`;
+
+        client.onUpdate(
+          "orders:getOrderSummary",
+          { orderId: currentOrderId },
+          (summary) => {
+            if (!summary) return;
+            const order = summary.order;
+            document.getElementById("summary-subtotal").textContent =
+              NSAA.money(order.ticketSubtotalGHS);
+            document.getElementById("summary-fee").textContent = NSAA.money(
+              order.serviceFeeGHS,
+            );
+            document.getElementById("summary-total").textContent = NSAA.money(
+              order.totalGHS,
+            );
+
+            if (order.status === "paid") {
+              window.location.href = `wallet.html?orderId=${encodeURIComponent(order._id)}`;
+            }
+            if (order.status === "expired") {
+              setPaymentState(
+                "failed",
+                "Reservation expired",
+                "The hold window ended before payment was confirmed. Start again to reserve fresh inventory.",
+              );
+              document.getElementById("pay-btn").disabled = true;
+            }
+            if (order.status === "failed") {
+              setPaymentState(
+                "failed",
+                "Payment failed",
+                "No ticket was issued. You can start a fresh checkout from the event page.",
+              );
+              document.getElementById("pay-btn").disabled = true;
+            }
+          },
+        );
+      }
+
+      function setPaymentState(kind, title, body) {
+        const box = document.getElementById("payment-status");
+        box.className = `nsaa-status-box ${kind} mb-3`;
+        box.innerHTML = `
+        <p class="fw-semibold mb-1">${NSAA.escapeHtml(title)} ${kind === "waiting" ? '<span class="nsaa-progress-dots" aria-hidden="true"><span></span><span></span><span></span></span>' : ""}</p>
+        <p class="mb-0">${NSAA.escapeHtml(body)}</p>
+      `;
+      }
+
+      document.addEventListener("click", async (event) => {
+        if (event.target?.id !== "pay-btn") return;
+        const payBtn = event.target;
+        payBtn.disabled = true;
+        setPaymentState(
+          "waiting",
+          "Sending payment prompt",
+          "Keep this page open. Your phone may ask you to approve the Mobile Money payment.",
+        );
+
+        try {
+          await client.action("orders:initiateMoolrePayment", {
+            orderId: currentOrderId,
+          });
+          setPaymentState(
+            "waiting",
+            "Waiting for confirmation",
+            "Approve the prompt on your phone. Nsaa will move you to your tickets as soon as payment is confirmed.",
+          );
+          payBtn.textContent = "Payment request sent";
+        } catch (err) {
+          setPaymentState(
+            "failed",
+            "Could not start payment",
+            err.message || "Please try again.",
+          );
+          payBtn.disabled = false;
+        }
+      });
+
+      if (!eventId || !ticketTypeId) {
+        root.innerHTML = NSAA.emptyState(
+          "Checkout link incomplete",
+          "Choose a ticket from an event page to begin checkout.",
+          '<a class="btn btn-nsaa" href="index.html">Browse events</a>',
+        );
+      } else if (!NSAA.isConvexConfigured()) {
+        root.innerHTML = NSAA.setupNotice("Checkout");
+      } else {
+        client = new ConvexClient(NSAA.CONVEX_URL);
+        await NSAA.attachConvexAuth(client);
+        document.getElementById("checkout-loading").innerHTML =
+          NSAA.loading("Preparing checkout");
+
+        client.onUpdate("events:getById", { eventId }, (event) => {
+          eventRecord = event;
+          renderShell();
+        });
+
+        client.onUpdate(
+          "events:ticketTypesForEvent",
+          { eventId },
+          (ticketTypes) => {
+            ticketType = (ticketTypes || []).find(
+              (item) => item._id === ticketTypeId,
+            );
+            if (ticketTypes && !ticketType) {
+              root.innerHTML = NSAA.emptyState(
+                "Ticket type not found",
+                "This ticket may no longer be available for the selected event.",
+                '<a class="btn btn-nsaa" href="index.html">Browse events</a>',
+              );
+              return;
+            }
+            renderShell();
+          },
+        );
+      }
+    </script>
+  </body>
+</html>

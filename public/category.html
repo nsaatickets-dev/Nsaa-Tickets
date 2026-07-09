@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en" data-bs-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Category | Nsaa Tickets</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link href="css/nsaa.css" rel="stylesheet" />
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  </head>
+  <body>
+    <nav class="navbar nsaa-navbar navbar-expand sticky-top">
+      <div class="container">
+        <a
+          class="nsaa-brand-lockup"
+          href="index.html"
+          aria-label="Nsaa Tickets home"
+        >
+          <span class="nsaa-wordmark">Nsaa</span>
+          <span class="nsaa-brand-tickets" aria-label="Tickets"
+            >T I C K E T S</span
+          >
+        </a>
+        <div class="ms-auto d-flex align-items-center gap-2">
+          <button
+            class="nsaa-nav-toggle"
+            type="button"
+            aria-label="Open menu"
+            aria-expanded="false"
+            aria-controls="nsaa-nav-links"
+          >
+            <i class="ph ph-list" aria-hidden="true"></i>
+            <i class="ph ph-x" aria-hidden="true"></i>
+          </button>
+          <div class="nsaa-nav-links" id="nsaa-nav-links">
+            <a href="search-results.html" class="nsaa-nav-link">Search</a>
+            <a href="about.html" class="nsaa-nav-link">About</a>
+            <a href="organizer-inquiry.html" class="nsaa-nav-link">List event</a>
+            <a href="organizer-dashboard.html" class="nsaa-nav-link">Dashboard</a>
+            <a href="wallet.html" class="nsaa-nav-link">My tickets</a>
+            <div id="clerk-auth-slot"></div>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <script
+      async
+      crossorigin="anonymous"
+      data-clerk-publishable-key="pk_test_REPLACE_ME"
+      src="https://REPLACE_ME.clerk.accounts.dev/npm/@clerk/clerk-js@5/dist/clerk.browser.js"
+      type="text/javascript"
+    ></script>
+
+    <header id="category-header" class="nsaa-event-detail-hero">
+      <div class="container py-5">
+        <p id="category-eyebrow" class="nsaa-eyebrow mb-3">Browse category</p>
+        <h1 id="category-title" class="nsaa-page-title mb-3">Events</h1>
+        <p id="category-description" class="lead nsaa-muted mb-0"></p>
+      </div>
+    </header>
+
+    <main class="container py-5">
+      <div class="row g-4">
+        <aside class="col-lg-3">
+          <div class="nsaa-panel">
+            <h2 class="h6 mb-3">Explore</h2>
+            <div id="category-links" class="d-grid gap-2"></div>
+          </div>
+        </aside>
+        <section class="col-lg-9">
+          <div
+            class="d-flex flex-column flex-md-row justify-content-between gap-3 mb-4"
+          >
+            <div>
+              <h2 id="results-title" class="h4 mb-1">Upcoming events</h2>
+              <p id="results-subtitle" class="nsaa-muted mb-0">
+                Live listings from Nsaa.
+              </p>
+            </div>
+            <a
+              id="search-this-category"
+              class="btn btn-outline-nsaa align-self-md-start"
+              href="search-results.html"
+              >Refine search</a
+            >
+          </div>
+          <div id="category-results" class="row g-4"></div>
+        </section>
+      </div>
+    </main>
+
+    <footer class="nsaa-footer">
+      <div class="container">
+        <div class="row g-4 pb-4">
+          <div class="col-lg-4">
+            <a class="nsaa-brand-lockup d-inline-flex mb-3" href="index.html">
+              <span class="nsaa-wordmark">Nsaa</span>
+              <span class="nsaa-brand-tickets" aria-label="Tickets">T I C K E T S</span>
+            </a>
+            <p class="nsaa-muted small mb-3" style="max-width: 320px;">
+              Ghana-first ticketing with clear fees and fraud-resistant entry.
+            </p>
+            <div class="d-flex gap-2">
+              <a href="#" class="nsaa-icon-badge" aria-label="Nsaa on X"><i class="ph ph-x-logo nsaa-trust-icon"></i></a>
+              <a href="#" class="nsaa-icon-badge" aria-label="Nsaa on Instagram"><i class="ph ph-instagram-logo nsaa-trust-icon"></i></a>
+              <a href="#" class="nsaa-icon-badge" aria-label="Nsaa on Facebook"><i class="ph ph-facebook-logo nsaa-trust-icon"></i></a>
+            </div>
+          </div>
+          <div class="col-6 col-lg-2">
+            <p class="nsaa-faint small text-uppercase mb-3">Discover</p>
+            <ul class="list-unstyled d-grid gap-2 mb-0">
+              <li><a href="search-results.html" class="nsaa-muted text-decoration-none">Search</a></li>
+              <li><a href="category.html" class="nsaa-muted text-decoration-none">Categories</a></li>
+              <li><a href="organizer-inquiry.html" class="nsaa-muted text-decoration-none">List an event</a></li>
+            </ul>
+          </div>
+          <div class="col-6 col-lg-2">
+            <p class="nsaa-faint small text-uppercase mb-3">Company</p>
+            <ul class="list-unstyled d-grid gap-2 mb-0">
+              <li><a href="about.html" class="nsaa-muted text-decoration-none">About</a></li>
+              <li><a href="faq.html" class="nsaa-muted text-decoration-none">FAQ</a></li>
+              <li><a href="contact.html" class="nsaa-muted text-decoration-none">Contact</a></li>
+              <li><a href="blog.html" class="nsaa-muted text-decoration-none">News</a></li>
+            </ul>
+          </div>
+          <div class="col-6 col-lg-2">
+            <p class="nsaa-faint small text-uppercase mb-3">Legal</p>
+            <ul class="list-unstyled d-grid gap-2 mb-0">
+              <li><a href="privacy-policy.html" class="nsaa-muted text-decoration-none">Privacy</a></li>
+              <li><a href="terms-of-service.html" class="nsaa-muted text-decoration-none">Terms</a></li>
+              <li><a href="refund-and-cancellation-policy.html" class="nsaa-muted text-decoration-none">Refunds</a></li>
+              <li><a href="sitemap.html" class="nsaa-muted text-decoration-none">All pages</a></li>
+            </ul>
+          </div>
+          <div class="col-lg-2">
+            <p class="nsaa-faint small text-uppercase mb-3">Stay updated</p>
+            <form class="d-flex flex-column gap-2" data-newsletter-form>
+              <input type="email" class="form-control form-control-nsaa" placeholder="you@example.com" required />
+              <button class="btn btn-outline-nsaa btn-sm" type="submit">Subscribe</button>
+            </form>
+          </div>
+        </div>
+        <div
+          class="pt-4 d-flex flex-column flex-md-row justify-content-between gap-2"
+          style="border-top: 1px solid var(--nsaa-border);"
+        >
+          <span class="nsaa-faint small">&copy; 2026 Nsaa Tickets. All rights reserved.</span>
+          <span class="nsaa-faint small">Accra, Ghana</span>
+        </div>
+      </div>
+    </footer>
+
+    <script src="js/nsaa.js"></script>
+    <script type="module">
+      import { ConvexClient } from "https://esm.sh/convex/browser";
+
+      const params = new URLSearchParams(window.location.search);
+      const category = params.get("category") || "concert";
+      const meta = NSAA.categoryMeta(category);
+      const header = document.getElementById("category-header");
+      const resultsEl = document.getElementById("category-results");
+
+      document.title = `${meta.label} | Nsaa Tickets`;
+      header.style.backgroundImage = `url('${NSAA.escapeAttr(meta.image)}')`;
+      document.getElementById("category-eyebrow").textContent =
+        "Browse category";
+      document.getElementById("category-title").textContent = meta.label;
+      document.getElementById("category-description").textContent =
+        meta.description;
+      document.getElementById("search-this-category").href =
+        `search-results.html?category=${encodeURIComponent(category)}`;
+      document.getElementById("results-subtitle").textContent =
+        `${meta.label} across Ghana, filtered from published Nsaa events.`;
+
+      document.getElementById("category-links").innerHTML = NSAA.categories
+        .map(
+          (item) => `
+      <a class="btn ${item.value === category ? "btn-nsaa" : "btn-outline-nsaa"} text-start" href="category.html?category=${NSAA.escapeAttr(item.value)}">${NSAA.escapeHtml(item.label)}</a>
+    `,
+        )
+        .join("");
+
+      resultsEl.innerHTML = NSAA.skeletonCards(2);
+
+      function renderEvents(events) {
+        if (!events || events.length === 0) {
+          resultsEl.innerHTML = `<div class="col-12">${NSAA.emptyState(`No ${meta.label.toLowerCase()} listed yet`, "Nsaa is ready for this category. New organizer listings will appear here as soon as they are published.", '<a class="btn btn-nsaa" href="organizer-inquiry.html">List an event</a>')}</div>`;
+          document.getElementById("results-title").textContent =
+            "Nothing published yet";
+          return;
+        }
+
+        document.getElementById("results-title").textContent =
+          `${events.length} upcoming ${events.length === 1 ? "event" : "events"}`;
+        resultsEl.innerHTML = events
+          .sort((a, b) => a.startsAt - b.startsAt)
+          .map((event) => NSAA.eventCard(event, { colClass: "col-md-6" }))
+          .join("");
+      }
+
+      if (!NSAA.isConvexConfigured()) {
+        resultsEl.innerHTML = `<div class="col-12">${NSAA.setupNotice(meta.label)}</div>`;
+      } else {
+        const client = new ConvexClient(NSAA.CONVEX_URL);
+        client.onUpdate("events:listByCategory", { category }, renderEvents);
+      }
+    </script>
+    <script src="js/clerk-nav.js"></script>
+  </body>
+</html>

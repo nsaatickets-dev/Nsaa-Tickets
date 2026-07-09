@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en" data-bs-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Refund &amp; Cancellation Policy | Nsaa Tickets</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link href="css/nsaa.css" rel="stylesheet" />
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  </head>
+  <body>
+    <nav class="navbar nsaa-navbar navbar-expand sticky-top">
+      <div class="container">
+        <a class="nsaa-brand-lockup" href="index.html" aria-label="Nsaa Tickets home">
+          <span class="nsaa-wordmark">Nsaa</span>
+          <span class="nsaa-brand-tickets" aria-label="Tickets">T I C K E T S</span>
+        </a>
+        <div class="ms-auto d-flex align-items-center gap-2">
+          <button
+            class="nsaa-nav-toggle"
+            type="button"
+            aria-label="Open menu"
+            aria-expanded="false"
+            aria-controls="nsaa-nav-links"
+          >
+            <i class="ph ph-list" aria-hidden="true"></i>
+            <i class="ph ph-x" aria-hidden="true"></i>
+          </button>
+          <div class="nsaa-nav-links" id="nsaa-nav-links">
+            <a href="search-results.html" class="nsaa-nav-link">Search</a>
+            <a href="about.html" class="nsaa-nav-link">About</a>
+            <a href="organizer-inquiry.html" class="nsaa-nav-link">List event</a>
+            <a href="organizer-dashboard.html" class="nsaa-nav-link">Dashboard</a>
+            <a href="wallet.html" class="nsaa-nav-link">My tickets</a>
+            <div id="clerk-auth-slot"></div>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <script
+      async
+      crossorigin="anonymous"
+      data-clerk-publishable-key="pk_test_REPLACE_ME"
+      src="https://REPLACE_ME.clerk.accounts.dev/npm/@clerk/clerk-js@5/dist/clerk.browser.js"
+      type="text/javascript"
+    ></script>
+
+    <main class="container py-5" style="max-width: 760px;">
+      <p class="nsaa-eyebrow mb-2">Legal</p>
+      <h1 class="h2 mb-2">Refund &amp; Cancellation Policy</h1>
+      <p class="nsaa-faint small mb-5">Last updated: 9 July 2026</p>
+
+      <div class="d-grid gap-4">
+        <div>
+          <h2 class="h5 mb-2">All sales are final</h2>
+          <p class="nsaa-muted">
+            Once a ticket purchase is confirmed, it cannot be refunded or
+            exchanged for a change of mind, a scheduling conflict, or
+            failure to attend. This matches standard industry practice for
+            event ticketing.
+          </p>
+        </div>
+
+        <div>
+          <h2 class="h5 mb-2">The one exception: event cancellation</h2>
+          <p class="nsaa-muted">
+            If an organizer or Nsaa cancels an event, ticket holders are
+            refunded the <strong>ticket price</strong> to the original
+            Mobile Money account used for payment. The
+            <strong>service fee is never refunded</strong>, even when an
+            event is cancelled.
+          </p>
+        </div>
+
+        <div>
+          <h2 class="h5 mb-2">Postponed or rescheduled events</h2>
+          <p class="nsaa-muted">
+            If an event is postponed rather than cancelled, your existing
+            ticket remains valid for the new date. Refunds follow the same
+            cancellation terms above if you're unable to attend the
+            rescheduled date and the organizer opts to offer refunds for it.
+          </p>
+        </div>
+
+        <div>
+          <h2 class="h5 mb-2">Unpaid reservations</h2>
+          <p class="nsaa-muted">
+            Starting checkout reserves your tickets for 10 minutes while you
+            complete payment. If payment isn't confirmed in that window, the
+            reservation simply expires and the tickets are released back
+            into inventory - no charge is made, so there is nothing to
+            refund.
+          </p>
+        </div>
+
+        <div>
+          <h2 class="h5 mb-2">Non-transferable tickets</h2>
+          <p class="nsaa-muted">
+            Tickets are tied to the buyer at the moment of purchase and
+            cannot be transferred, resold, or reassigned to another person
+            through Nsaa.
+          </p>
+        </div>
+
+        <div>
+          <h2 class="h5 mb-2">Questions about a specific order</h2>
+          <p class="nsaa-muted">
+            <a href="contact.html">Contact us</a> with your order reference
+            and we'll look into it.
+          </p>
+        </div>
+      </div>
+    </main>
+
+    <footer class="nsaa-footer">
+      <div class="container">
+        <div class="row g-4 pb-4">
+          <div class="col-lg-4">
+            <a class="nsaa-brand-lockup d-inline-flex mb-3" href="index.html">
+              <span class="nsaa-wordmark">Nsaa</span>
+              <span class="nsaa-brand-tickets" aria-label="Tickets">T I C K E T S</span>
+            </a>
+            <p class="nsaa-muted small mb-3" style="max-width: 320px;">
+              Ghana-first ticketing with clear fees and fraud-resistant entry.
+            </p>
+            <div class="d-flex gap-2">
+              <a href="#" class="nsaa-icon-badge" aria-label="Nsaa on X"><i class="ph ph-x-logo nsaa-trust-icon"></i></a>
+              <a href="#" class="nsaa-icon-badge" aria-label="Nsaa on Instagram"><i class="ph ph-instagram-logo nsaa-trust-icon"></i></a>
+              <a href="#" class="nsaa-icon-badge" aria-label="Nsaa on Facebook"><i class="ph ph-facebook-logo nsaa-trust-icon"></i></a>
+            </div>
+          </div>
+          <div class="col-6 col-lg-2">
+            <p class="nsaa-faint small text-uppercase mb-3">Discover</p>
+            <ul class="list-unstyled d-grid gap-2 mb-0">
+              <li><a href="search-results.html" class="nsaa-muted text-decoration-none">Search</a></li>
+              <li><a href="category.html" class="nsaa-muted text-decoration-none">Categories</a></li>
+              <li><a href="organizer-inquiry.html" class="nsaa-muted text-decoration-none">List an event</a></li>
+            </ul>
+          </div>
+          <div class="col-6 col-lg-2">
+            <p class="nsaa-faint small text-uppercase mb-3">Company</p>
+            <ul class="list-unstyled d-grid gap-2 mb-0">
+              <li><a href="about.html" class="nsaa-muted text-decoration-none">About</a></li>
+              <li><a href="faq.html" class="nsaa-muted text-decoration-none">FAQ</a></li>
+              <li><a href="contact.html" class="nsaa-muted text-decoration-none">Contact</a></li>
+              <li><a href="blog.html" class="nsaa-muted text-decoration-none">News</a></li>
+            </ul>
+          </div>
+          <div class="col-6 col-lg-2">
+            <p class="nsaa-faint small text-uppercase mb-3">Legal</p>
+            <ul class="list-unstyled d-grid gap-2 mb-0">
+              <li><a href="privacy-policy.html" class="nsaa-muted text-decoration-none">Privacy</a></li>
+              <li><a href="terms-of-service.html" class="nsaa-muted text-decoration-none">Terms</a></li>
+              <li><a href="refund-and-cancellation-policy.html" class="nsaa-muted text-decoration-none">Refunds</a></li>
+              <li><a href="sitemap.html" class="nsaa-muted text-decoration-none">All pages</a></li>
+            </ul>
+          </div>
+          <div class="col-lg-2">
+            <p class="nsaa-faint small text-uppercase mb-3">Stay updated</p>
+            <form class="d-flex flex-column gap-2" data-newsletter-form>
+              <input type="email" class="form-control form-control-nsaa" placeholder="you@example.com" required />
+              <button class="btn btn-outline-nsaa btn-sm" type="submit">Subscribe</button>
+            </form>
+          </div>
+        </div>
+        <div
+          class="pt-4 d-flex flex-column flex-md-row justify-content-between gap-2"
+          style="border-top: 1px solid var(--nsaa-border);"
+        >
+          <span class="nsaa-faint small">&copy; 2026 Nsaa Tickets. All rights reserved.</span>
+          <span class="nsaa-faint small">Accra, Ghana</span>
+        </div>
+      </div>
+    </footer>
+
+    <script src="js/nsaa.js"></script>
+    <script src="js/clerk-nav.js"></script>
+  </body>
+</html>
