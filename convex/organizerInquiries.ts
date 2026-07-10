@@ -2,7 +2,13 @@ import { mutation, internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { escapeHtml, sendBrevoEmail, SENDERS, renderEmailLayout, paragraph } from "./email";
-import { requireNonEmpty, requireValidEmail, requireValidGhanaPhone, requirePositiveInteger } from "./validation";
+import {
+  optionalTrimmed,
+  requireNonEmpty,
+  requireValidEmail,
+  requireValidGhanaPhone,
+  requirePositiveInteger,
+} from "./validation";
 import { rateLimiter } from "./rateLimit";
 
 export const create = mutation({
@@ -11,9 +17,15 @@ export const create = mutation({
     contactName: v.string(),
     phone: v.string(),
     email: v.optional(v.string()),
-    eventType: v.string(),
-    eventCity: v.string(),
+    eventType: v.optional(v.string()),
+    eventCity: v.optional(v.string()),
+    eventDate: v.optional(v.string()),
+    ticketingModel: v.optional(v.string()),
+    launchWindow: v.optional(v.string()),
     expectedAttendance: v.optional(v.number()),
+    supportNeeds: v.optional(v.array(v.string())),
+    websiteUrl: v.optional(v.string()),
+    payoutReadiness: v.optional(v.string()),
     message: v.string(),
   },
   handler: async (ctx, args) => {
@@ -21,8 +33,17 @@ export const create = mutation({
     const contactName = requireNonEmpty(args.contactName, "Contact name", 120);
     const phone = requireValidGhanaPhone(args.phone);
     const email = args.email ? requireValidEmail(args.email) : undefined;
-    const eventType = requireNonEmpty(args.eventType, "Event type", 60);
-    const eventCity = requireNonEmpty(args.eventCity, "Event city", 80);
+    const eventType = optionalTrimmed(args.eventType, 60);
+    const eventCity = optionalTrimmed(args.eventCity, 80);
+    const eventDate = optionalTrimmed(args.eventDate, 40);
+    const ticketingModel = optionalTrimmed(args.ticketingModel, 60);
+    const launchWindow = optionalTrimmed(args.launchWindow, 60);
+    const supportNeeds = args.supportNeeds
+      ?.map((item) => optionalTrimmed(item, 80))
+      .filter((item): item is string => Boolean(item))
+      .slice(0, 8);
+    const websiteUrl = optionalTrimmed(args.websiteUrl, 240);
+    const payoutReadiness = optionalTrimmed(args.payoutReadiness, 80);
     const message = requireNonEmpty(args.message, "Message", 4000);
     const expectedAttendance =
       args.expectedAttendance !== undefined
@@ -40,7 +61,13 @@ export const create = mutation({
       email,
       eventType,
       eventCity,
+      eventDate,
+      ticketingModel,
+      launchWindow,
       expectedAttendance,
+      supportNeeds,
+      websiteUrl,
+      payoutReadiness,
       message,
       status: "new",
       createdAt: Date.now(),
@@ -70,16 +97,16 @@ export const sendAcknowledgement = internalAction({
     await sendBrevoEmail({
       sender: SENDERS.events,
       to: [{ email, name: contactName }],
-      subject: "We've received your event inquiry",
+      subject: "We've received your organizer signup",
       htmlContent: renderEmailLayout({
-        heading: "We've received your event inquiry",
+        heading: "We've received your organizer signup",
         bodyHtml:
           paragraph(`Hi ${escapeHtml(contactName)},`) +
           paragraph(
-            `Thanks for telling us about ${escapeHtml(organizerName)}'s event. Our events team has received your inquiry and will follow up shortly to get you set up on Nsaa Tickets.`,
+            `Thanks for telling us about ${escapeHtml(organizerName)}. Our events team has received your signup and will follow up shortly to get you set up on Nsaa Tickets.`,
           ) +
           paragraph("&mdash; Nsaa Tickets Events"),
-        footerNote: "You're receiving this because you submitted an event inquiry on Nsaa Tickets.",
+        footerNote: "You're receiving this because you submitted an organizer signup on Nsaa Tickets.",
       }),
     });
   },

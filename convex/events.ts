@@ -772,6 +772,39 @@ export const createEvent = mutation({
   },
 });
 
+export const createEventWithStarterTicket = mutation({
+  args: {
+    ...eventFields,
+    starterTicket: v.object({
+      name: v.string(),
+      priceGHS: v.number(),
+      quantityTotal: v.number(),
+    }),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Sign in required to create an event.");
+
+    const eventId = await ctx.db.insert("events", {
+      ...sanitizeEventFields(args),
+      status: "draft",
+      organizerClerkUserId: identity.subject,
+      createdAt: Date.now(),
+    });
+
+    await ctx.db.insert("ticketTypes", {
+      eventId,
+      name: requireNonEmpty(args.starterTicket.name, "Ticket type name", 80),
+      priceGHS: requirePositiveNumber(args.starterTicket.priceGHS, "Price", 100_000),
+      quantityTotal: requirePositiveInteger(args.starterTicket.quantityTotal, "Quantity", 100_000),
+      quantitySold: 0,
+      quantityReserved: 0,
+    });
+
+    return eventId;
+  },
+});
+
 export const updateEvent = mutation({
   args: { eventId: v.id("events"), ...eventFields },
   handler: async (ctx, { eventId, ...fields }) => {

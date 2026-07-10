@@ -131,13 +131,9 @@
                 </div>
                 <div class="mb-3">
                   <label class="form-label nsaa-muted small" for="filter-city">City</label>
-                  <input
-                    id="filter-city"
-                    name="city"
-                    class="form-control form-control-nsaa"
-                    type="text"
-                    placeholder="Accra, Kumasi, Takoradi"
-                  />
+                  <select id="filter-city" name="city" class="form-select form-select-nsaa">
+                    <option value="">Any city</option>
+                  </select>
                 </div>
                 <div class="row g-2">
                   <div class="col-6">
@@ -172,8 +168,6 @@
                     <label class="form-label nsaa-muted small" for="filter-age">Age</label>
                     <select id="filter-age" name="ageRating" class="form-select form-select-nsaa">
                       <option value="">Any age</option>
-                      <option value="all-ages">All ages</option>
-                      <option value="18-plus">18+</option>
                     </select>
                   </div>
                 </div>
@@ -281,6 +275,15 @@
             `<option value="${NSAA.escapeAttr(category.value)}">${NSAA.escapeHtml(category.label)}</option>`,
         ),
       ].join("");
+
+      document.getElementById("filter-city").insertAdjacentHTML(
+        "beforeend",
+        NSAA.cityOptionsHtml(),
+      );
+      document.getElementById("filter-age").insertAdjacentHTML(
+        "beforeend",
+        NSAA.ageRatingOptionsHtml(),
+      );
 
       function syncFormsFromState() {
         document.getElementById("filter-q").value = state.q;

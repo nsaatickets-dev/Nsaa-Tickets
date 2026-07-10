@@ -93,6 +93,69 @@
 
   const categoryByValue = new Map(categories.map((item) => [item.value, item]));
 
+  // All 16 regions of Ghana, represented by their capital plus other major
+  // towns/cities - lets organizers list an event anywhere in the country
+  // instead of only Accra/Kumasi, and keeps city values canonical so the
+  // exact-match city filter/index in convex/events.ts works reliably.
+  const ghanaCities = [
+    "Accra", "Tema", "Ashaiman", "Madina", "Adenta", "Teshie", "Nungua", "Dansoman",
+    "Kumasi", "Obuasi", "Ejisu", "Konongo", "Mampong", "Bekwai", "Effiduase", "Ejura",
+    "Sekondi-Takoradi", "Tarkwa", "Axim", "Half Assini", "Prestea", "Elubo",
+    "Sefwi Wiawso", "Bibiani", "Enchi", "Juaboso",
+    "Cape Coast", "Winneba", "Kasoa", "Elmina", "Saltpond", "Agona Swedru", "Mankessim", "Anomabo", "Dunkwa-on-Offin", "Assin Fosu",
+    "Koforidua", "Nkawkaw", "Akim Oda", "Suhum", "Nsawam", "Somanya", "Akosombo", "Aburi", "Mpraeso",
+    "Ho", "Hohoe", "Keta", "Aflao", "Kpando", "Anloga", "Sogakope",
+    "Dambai", "Jasikan", "Kete Krachi", "Nkwanta",
+    "Tamale", "Yendi", "Savelugu", "Salaga", "Tolon",
+    "Nalerigu", "Gambaga", "Walewale",
+    "Damongo", "Bole", "Sawla",
+    "Bolgatanga", "Bawku", "Navrongo", "Paga", "Zebilla",
+    "Wa", "Lawra", "Jirapa", "Tumu", "Nadowli",
+    "Sunyani", "Berekum", "Wenchi", "Dormaa Ahenkro",
+    "Techiman", "Kintampo", "Nkoranza", "Atebubu",
+    "Goaso", "Bechem", "Hwidiem", "Kenyasi",
+  ];
+
+  function cityOptionsHtml(selected) {
+    return ghanaCities
+      .map(
+        (city) =>
+          `<option value="${escapeAttr(city)}" ${city === selected ? "selected" : ""}>${escapeHtml(city)}</option>`,
+      )
+      .join("");
+  }
+
+  // Grouped so the dropdown reads as "general" vs "restricted" instead of a
+  // flat list - matches how organizers actually think about age ratings.
+  const ageRatings = [
+    { group: "General admission", value: "all-ages", label: "All ages (family friendly)" },
+    { group: "Age restricted", value: "13-plus", label: "13+ (parental guidance)" },
+    { group: "Age restricted", value: "16-plus", label: "16+" },
+    { group: "Age restricted", value: "18-plus", label: "18+ (adults only)" },
+  ];
+
+  function ageRatingOptionsHtml(selected) {
+    const groups = new Map();
+    ageRatings.forEach((item) => {
+      if (!groups.has(item.group)) groups.set(item.group, []);
+      groups.get(item.group).push(item);
+    });
+    return Array.from(groups.entries())
+      .map(
+        ([group, items]) => `
+          <optgroup label="${escapeAttr(group)}">
+            ${items
+              .map(
+                (item) =>
+                  `<option value="${escapeAttr(item.value)}" ${item.value === selected ? "selected" : ""}>${escapeHtml(item.label)}</option>`,
+              )
+              .join("")}
+          </optgroup>
+        `,
+      )
+      .join("");
+  }
+
   function escapeHtml(value) {
     return String(value ?? "")
       .replaceAll("&", "&amp;")
@@ -558,6 +621,10 @@
     CONVEX_URL,
     categories,
     categoryMeta,
+    ghanaCities,
+    cityOptionsHtml,
+    ageRatings,
+    ageRatingOptionsHtml,
     emptyState,
     errorState,
     escapeAttr,

@@ -10,3 +10,6 @@ convex/_generated/
 .DS_Store
 dist/
 build/
+
+.vercel
+.env*.local

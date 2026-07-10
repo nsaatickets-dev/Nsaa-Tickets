@@ -55,12 +55,47 @@
         `;
       }
 
+      function labelize(value) {
+        return String(value || "")
+          .replaceAll("-", " ")
+          .replace(/\b\w/g, (char) => char.toUpperCase());
+      }
+
+      function inquiryDetails(item) {
+        const bits = [
+          item.eventType ? `Event: ${labelize(item.eventType)}` : "",
+          item.eventCity ? `City: ${item.eventCity}` : "",
+          item.ticketingModel ? `Ticketing: ${labelize(item.ticketingModel)}` : "",
+          item.launchWindow ? `Timing: ${labelize(item.launchWindow)}` : "",
+          item.eventDate ? `Date: ${item.eventDate}` : "",
+          item.expectedAttendance ? `Expected: ${item.expectedAttendance}` : "",
+          item.payoutReadiness ? `Payout: ${labelize(item.payoutReadiness)}` : "",
+        ].filter(Boolean);
+
+        return bits.length
+          ? `<p class="nsaa-muted small mb-1">${bits.map(NSAA.escapeHtml).join(" &middot; ")}</p>`
+          : "";
+      }
+
+      function inquiryContactLine(item) {
+        return [item.contactName, item.phone, item.email].filter(Boolean).map(NSAA.escapeHtml).join(" &middot; ");
+      }
+
+      function supportNeedsHtml(item) {
+        if (!item.supportNeeds || item.supportNeeds.length === 0) return "";
+        return `
+          <div class="d-flex flex-wrap gap-1 mb-2">
+            ${item.supportNeeds.map((need) => `<span class="nsaa-chip">${NSAA.escapeHtml(need)}</span>`).join("")}
+          </div>
+        `;
+      }
+
       function render(data) {
         root.innerHTML = `
           <div class="row g-4">
             <section class="col-xl-6">
               <div class="nsaa-panel h-100">
-                <h2 class="h5 mb-3">Organizer inquiries</h2>
+                <h2 class="h5 mb-3">Organizer signups</h2>
                 <div class="d-grid gap-2">
                   ${data.organizerInquiries.map((item) => `
                     <article class="nsaa-meta-item">
@@ -68,7 +103,10 @@
                         <strong>${NSAA.escapeHtml(item.organizerName)}</strong>
                         ${statusSelect(item.status, "inquiry", item._id)}
                       </div>
-                      <p class="nsaa-muted small mb-1">${NSAA.escapeHtml(item.contactName)} · ${NSAA.escapeHtml(item.phone)} · ${NSAA.escapeHtml(item.eventType)} in ${NSAA.escapeHtml(item.eventCity)}</p>
+                      <p class="nsaa-muted small mb-1">${inquiryContactLine(item)}</p>
+                      ${inquiryDetails(item)}
+                      ${item.websiteUrl ? `<p class="nsaa-muted small mb-1"><a href="${NSAA.escapeAttr(item.websiteUrl)}" target="_blank" rel="noreferrer">${NSAA.escapeHtml(item.websiteUrl)}</a></p>` : ""}
+                      ${supportNeedsHtml(item)}
                       <p class="mb-0 small">${NSAA.escapeHtml(item.message)}</p>
                     </article>
                   `).join("") || '<p class="nsaa-muted mb-0">No inquiries.</p>'}

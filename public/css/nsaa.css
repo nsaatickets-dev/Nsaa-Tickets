@@ -656,6 +656,59 @@ a:hover {
   color: var(--nsaa-ink);
 }
 
+.nsaa-form-step {
+  display: inline-grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  flex: none;
+  background: var(--nsaa-coral);
+  border: 1px solid rgba(36, 31, 26, 0.18);
+  border-radius: 4px;
+  color: var(--nsaa-coral-ink);
+  font-size: 0.78rem;
+  font-weight: 850;
+  line-height: 1;
+}
+
+.nsaa-form-section + .nsaa-form-section {
+  padding-top: 1.35rem;
+  border-top: 1px solid var(--nsaa-border);
+}
+
+.nsaa-checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.55rem;
+}
+
+.nsaa-checkbox-tile {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 44px;
+  padding: 0.65rem 0.75rem;
+  background: rgba(36, 31, 26, 0.03);
+  border: 1px solid var(--nsaa-border);
+  border-radius: 4px;
+  color: var(--nsaa-ink);
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 650;
+  line-height: 1.2;
+  transition:
+    background-color 0.16s var(--nsaa-ease-out),
+    border-color 0.16s var(--nsaa-ease-out),
+    color 0.16s var(--nsaa-ease-out);
+}
+
+.nsaa-checkbox-tile:hover,
+.nsaa-checkbox-tile:has(input:checked) {
+  background: rgba(244, 78, 37, 0.09);
+  border-color: rgba(244, 78, 37, 0.35);
+  color: var(--nsaa-ink);
+}
+
 .nsaa-hero-band {
   min-height: auto;
   display: flex;
@@ -1569,4 +1622,166 @@ a:hover {
 
 .nsaa-cookie-banner a:hover {
   color: var(--nsaa-coral);
+}
+
+/* Light navigation redesign: the navbar should feel like product chrome on
+   the paper surface, while the footer keeps the charcoal treatment. */
+.nsaa-navbar {
+  min-height: 68px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(247, 241, 230, 0.9)),
+    var(--nsaa-paper);
+  border-bottom: 1px solid rgba(36, 31, 26, 0.12);
+  box-shadow: none;
+  color: var(--nsaa-ink);
+  backdrop-filter: blur(14px) saturate(120%);
+  -webkit-backdrop-filter: blur(14px) saturate(120%);
+}
+
+.nsaa-navbar.is-scrolled {
+  min-height: 62px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 241, 230, 0.94)),
+    var(--nsaa-paper);
+  border-color: rgba(36, 31, 26, 0.18);
+}
+
+.nsaa-navbar .nsaa-brand-lockup {
+  color: var(--nsaa-ink);
+}
+
+.nsaa-navbar .nsaa-brand-lockup::before {
+  background: var(--nsaa-ink);
+  border-color: var(--nsaa-ink);
+  color: var(--nsaa-paper);
+}
+
+.nsaa-navbar .nsaa-brand-lockup:hover::before {
+  background: var(--nsaa-coral);
+  border-color: var(--nsaa-coral);
+  color: var(--nsaa-coral-ink);
+}
+
+.nsaa-navbar .nsaa-wordmark {
+  color: var(--nsaa-ink);
+}
+
+.nsaa-navbar .nsaa-brand-lockup:hover .nsaa-wordmark {
+  color: var(--nsaa-ink);
+}
+
+.nsaa-navbar .nsaa-brand-tickets {
+  color: var(--nsaa-ink-muted);
+}
+
+.nsaa-navbar .nsaa-nav-link {
+  min-height: 2.25rem;
+  color: var(--nsaa-ink-muted);
+  font-weight: 720;
+}
+
+.nsaa-navbar .nsaa-nav-link::after {
+  bottom: 0.16rem;
+  background: var(--nsaa-coral);
+}
+
+.nsaa-navbar .nsaa-nav-link:hover,
+.nsaa-navbar .nsaa-nav-link.active {
+  color: var(--nsaa-ink);
+}
+
+.nsaa-navbar .nsaa-nav-link--cta,
+.nsaa-navbar .nsaa-nav-link--cta.active {
+  min-height: 2.42rem;
+  padding: 0.66rem 0.95rem;
+  background-color: var(--nsaa-coral);
+  border-color: rgba(36, 31, 26, 0.22);
+  color: var(--nsaa-coral-ink);
+}
+
+.nsaa-navbar .nsaa-nav-link--cta:hover,
+.nsaa-navbar .nsaa-nav-link--cta:focus-visible {
+  background-color: var(--nsaa-coral-hover);
+  border-color: rgba(36, 31, 26, 0.3);
+  color: var(--nsaa-coral-ink);
+}
+
+.nsaa-navbar .nsaa-nav-sep {
+  background: rgba(36, 31, 26, 0.18);
+}
+
+.nsaa-navbar .nsaa-nav-context {
+  background: rgba(36, 31, 26, 0.035);
+  border-color: rgba(36, 31, 26, 0.12);
+}
+
+.nsaa-navbar .nsaa-nav-context button.nsaa-nav-link.active {
+  background: var(--nsaa-paper-surface);
+  color: var(--nsaa-ink);
+}
+
+.nsaa-navbar .nsaa-nav-toggle {
+  background: var(--nsaa-paper-surface);
+  border-color: rgba(36, 31, 26, 0.16);
+  color: var(--nsaa-ink);
+}
+
+.nsaa-navbar .nsaa-nav-toggle:hover,
+.nsaa-navbar .nsaa-nav-toggle:focus-visible {
+  background: rgba(244, 78, 37, 0.08);
+  border-color: rgba(244, 78, 37, 0.28);
+}
+
+.nsaa-navbar .btn-nsaa {
+  border-color: rgba(36, 31, 26, 0.22);
+  box-shadow: none;
+}
+
+.nsaa-navbar .btn-nsaa:hover,
+.nsaa-navbar .btn-nsaa:focus {
+  border-color: rgba(36, 31, 26, 0.3);
+  box-shadow: none;
+}
+
+.nsaa-footer .nsaa-brand-lockup,
+.nsaa-footer .nsaa-wordmark {
+  color: var(--nsaa-on-charcoal);
+}
+
+.nsaa-footer .nsaa-brand-tickets {
+  color: var(--nsaa-coral);
+}
+
+@media (max-width: 991.98px) {
+  .nsaa-navbar {
+    min-height: 62px;
+  }
+
+  .nsaa-navbar .nsaa-nav-links {
+    background: var(--nsaa-paper-surface);
+    border-color: rgba(36, 31, 26, 0.16);
+    box-shadow: 0 16px 36px rgba(36, 31, 26, 0.14);
+  }
+
+  .nsaa-navbar .nsaa-nav-links .nsaa-nav-link {
+    background: rgba(36, 31, 26, 0.025);
+    color: var(--nsaa-ink-muted);
+  }
+
+  .nsaa-navbar .nsaa-nav-links .nsaa-nav-link.active {
+    background: rgba(244, 78, 37, 0.1);
+    border-color: rgba(244, 78, 37, 0.28);
+    color: var(--nsaa-ink);
+  }
+
+  .nsaa-navbar .nsaa-nav-links .nsaa-nav-link--cta,
+  .nsaa-navbar .nsaa-nav-links .nsaa-nav-link--cta.active {
+    background-color: var(--nsaa-coral);
+    border-color: rgba(36, 31, 26, 0.22);
+    color: var(--nsaa-coral-ink);
+  }
+
+  .nsaa-navbar .nsaa-nav-links .nsaa-nav-sep {
+    background: rgba(36, 31, 26, 0.14);
+  }
 }

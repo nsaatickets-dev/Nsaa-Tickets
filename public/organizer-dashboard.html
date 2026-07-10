@@ -103,12 +103,43 @@
       }
 
       // ---- Editor view (create or edit) ----
+      function starterTicketSetupHtml() {
+        return `
+          <section class="nsaa-form-section mt-4">
+            <div class="d-flex align-items-center gap-2 mb-3">
+              <span class="nsaa-form-step">2</span>
+              <h3 class="h6 mb-0">Ticket setup</h3>
+            </div>
+            <p class="nsaa-muted small mb-3">Create the first ticket type with this event. You can add VIP, group, or extra tiers after the draft is saved.</p>
+            <div class="row g-3">
+              <div class="col-md-5">
+                <label class="form-label nsaa-muted small" for="starter-ticket-name">Ticket name</label>
+                <input id="starter-ticket-name" class="form-control form-control-nsaa" type="text" value="Regular" required />
+              </div>
+              <div class="col-md-3">
+                <label class="form-label nsaa-muted small" for="starter-ticket-price">Price GHS</label>
+                <input id="starter-ticket-price" class="form-control form-control-nsaa" type="number" min="0" step="0.01" placeholder="80" required />
+              </div>
+              <div class="col-md-4">
+                <label class="form-label nsaa-muted small" for="starter-ticket-quantity">Quantity</label>
+                <input id="starter-ticket-quantity" class="form-control form-control-nsaa" type="number" min="1" placeholder="100" required />
+              </div>
+            </div>
+          </section>
+        `;
+      }
+
       function eventFormHtml(event) {
         const startsAtValue = event?.startsAt
           ? new Date(event.startsAt).toISOString().slice(0, 16)
           : "";
         return `
         <form id="event-form">
+          <section class="nsaa-form-section">
+            <div class="d-flex align-items-center gap-2 mb-3">
+              <span class="nsaa-form-step">1</span>
+              <h3 class="h6 mb-0">Event details</h3>
+            </div>
           <div class="row g-3">
             <div class="col-md-6">
               <label class="form-label nsaa-muted small" for="ef-title">Event title</label>
@@ -122,8 +153,6 @@
               <label class="form-label nsaa-muted small" for="ef-age">Age rating optional</label>
               <select id="ef-age" class="form-select form-select-nsaa">
                 <option value="">Not specified</option>
-                <option value="all-ages" ${event?.ageRating === "all-ages" ? "selected" : ""}>All ages</option>
-                <option value="18-plus" ${event?.ageRating === "18-plus" ? "selected" : ""}>18+</option>
               </select>
             </div>
             <div class="col-12">
@@ -136,7 +165,9 @@
             </div>
             <div class="col-md-6">
               <label class="form-label nsaa-muted small" for="ef-city">City</label>
-              <input id="ef-city" class="form-control form-control-nsaa" type="text" value="${NSAA.escapeAttr(event?.city || "")}" required />
+              <select id="ef-city" class="form-select form-select-nsaa" required>
+                <option value="">Select a city</option>
+              </select>
             </div>
             <div class="col-12">
               <label class="form-label nsaa-muted small" for="ef-address">Address</label>
@@ -159,6 +190,8 @@
               <input id="ef-payout-phone" class="form-control form-control-nsaa" type="tel" value="${NSAA.escapeAttr(event?.organizerPayoutPhone || "")}" placeholder="024 000 0000" />
             </div>
           </div>
+          </section>
+          ${event ? "" : starterTicketSetupHtml()}
           <div id="event-form-result" class="mt-3"></div>
           <button id="event-form-submit" class="btn btn-nsaa mt-4" type="submit">
             ${event ? "Save changes" : "Create event"}
@@ -453,6 +486,18 @@
           .join("");
       }
 
+      function populateCitySelect(selected) {
+        const select = document.getElementById("ef-city");
+        if (!select) return;
+        select.innerHTML = `<option value="">Select a city</option>${NSAA.cityOptionsHtml(selected)}`;
+      }
+
+      function populateAgeSelect(selected) {
+        const select = document.getElementById("ef-age");
+        if (!select) return;
+        select.innerHTML = `<option value="">Not specified</option>${NSAA.ageRatingOptionsHtml(selected)}`;
+      }
+
       function readEventForm() {
         return {
           title: document.getElementById("ef-title").value.trim(),
@@ -470,6 +515,18 @@
         };
       }
 
+      function readStarterTicketForm() {
+        const nameEl = document.getElementById("starter-ticket-name");
+        const priceEl = document.getElementById("starter-ticket-price");
+        const quantityEl = document.getElementById("starter-ticket-quantity");
+        if (!nameEl || !priceEl || !quantityEl) return null;
+        return {
+          name: nameEl.value.trim(),
+          priceGHS: Number(priceEl.value),
+          quantityTotal: Number(quantityEl.value),
+        };
+      }
+
       const PLAN_OPTIONS = [
         { tier: "free", label: "Free", fee: "0%", blurb: "Non-ticketed or free events." },
         { tier: "essential", label: "Essential", fee: "4%", blurb: "Small to medium paid events." },
@@ -479,7 +536,7 @@
       function planPickerHtml(currentTier) {
         const selected = currentTier || "essential";
         return `
-        <div class="nsaa-panel mb-4">
+        <section class="nsaa-form-section mb-4">
           <h2 class="h5 mb-1">Your plan</h2>
           <p class="nsaa-muted small mb-3">Applies to every event on your account. Nsaa's fee is a percentage of ticket price only - never charged on free tickets. Need a custom rate for a large event? <a href="/contact">Contact us</a>.</p>
           <div class="row g-2" id="plan-picker">
@@ -496,7 +553,7 @@
             `,
             ).join("")}
           </div>
-        </div>
+        </section>
       `;
       }
 
@@ -512,12 +569,12 @@
         </a>
         <div id="sales-summary-slot"></div>
         <div id="share-toolkit-slot"></div>
-        ${isEditing ? "" : planPickerHtml(organizerProfile?.tier)}
         <div class="nsaa-panel mb-4">
           <div class="d-flex justify-content-between align-items-center mb-3">
-            <h2 class="h4 mb-0">${isEditing ? "Edit event" : "New event"}</h2>
+            <h2 class="h4 mb-0">${isEditing ? "Edit event" : "Create event"}</h2>
             ${isEditing ? `<span id="status-slot">${statusChip(existingEvent.status)}</span>` : ""}
           </div>
+          ${isEditing ? "" : planPickerHtml(organizerProfile?.tier)}
           ${eventFormHtml(existingEvent)}
         </div>
         <div id="ticket-types-slot"></div>
@@ -526,6 +583,8 @@
       `;
 
         populateCategorySelect(existingEvent?.category);
+        populateCitySelect(existingEvent?.city);
+        populateAgeSelect(existingEvent?.ageRating);
 
         const form = document.getElementById("event-form");
         const resultEl = document.getElementById("event-form-result");
@@ -535,11 +594,20 @@
           evt.preventDefault();
           resultEl.innerHTML = "";
           const fields = readEventForm();
+          const starterTicket = isEditing ? null : readStarterTicketForm();
 
           if (!fields.title || !fields.description || !fields.venue || !fields.city || !fields.address || !fields.organizerName || !fields.startsAt || Number.isNaN(fields.startsAt)) {
             resultEl.innerHTML = NSAA.errorState(
               "Check event details",
               "Title, description, venue, city, address, start time, and organizer name are all required.",
+            );
+            return;
+          }
+
+          if (!isEditing && (!starterTicket || !starterTicket.name || Number.isNaN(starterTicket.priceGHS) || starterTicket.priceGHS < 0 || !Number.isInteger(starterTicket.quantityTotal) || starterTicket.quantityTotal < 1)) {
+            resultEl.innerHTML = NSAA.errorState(
+              "Check ticket setup",
+              "Create Event needs a starter ticket name, a price of 0 or more, and a whole-number quantity of at least 1.",
             );
             return;
           }
@@ -557,7 +625,10 @@
               const selectedTier =
                 document.querySelector('input[name="plan-tier"]:checked')?.value || "essential";
               await client.mutation("events:setOrganizerTier", { tier: selectedTier });
-              const newId = await client.mutation("events:createEvent", fields);
+              const newId = await client.mutation("events:createEventWithStarterTicket", {
+                ...fields,
+                starterTicket,
+              });
               window.location.href = `/organizer-dashboard?eventId=${encodeURIComponent(newId)}`;
               return;
             }
