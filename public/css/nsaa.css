@@ -72,7 +72,10 @@
 }
 
 html {
-  color-scheme: light;
+  /* "only" opts the page fully out of forced/auto dark rendering -
+     plain "light" just declares light as supported, it doesn't stop a
+     browser or OS dark-mode heuristic from repainting anyway. */
+  color-scheme: only light;
 }
 
 body {
