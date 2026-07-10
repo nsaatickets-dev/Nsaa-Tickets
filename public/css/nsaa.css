@@ -27,8 +27,8 @@
 
   /* Ignite coral - the one primary-action color: buy tickets, get in,
      checkout CTAs. */
-  --nsaa-coral: #eb5a3c;
-  --nsaa-coral-hover: #f27553;
+  --nsaa-coral: #f44e25;
+  --nsaa-coral-hover: #f66946;
   --nsaa-coral-ink: #ffffff;
 
   /* Gold rush - highlights, "selling fast" badges, price tags,
@@ -82,7 +82,7 @@ body {
   min-height: 100vh;
   background-color: var(--nsaa-paper);
   background-image:
-    radial-gradient(circle at 50% 0%, rgba(235, 90, 60, 0.05) 0%, rgba(235, 90, 60, 0) 65%),
+    radial-gradient(circle at 50% 0%, rgba(244, 78, 37, 0.05) 0%, rgba(244, 78, 37, 0) 65%),
     linear-gradient(rgba(36, 31, 26, 0.025) 1px, transparent 1px),
     linear-gradient(90deg, rgba(36, 31, 26, 0.025) 1px, transparent 1px);
   background-size: 100% 100%, 64px 64px, 64px 64px;
@@ -127,7 +127,7 @@ a:hover {
 }
 
 ::selection {
-  background: rgba(235, 90, 60, 0.18);
+  background: rgba(244, 78, 37, 0.18);
 }
 
 :focus-visible {
@@ -178,8 +178,8 @@ a:hover {
   width: 2.2rem;
   height: 2.2rem;
   flex: none;
-  background: rgba(235, 90, 60, 0.14);
-  border: 1px solid rgba(235, 90, 60, 0.4);
+  background: rgba(244, 78, 37, 0.14);
+  border: 1px solid rgba(244, 78, 37, 0.4);
   border-radius: 4px;
   color: var(--nsaa-coral);
   font-size: 0.95rem;
@@ -425,8 +425,8 @@ a:hover {
   }
 
   .nsaa-nav-links .nsaa-nav-link.active {
-    background: rgba(235, 90, 60, 0.14);
-    border-color: rgba(235, 90, 60, 0.32);
+    background: rgba(244, 78, 37, 0.14);
+    border-color: rgba(244, 78, 37, 0.32);
     color: var(--nsaa-on-charcoal);
   }
 
@@ -580,7 +580,7 @@ a:hover {
 .form-select-nsaa:focus {
   background-color: var(--nsaa-paper-surface);
   border-color: var(--nsaa-coral);
-  box-shadow: 0 0 0 3px rgba(235, 90, 60, 0.1);
+  box-shadow: 0 0 0 3px rgba(244, 78, 37, 0.1);
   color: var(--nsaa-ink);
 }
 
@@ -595,7 +595,7 @@ a:hover {
   align-items: center;
   justify-content: center;
   position: relative;
-  padding: 6.5rem 0 5rem;
+  padding: 8.5rem 0 6.5rem;
   border-bottom: 1px solid var(--nsaa-border);
   overflow: hidden;
 }
@@ -616,7 +616,7 @@ a:hover {
 
 .nsaa-search-shell:focus-within {
   border-color: var(--nsaa-coral);
-  box-shadow: 0 0 0 3px rgba(235, 90, 60, 0.12);
+  box-shadow: 0 0 0 3px rgba(244, 78, 37, 0.12);
 }
 
 .nsaa-hero-facts {
@@ -921,8 +921,8 @@ a:hover {
 
 .nsaa-quick-filter:hover,
 .nsaa-quick-filter.active {
-  background: rgba(235, 90, 60, 0.1);
-  border-color: rgba(235, 90, 60, 0.35);
+  background: rgba(244, 78, 37, 0.1);
+  border-color: rgba(244, 78, 37, 0.35);
   color: var(--nsaa-coral);
   transform: translateY(-1px);
 }
@@ -1288,10 +1288,7 @@ a:hover {
 @media (max-width: 575.98px) {
   .nsaa-hero-band {
     min-height: auto;
-  }
-
-  .nsaa-hero-inner {
-    padding: 3.5rem 0 3.5rem;
+    padding: 4.5rem 0 3.5rem;
   }
 
   .nsaa-nav-links .nsaa-nav-link {
@@ -1413,15 +1410,11 @@ a:hover {
   color: var(--nsaa-coral);
 }
 
-.nsaa-hero-band {
-  padding: 7.5rem 0 5.75rem;
-}
-
 .nsaa-hero-band::before {
   content: "";
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle at top left, rgba(235, 90, 60, 0.09), transparent 48%);
+  background: radial-gradient(circle at top left, rgba(244, 78, 37, 0.09), transparent 48%);
   pointer-events: none;
 }
 
@@ -1452,7 +1445,7 @@ a:hover {
 }
 
 .nsaa-category-tile:hover {
-  border-color: rgba(235, 90, 60, 0.4);
+  border-color: rgba(244, 78, 37, 0.4);
   transform: translateY(-2px);
   box-shadow: 0 12px 28px rgba(36, 31, 26, 0.16);
 }

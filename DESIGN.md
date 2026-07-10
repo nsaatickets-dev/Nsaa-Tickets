@@ -12,8 +12,8 @@ colors:
   charcoal-soft: "#2c2620"
   on-charcoal: "#f7f1e6"
   on-charcoal-muted: "#b5a99a"
-  coral: "#eb5a3c"
-  coral-hover: "#f27553"
+  coral: "#f44e25"
+  coral-hover: "#f66946"
   gold: "#d9a441"
   teal: "#279485"
   pink: "#d9578a"
@@ -49,7 +49,7 @@ The current shipped identity is warm paper, ink charcoal, and ignite coral. Char
 
 - Paper (`#f7f1e6`) is the page background; white is reserved for inputs, QR shells, and high-clarity panels.
 - Charcoal (`#221d18`) is chrome, footer, scanner, and selected dark ticket surfaces.
-- Coral (`#eb5a3c`) is the only primary action color: buy, reserve, create, send.
+- Coral (`#f44e25`) is the only primary action color: buy, reserve, create, send.
 - Gold (`#d9a441`) marks value and urgency: totals, revenue, selling-fast, payout.
 - Teal is success/payment-confirmed; danger red is error/void/refund.
 
