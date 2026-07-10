@@ -5,10 +5,10 @@
 // depends on the real nav markup already being in the DOM by then.
 //
 // Role gating: the nav starts in the "attendee" link set for everyone
-// (no flash of organizer-only links). Only once a signed-in user is
-// confirmed to own an event or have picked a pricing tier
-// (events:organizerStatus) does the Attending/Organizing switcher appear,
-// letting them flip into the organizer link set. The switcher choice is
+// (no flash of organizer-only links). Once Clerk confirms the visitor is
+// signed in, the Attending/Organizing switcher appears - every signed-in
+// user can flip into the organizer link set and self-serve their first
+// event, not just people who already own one. The switcher choice is
 // remembered per-browser in localStorage; the first time it's shown it
 // defaults to whichever context matches the current page.
 
@@ -194,14 +194,6 @@ async function applyRoleGating() {
   try {
     const clerk = await window.NSAA.getClerk();
     if (!clerk || !(clerk.user || clerk.isSignedIn)) return;
-    if (!window.NSAA.isConvexConfigured()) return;
-
-    const { ConvexClient } = await import("https://esm.sh/convex/browser");
-    const client = new ConvexClient(window.NSAA.CONVEX_URL);
-    await window.NSAA.attachConvexAuth(client);
-
-    const status = await client.query("events:organizerStatus", {});
-    if (!status?.isOrganizer) return;
 
     setNavContext(savedContext || defaultContext, true);
   } catch (err) {
