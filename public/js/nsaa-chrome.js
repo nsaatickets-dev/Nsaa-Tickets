@@ -79,7 +79,7 @@ function footerHtml() {
             <p class="nsaa-faint small text-uppercase mb-3">Stay updated</p>
             <form class="d-flex flex-column gap-2" data-newsletter-form>
               <input type="email" class="form-control form-control-nsaa" placeholder="you@example.com" required />
-              <button class="btn btn-outline-nsaa btn-sm" type="submit">Subscribe</button>
+              <button class="btn btn-nsaa btn-sm" type="submit">Subscribe</button>
             </form>
           </div>
         </div>

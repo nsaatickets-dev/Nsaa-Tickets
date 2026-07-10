@@ -21,7 +21,7 @@ window.addEventListener("load", async () => {
       clerk.mountUserButton(slot);
     } else {
       const signInLink = document.createElement("a");
-      signInLink.className = "btn btn-sm btn-outline-nsaa";
+      signInLink.className = "btn btn-sm btn-nsaa";
       signInLink.textContent = "Sign in";
       const here = window.location.pathname + window.location.search;
       signInLink.href = `/signin?redirect_url=${encodeURIComponent(here)}`;
