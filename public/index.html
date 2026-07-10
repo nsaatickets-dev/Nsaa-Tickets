@@ -194,7 +194,7 @@
                 </h2>
               </div>
               <a
-                class="btn btn-outline-nsaa align-self-md-end"
+                class="btn btn-nsaa align-self-md-end"
                 href="/organizer-inquiry"
                 >List your event</a
               >
@@ -393,9 +393,9 @@
           return;
         }
         paginationEl.innerHTML = `
-          <button class="btn btn-outline-nsaa" type="button" data-page-prev ${result.page <= 1 ? "disabled" : ""}>Previous</button>
+          <button class="btn btn-nsaa" type="button" data-page-prev ${result.page <= 1 ? "disabled" : ""}>Previous</button>
           <span class="nsaa-muted small">Page ${result.page} of ${Math.ceil(result.total / result.pageSize)}</span>
-          <button class="btn btn-outline-nsaa" type="button" data-page-next ${result.hasNextPage ? "" : "disabled"}>Next</button>
+          <button class="btn btn-nsaa" type="button" data-page-next ${result.hasNextPage ? "" : "disabled"}>Next</button>
         `;
       }
 

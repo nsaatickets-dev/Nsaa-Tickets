@@ -174,7 +174,7 @@
             <p class="mb-0 fw-semibold">${NSAA.escapeHtml(t.name)}</p>
             <p class="nsaa-muted small mb-0">${NSAA.money(t.priceGHS)} &middot; ${t.quantityAvailable} of ${t.quantityTotal} available &middot; ${t.quantitySold} sold</p>
           </div>
-          <button class="btn btn-outline-nsaa btn-sm delete-ticket-type" type="button" ${t.quantitySold + t.quantityReserved > 0 ? "disabled title=\"Can't delete a ticket type with sold or reserved tickets\"" : ""}>
+          <button class="btn btn-nsaa btn-sm delete-ticket-type" type="button" ${t.quantitySold + t.quantityReserved > 0 ? "disabled title=\"Can't delete a ticket type with sold or reserved tickets\"" : ""}>
             Remove
           </button>
         </div>
@@ -240,7 +240,7 @@
               <h2 class="h5 mb-1">Distribution kit</h2>
               <p class="nsaa-muted small mb-0">Share links, poster QR codes, embed snippets, and referral codes for this event.</p>
             </div>
-            <a class="btn btn-outline-nsaa align-self-lg-start" href="${NSAA.escapeAttr(directUrl)}" target="_blank" rel="noreferrer">Open public page</a>
+            <a class="btn btn-nsaa align-self-lg-start" href="${NSAA.escapeAttr(directUrl)}" target="_blank" rel="noreferrer">Open public page</a>
           </div>
           <div class="row g-3">
             <div class="col-lg-5">
@@ -250,8 +250,8 @@
                 <button id="copy-campaign-link" class="btn btn-nsaa" type="button">Copy</button>
               </div>
               <div class="d-grid gap-2 mt-2">
-                <a id="whatsapp-campaign-link" class="btn btn-outline-nsaa" target="_blank" rel="noreferrer" href="#">Share on WhatsApp</a>
-                <button id="copy-embed-code" class="btn btn-outline-nsaa" type="button">Copy embed</button>
+                <a id="whatsapp-campaign-link" class="btn btn-nsaa" target="_blank" rel="noreferrer" href="#">Share on WhatsApp</a>
+                <button id="copy-embed-code" class="btn btn-nsaa" type="button">Copy embed</button>
               </div>
               <textarea id="embed-code" class="form-control form-control-nsaa mt-2" rows="3" readonly></textarea>
             </div>
@@ -351,7 +351,7 @@
                 <p class="mb-0 fw-semibold">${NSAA.escapeHtml(staff.name)} <span class="nsaa-chip ms-1">${NSAA.escapeHtml(staff.role)}</span></p>
                 <p class="nsaa-muted small mb-0">${NSAA.escapeHtml(staff.gateLabel)} · token ends ${NSAA.escapeHtml(staff.tokenPreview)} · ${NSAA.escapeHtml(staff.status)}</p>
               </div>
-              <button class="btn btn-outline-nsaa btn-sm revoke-scanner-staff" type="button" ${staff.status === "revoked" ? "disabled" : ""}>Revoke</button>
+              <button class="btn btn-nsaa btn-sm revoke-scanner-staff" type="button" ${staff.status === "revoked" ? "disabled" : ""}>Revoke</button>
             </div>
           `,
           )
@@ -577,7 +577,7 @@
         // Publish / unpublish toggle
         const statusSlot = document.getElementById("status-slot");
         const toggleBtn = document.createElement("button");
-        toggleBtn.className = "btn btn-outline-nsaa btn-sm ms-2";
+        toggleBtn.className = "btn btn-nsaa btn-sm ms-2";
         toggleBtn.type = "button";
         toggleBtn.textContent =
           existingEvent.status === "published" ? "Unpublish" : "Publish";

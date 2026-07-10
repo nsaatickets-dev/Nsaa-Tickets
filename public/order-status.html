@@ -163,10 +163,10 @@
 
           <div class="d-grid gap-2 d-sm-flex">
             ${order.status === "paid" ? `<a class="btn btn-nsaa" href="${NSAA.escapeAttr(walletLink)}">View tickets</a>` : ""}
-            ${order.status === "paid" ? `<a class="btn btn-outline-nsaa" href="${NSAA.escapeAttr(whatsappLink)}" target="_blank" rel="noreferrer">Send on WhatsApp</a>` : ""}
-            ${order.status === "paid" ? `<a class="btn btn-outline-nsaa" href="${NSAA.escapeAttr(emailLink)}">Email link</a>` : ""}
-            ${order.status === "reserved" ? `<a class="btn btn-outline-nsaa" href="${NSAA.escapeAttr(walletLink)}">Check ticket wallet</a>` : ""}
-            <a class="btn btn-outline-nsaa" href="${NSAA.escapeAttr(eventLink)}">Back to event</a>
+            ${order.status === "paid" ? `<a class="btn btn-nsaa" href="${NSAA.escapeAttr(whatsappLink)}" target="_blank" rel="noreferrer">Send on WhatsApp</a>` : ""}
+            ${order.status === "paid" ? `<a class="btn btn-nsaa" href="${NSAA.escapeAttr(emailLink)}">Email link</a>` : ""}
+            ${order.status === "reserved" ? `<a class="btn btn-nsaa" href="${NSAA.escapeAttr(walletLink)}">Check ticket wallet</a>` : ""}
+            <a class="btn btn-nsaa" href="${NSAA.escapeAttr(eventLink)}">Back to event</a>
           </div>
         </section>
       `;
