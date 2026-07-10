@@ -52,6 +52,8 @@ function footerHtml() {
             <p class="nsaa-faint small text-uppercase mb-3">Discover</p>
             <ul class="list-unstyled d-grid gap-2 mb-0">
               <li><a href="/" class="nsaa-muted text-decoration-none">Browse events</a></li>
+              <li><a href="/venues" class="nsaa-muted text-decoration-none">Venues</a></li>
+              <li><a href="/organizers" class="nsaa-muted text-decoration-none">Organizers</a></li>
               <li><a href="/organizer-inquiry" class="nsaa-muted text-decoration-none">List an event</a></li>
             </ul>
           </div>
@@ -94,7 +96,12 @@ function footerHtml() {
 }
 
 function navLinksHtml(context, showSwitcher) {
-  const parts = [`<a href="/" class="nsaa-nav-link">Browse</a>`];
+  const parts = [
+    `<a href="/" class="nsaa-nav-link">Browse</a>`,
+    `<a href="/venues" class="nsaa-nav-link">Venues</a>`,
+    `<a href="/organizers" class="nsaa-nav-link">Organizers</a>`,
+    `<a href="/organizer-inquiry" class="nsaa-nav-link">Sell tickets</a>`,
+  ];
 
   if (context === "organizer") {
     parts.push(`<a href="/organizer-dashboard" class="nsaa-nav-link">Dashboard</a>`);

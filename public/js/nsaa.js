@@ -159,14 +159,37 @@
     return event?.heroImageUrl || categoryMeta(event?.category).image;
   }
 
+  function eventHref(event, extraParams = {}) {
+    const params = new URLSearchParams();
+    if (event?.slug) {
+      params.set("slug", event.slug);
+    } else if (event?._id) {
+      params.set("id", event._id);
+    }
+    Object.entries(extraParams).forEach(([key, value]) => {
+      if (value) params.set(key, value);
+    });
+    return `/event?${params.toString()}`;
+  }
+
+  function priceLabel(event) {
+    if (event?.ticketsAvailable === 0) return "Sold out";
+    if (event?.isFree) return "Free";
+    if (typeof event?.minPriceGHS === "number") return `From ${money(event.minPriceGHS)}`;
+    return "Tickets";
+  }
+
   function eventCard(event, options = {}) {
     const meta = categoryMeta(event.category);
     const image = eventImage(event);
     const date = formatDate(event.startsAt);
     const href =
-      options.href || `/event?id=${encodeURIComponent(event._id)}`;
+      options.href || eventHref(event, options.extraParams || {});
     const cityLine = [event.venue, event.city].filter(Boolean).join(", ");
     const staggerIndex = Number.isFinite(options.index) ? options.index : 0;
+    const availabilityBadge = event.isSellingFast
+      ? '<span class="nsaa-badge-gold">Selling fast</span>'
+      : `<span class="nsaa-chip">${escapeHtml(priceLabel(event))}</span>`;
     return `
       <div class="${escapeAttr(options.colClass || "col-md-6 col-xl-4")} nsaa-stagger-item" style="--stagger-index: ${staggerIndex};">
         <a class="text-decoration-none d-block h-100" href="${escapeAttr(href)}">
@@ -175,9 +198,9 @@
             <div class="nsaa-event-body">
               <div class="d-flex align-items-center justify-content-between gap-2 mb-3">
                 <span class="nsaa-chip" data-tone="${escapeAttr(meta.tone)}">${escapeHtml(meta.shortLabel)}</span>
-                <span class="nsaa-faint small">${escapeHtml(event.city)}</span>
+                ${availabilityBadge}
               </div>
-              <h3 class="h5 text-white mb-2">${escapeHtml(event.title)}</h3>
+              <h3 class="h5 mb-2">${escapeHtml(event.title)}</h3>
               <p class="nsaa-muted small mb-2">${escapeHtml(cityLine)}</p>
               <p class="nsaa-faint small mb-0">${escapeHtml(date)}</p>
             </div>
@@ -540,6 +563,7 @@
     escapeAttr,
     escapeHtml,
     eventCard,
+    eventHref,
     eventImage,
     attachConvexAuth,
     formatDate,

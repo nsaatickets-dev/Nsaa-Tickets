@@ -63,13 +63,14 @@
 
       const root = document.getElementById("scanner-root");
 
-      // Staff devices are set up once with a scanner key, either via a
-      // bookmarked ?key=... link given to door staff, or entered once and
-      // remembered on that device. Convex rejects validateScan calls
-      // without the matching SCANNER_KEY, so a lost/stolen phone alone
-      // doesn't let someone void tickets - they'd also need this key.
-      const KEY_STORAGE = "nsaa:scannerKey";
-      const urlKey = new URLSearchParams(window.location.search).get("key");
+      // Staff devices are set up once with a scanner token generated from
+      // the organizer dashboard. Older ?key= links still work as a legacy
+      // fallback because the backend accepts both tokenized staff links and
+      // the deployment-level shared scanner key.
+      const KEY_STORAGE = "nsaa:scannerToken";
+      const urlKey =
+        new URLSearchParams(window.location.search).get("token") ||
+        new URLSearchParams(window.location.search).get("key");
       if (urlKey) {
         try {
           window.localStorage.setItem(KEY_STORAGE, urlKey);
@@ -85,17 +86,32 @@
           scannerKey = null;
         }
       }
-      if (!scannerKey) {
-        scannerKey = window.prompt("Enter the scanner key for this device:") || "";
-        try {
-          window.localStorage.setItem(KEY_STORAGE, scannerKey);
-        } catch (err) {
-          // ignore - will just prompt again next load
-        }
-      }
-
       if (!NSAA.isConvexConfigured()) {
         root.innerHTML = NSAA.setupNotice("Scanner");
+      } else if (!scannerKey) {
+        root.innerHTML = `
+          <div class="nsaa-panel">
+            <p class="nsaa-eyebrow mb-2">Scanner setup</p>
+            <h1 class="h4 mb-2">Enter scanner token</h1>
+            <p class="nsaa-muted mb-4">Use the staff scanner link or token created from the organizer dashboard.</p>
+            <form id="scanner-token-form">
+              <label class="form-label nsaa-muted small" for="scanner-token">Scanner token</label>
+              <input id="scanner-token" class="form-control form-control-nsaa" type="password" autocomplete="off" required />
+              <button class="btn btn-nsaa w-100 mt-3" type="submit">Start scanning</button>
+            </form>
+          </div>
+        `;
+        document.getElementById("scanner-token-form").addEventListener("submit", (event) => {
+          event.preventDefault();
+          const token = document.getElementById("scanner-token").value.trim();
+          if (!token) return;
+          try {
+            window.localStorage.setItem(KEY_STORAGE, token);
+          } catch (err) {
+            // ignore - URL token still works for this session
+          }
+          window.location.href = `/scan?token=${encodeURIComponent(token)}`;
+        });
       } else {
         const client = new ConvexClient(NSAA.CONVEX_URL);
         const video = document.getElementById("scanner-video");
@@ -139,7 +155,7 @@
             });
 
             if (result.ok) {
-              showResult("ok", "VALID", `Welcome ${result.ownerName}`);
+              showResult("ok", "VALID", `Welcome ${result.ownerName}${result.gateLabel ? ` · ${result.gateLabel}` : ""}`);
             } else {
               showResult(
                 "fail",

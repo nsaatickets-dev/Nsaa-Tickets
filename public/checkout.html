@@ -45,6 +45,7 @@
       const params = new URLSearchParams(window.location.search);
       const eventId = params.get("eventId");
       const ticketTypeId = params.get("ticketTypeId");
+      const referralCode = params.get("ref") || "";
       const root = document.getElementById("checkout-root");
 
       let client = null;
@@ -53,6 +54,8 @@
       let quantity = 1;
       let currentOrderId = null;
       let checkoutRendered = false;
+      let reservedUntil = null;
+      let reservationTimer = null;
 
       function serviceFee(subtotal) {
         return Math.round((subtotal * 0.05 + 0.5) * 100) / 100;
@@ -95,6 +98,7 @@
                   <div class="col-md-6">
                     <label class="form-label nsaa-muted small" for="buyer-phone">Mobile Money number</label>
                     <input id="buyer-phone" class="form-control form-control-nsaa" type="tel" autocomplete="tel" placeholder="024 000 0000" required />
+                    <p class="nsaa-faint small mt-2 mb-0">Supports MTN, Telecel, and AirtelTigo Mobile Money numbers.</p>
                   </div>
                   <div class="col-md-6">
                     <label class="form-label nsaa-muted small" for="buyer-email">Email</label>
@@ -115,6 +119,11 @@
               <p class="nsaa-eyebrow mb-2">Mobile Money</p>
               <h2 class="h3 mb-2">Approve payment on your phone</h2>
               <p class="nsaa-muted mb-4">Nsaa will send a Mobile Money prompt to the number you entered. Confirmation can take a little time after approval.</p>
+              <div class="nsaa-hold-countdown mb-3">
+                <span class="nsaa-faint small d-block">Reservation hold</span>
+                <strong id="reservation-countdown">10:00</strong>
+                <span class="nsaa-muted small">Your tickets are held while you approve payment.</span>
+              </div>
               <div id="payment-status" class="nsaa-status-box waiting mb-3">
                 <p class="fw-semibold mb-1">Waiting to send request</p>
                 <p class="mb-0">Your ticket reservation is held while you start payment.</p>
@@ -159,6 +168,10 @@
                 <span id="summary-total" style="color: var(--nsaa-gold);"></span>
               </div>
               <p class="nsaa-faint small mb-0">${available <= 0 ? "This ticket type is sold out." : `${available} currently available. Availability updates live.`}</p>
+              <div class="nsaa-soft-panel p-3 mt-3">
+                <p class="fw-semibold mb-1"><i class="ph ph-shield-check me-1"></i>Duplicate QR protection</p>
+                <p class="nsaa-muted small mb-0">Each paid ticket receives a signed one-time QR code. A screenshot can still only scan once at the door.</p>
+              </div>
             </div>
           </aside>
         </div>
@@ -184,6 +197,30 @@
         document.getElementById("summary-total").textContent = NSAA.money(
           totals.total,
         );
+      }
+
+      function startReservationCountdown(until) {
+        reservedUntil = until;
+        if (reservationTimer) window.clearInterval(reservationTimer);
+        const target = document.getElementById("reservation-countdown");
+        if (!target || !reservedUntil) return;
+
+        const tick = () => {
+          const remaining = Math.max(0, reservedUntil - Date.now());
+          const minutes = Math.floor(remaining / 60000);
+          const seconds = Math.floor((remaining % 60000) / 1000);
+          target.textContent = `${minutes}:${String(seconds).padStart(2, "0")}`;
+          if (remaining <= 0) {
+            window.clearInterval(reservationTimer);
+            setPaymentState(
+              "failed",
+              "Reservation expired",
+              "The hold window ended. Start checkout again to reserve fresh inventory.",
+            );
+          }
+        };
+        tick();
+        reservationTimer = window.setInterval(tick, 1000);
       }
 
       function bindCheckout() {
@@ -275,9 +312,11 @@
             buyerName,
             buyerPhone,
             buyerEmail,
+            referralCode: referralCode || undefined,
           });
 
           currentOrderId = result.orderId;
+          reservedUntil = result.reservedUntil;
           window.localStorage.setItem("nsaa:lastOrderId", currentOrderId);
           showPaymentStep();
         } catch (err) {
@@ -293,6 +332,7 @@
       function showPaymentStep() {
         document.getElementById("details-step").classList.add("d-none");
         document.getElementById("payment-step").classList.remove("d-none");
+        startReservationCountdown(reservedUntil);
         document.getElementById("status-link").href =
           `/order-status?orderId=${encodeURIComponent(currentOrderId)}`;
 

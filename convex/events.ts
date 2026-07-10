@@ -1,5 +1,5 @@
-import { mutation, query, MutationCtx } from "./_generated/server";
-import { Id } from "./_generated/dataModel";
+import { mutation, query, MutationCtx, QueryCtx } from "./_generated/server";
+import { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { requireAdminSecret } from "./admin";
 import {
@@ -20,6 +20,33 @@ export const TIER_FEE_PERCENT: Record<string, number> = {
   essential: 0.04,
   pro: 0.065,
 };
+
+export function slugify(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80) || "event";
+}
+
+function eventSlug(title: string, startsAt: number): string {
+  const date = Number.isFinite(startsAt)
+    ? new Date(startsAt).toISOString().slice(0, 10)
+    : "date-tba";
+  return `${slugify(title)}-${date}`;
+}
+
+function eventVenueSlug(event: Pick<Doc<"events">, "venue" | "venueSlug">): string {
+  return event.venueSlug || slugify(event.venue);
+}
+
+function eventOrganizerSlug(
+  event: Pick<Doc<"events">, "organizerName" | "organizerSlug">,
+): string {
+  return event.organizerSlug || slugify(event.organizerName);
+}
 
 // Pure function (no DB access) so orders.ts can reuse it without an extra
 // query round-trip - callers already have the organizerProfiles row (or
@@ -202,10 +229,176 @@ export const searchPublished = query({
   },
 });
 
+async function enrichEventsWithTicketSummary(ctx: QueryCtx, events: Doc<"events">[]) {
+  const enriched = [];
+  for (const event of events) {
+    const ticketTypes = await ctx.db
+      .query("ticketTypes")
+      .withIndex("by_event", (q) => q.eq("eventId", event._id))
+      .collect();
+
+    const available = ticketTypes.reduce(
+      (sum, ticket) => sum + ticket.quantityTotal - ticket.quantitySold - ticket.quantityReserved,
+      0,
+    );
+    const totalInventory = ticketTypes.reduce((sum, ticket) => sum + ticket.quantityTotal, 0);
+    const prices = ticketTypes.map((ticket) => ticket.priceGHS);
+    const paidPrices = prices.filter((price) => price > 0);
+    const minPriceGHS = prices.length ? Math.min(...prices) : null;
+    const maxPriceGHS = prices.length ? Math.max(...prices) : null;
+
+    enriched.push({
+      ...event,
+      slug: event.slug || eventSlug(event.title, event.startsAt),
+      organizerSlug: eventOrganizerSlug(event),
+      venueSlug: eventVenueSlug(event),
+      minPriceGHS,
+      maxPriceGHS,
+      isFree: prices.length > 0 && paidPrices.length === 0,
+      hasPaidTickets: paidPrices.length > 0,
+      ticketsAvailable: available,
+      isSellingFast:
+        available > 0 &&
+        totalInventory > 0 &&
+        available <= Math.max(10, Math.ceil(totalInventory * 0.12)),
+    });
+  }
+  return enriched;
+}
+
+export const searchPublishedPage = query({
+  args: {
+    search: v.optional(v.string()),
+    category: v.optional(v.string()),
+    city: v.optional(v.string()),
+    startsAfter: v.optional(v.number()),
+    startsBefore: v.optional(v.number()),
+    price: v.optional(v.union(v.literal("all"), v.literal("free"), v.literal("paid"))),
+    availability: v.optional(v.union(v.literal("any"), v.literal("selling_fast"))),
+    ageRating: v.optional(v.string()),
+    page: v.optional(v.number()),
+    pageSize: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const startsAfter = args.startsAfter ?? 0;
+    const startsBefore = args.startsBefore ?? Number.MAX_SAFE_INTEGER;
+    const page = Math.max(1, Math.floor(args.page ?? 1));
+    const pageSize = Math.min(48, Math.max(6, Math.floor(args.pageSize ?? 18)));
+
+    let candidates: Doc<"events">[];
+    if (args.category) {
+      candidates = await ctx.db
+        .query("events")
+        .withIndex("by_status_category_startsAt", (q) =>
+          q.eq("status", "published").eq("category", args.category!).gte("startsAt", startsAfter),
+        )
+        .order("asc")
+        .take(400);
+    } else if (args.city) {
+      candidates = await ctx.db
+        .query("events")
+        .withIndex("by_status_city_startsAt", (q) =>
+          q.eq("status", "published").eq("city", args.city!).gte("startsAt", startsAfter),
+        )
+        .order("asc")
+        .take(400);
+    } else {
+      candidates = await ctx.db
+        .query("events")
+        .withIndex("by_status_startsAt", (q) =>
+          q.eq("status", "published").gte("startsAt", startsAfter),
+        )
+        .order("asc")
+        .take(400);
+    }
+
+    const term = args.search?.trim().toLowerCase();
+    const filteredByEventFields = candidates.filter((event) => {
+      if (event.startsAt > startsBefore) return false;
+      if (args.ageRating && event.ageRating && event.ageRating !== args.ageRating) return false;
+      if (!term) return true;
+      return [
+        event.title,
+        event.description,
+        event.venue,
+        event.address,
+        event.city,
+        event.category,
+        event.organizerName,
+      ]
+        .join(" ")
+        .toLowerCase()
+        .includes(term);
+    });
+
+    const enriched = await enrichEventsWithTicketSummary(ctx, filteredByEventFields);
+    const filtered = enriched.filter((event) => {
+      if (args.price === "free" && !event.isFree) return false;
+      if (args.price === "paid" && !event.hasPaidTickets) return false;
+      if (args.availability === "selling_fast" && !event.isSellingFast) return false;
+      return true;
+    });
+
+    const total = filtered.length;
+    const start = (page - 1) * pageSize;
+    const items = filtered.slice(start, start + pageSize);
+
+    return {
+      items,
+      page,
+      pageSize,
+      total,
+      hasNextPage: start + pageSize < total,
+    };
+  },
+});
+
 export const getById = query({
   args: { eventId: v.id("events") },
   handler: async (ctx, { eventId }) => {
     return await ctx.db.get(eventId);
+  },
+});
+
+export const getBySlug = query({
+  args: { slug: v.string() },
+  handler: async (ctx, { slug }) => {
+    const event = await ctx.db
+      .query("events")
+      .withIndex("by_slug", (q) => q.eq("slug", slug))
+      .first();
+    if (!event || event.status !== "published") return null;
+    return {
+      ...event,
+      slug: event.slug || eventSlug(event.title, event.startsAt),
+      organizerSlug: eventOrganizerSlug(event),
+      venueSlug: eventVenueSlug(event),
+    };
+  },
+});
+
+export const getPublicEvent = query({
+  args: {
+    eventId: v.optional(v.id("events")),
+    slug: v.optional(v.string()),
+  },
+  handler: async (ctx, { eventId, slug }) => {
+    const event = eventId
+      ? await ctx.db.get(eventId)
+      : slug
+        ? await ctx.db
+            .query("events")
+            .withIndex("by_slug", (q) => q.eq("slug", slug))
+            .first()
+        : null;
+
+    if (!event || event.status !== "published") return null;
+    return {
+      ...event,
+      slug: event.slug || eventSlug(event.title, event.startsAt),
+      organizerSlug: eventOrganizerSlug(event),
+      venueSlug: eventVenueSlug(event),
+    };
   },
 });
 
@@ -214,6 +407,19 @@ export const getById = query({
 export const ticketTypesForEvent = query({
   args: { eventId: v.id("events") },
   handler: async (ctx, { eventId }) => {
+    const event = await ctx.db.get(eventId);
+    const organizerProfile = event?.organizerClerkUserId
+      ? await ctx.db
+          .query("organizerProfiles")
+          .withIndex("by_organizer", (q) =>
+            q.eq("organizerClerkUserId", event.organizerClerkUserId!),
+          )
+          .unique()
+      : null;
+    const feePercent = feePercentForTier(
+      organizerProfile?.tier,
+      organizerProfile?.customFeePercent,
+    );
     const types = await ctx.db
       .query("ticketTypes")
       .withIndex("by_event", (q) => q.eq("eventId", eventId))
@@ -222,7 +428,162 @@ export const ticketTypesForEvent = query({
     return types.map((t) => ({
       ...t,
       quantityAvailable: t.quantityTotal - t.quantitySold - t.quantityReserved,
+      serviceFeeGHS:
+        t.priceGHS <= 0 ? 0 : Math.round(t.priceGHS * feePercent * 100) / 100,
+      totalPerTicketGHS:
+        t.priceGHS <= 0
+          ? 0
+          : Math.round((t.priceGHS + Math.round(t.priceGHS * feePercent * 100) / 100) * 100) /
+            100,
     }));
+  },
+});
+
+export const listVenueProfiles = query({
+  args: {},
+  handler: async (ctx) => {
+    const published = await ctx.db
+      .query("events")
+      .withIndex("by_status", (q) => q.eq("status", "published"))
+      .collect();
+    const explicitProfiles = await ctx.db.query("venueProfiles").collect();
+
+    const profiles = new Map<string, any>();
+    for (const profile of explicitProfiles) {
+      profiles.set(profile.slug, {
+        slug: profile.slug,
+        name: profile.name,
+        city: profile.city,
+        address: profile.address,
+        description: profile.description,
+        heroImageUrl: profile.heroImageUrl,
+        mapUrl: profile.mapUrl,
+        verified: Boolean(profile.verifiedAt),
+        eventCount: 0,
+      });
+    }
+
+    for (const event of published) {
+      const slug = eventVenueSlug(event);
+      const existing = profiles.get(slug);
+      profiles.set(slug, {
+        slug,
+        name: existing?.name || event.venue,
+        city: existing?.city || event.city,
+        address: existing?.address || event.address,
+        description: existing?.description,
+        heroImageUrl: existing?.heroImageUrl || event.heroImageUrl,
+        mapUrl: existing?.mapUrl,
+        verified: existing?.verified || false,
+        eventCount: (existing?.eventCount ?? 0) + 1,
+      });
+    }
+
+    return [...profiles.values()].sort((a, b) => b.eventCount - a.eventCount || a.name.localeCompare(b.name));
+  },
+});
+
+export const getVenueProfile = query({
+  args: { slug: v.string() },
+  handler: async (ctx, { slug }) => {
+    const explicit = await ctx.db
+      .query("venueProfiles")
+      .withIndex("by_slug", (q) => q.eq("slug", slug))
+      .unique();
+    const allPublished = await ctx.db
+      .query("events")
+      .withIndex("by_status", (q) => q.eq("status", "published"))
+      .collect();
+    const events = allPublished
+      .filter((event) => eventVenueSlug(event) === slug)
+      .sort((a, b) => a.startsAt - b.startsAt);
+
+    if (!explicit && events.length === 0) return null;
+    const first = events[0];
+    return {
+      profile: {
+        slug,
+        name: explicit?.name || first?.venue || "Venue",
+        city: explicit?.city || first?.city || "",
+        address: explicit?.address || first?.address,
+        description: explicit?.description,
+        heroImageUrl: explicit?.heroImageUrl || first?.heroImageUrl,
+        mapUrl: explicit?.mapUrl,
+        verified: Boolean(explicit?.verifiedAt),
+      },
+      events: await enrichEventsWithTicketSummary(ctx, events),
+    };
+  },
+});
+
+export const listOrganizerProfilesPublic = query({
+  args: {},
+  handler: async (ctx) => {
+    const published = await ctx.db
+      .query("events")
+      .withIndex("by_status", (q) => q.eq("status", "published"))
+      .collect();
+    const explicitProfiles = await ctx.db.query("organizerPublicProfiles").collect();
+
+    const profiles = new Map<string, any>();
+    for (const profile of explicitProfiles) {
+      profiles.set(profile.slug, {
+        slug: profile.slug,
+        displayName: profile.displayName,
+        description: profile.description,
+        websiteUrl: profile.websiteUrl,
+        logoUrl: profile.logoUrl,
+        verified: Boolean(profile.verifiedAt),
+        eventCount: 0,
+      });
+    }
+
+    for (const event of published) {
+      const slug = eventOrganizerSlug(event);
+      const existing = profiles.get(slug);
+      profiles.set(slug, {
+        slug,
+        displayName: existing?.displayName || event.organizerName,
+        description: existing?.description,
+        websiteUrl: existing?.websiteUrl,
+        logoUrl: existing?.logoUrl,
+        verified: existing?.verified || false,
+        eventCount: (existing?.eventCount ?? 0) + 1,
+      });
+    }
+
+    return [...profiles.values()].sort((a, b) => b.eventCount - a.eventCount || a.displayName.localeCompare(b.displayName));
+  },
+});
+
+export const getOrganizerProfilePublic = query({
+  args: { slug: v.string() },
+  handler: async (ctx, { slug }) => {
+    const explicit = await ctx.db
+      .query("organizerPublicProfiles")
+      .withIndex("by_slug", (q) => q.eq("slug", slug))
+      .unique();
+    const allPublished = await ctx.db
+      .query("events")
+      .withIndex("by_status", (q) => q.eq("status", "published"))
+      .collect();
+    const events = allPublished
+      .filter((event) => eventOrganizerSlug(event) === slug)
+      .sort((a, b) => a.startsAt - b.startsAt);
+
+    if (!explicit && events.length === 0) return null;
+    const first = events[0];
+    return {
+      profile: {
+        slug,
+        displayName: explicit?.displayName || first?.organizerName || "Organizer",
+        description: explicit?.description,
+        websiteUrl: explicit?.websiteUrl,
+        logoUrl: explicit?.logoUrl,
+        verified: Boolean(explicit?.verifiedAt),
+      },
+      events: await enrichEventsWithTicketSummary(ctx, events),
+    };
   },
 });
 
@@ -299,6 +660,20 @@ export const salesSummaryForEvent = query({
       .collect();
 
     const paidOrders = orders.filter((order) => order.status === "paid");
+    const referralSummary = new Map<string, { code: string; orders: number; tickets: number; revenueGHS: number }>();
+    for (const order of paidOrders) {
+      const code = order.referralCode || "direct";
+      const current = referralSummary.get(code) ?? {
+        code,
+        orders: 0,
+        tickets: 0,
+        revenueGHS: 0,
+      };
+      current.orders += 1;
+      current.tickets += order.quantity;
+      current.revenueGHS = Math.round((current.revenueGHS + order.totalGHS) * 100) / 100;
+      referralSummary.set(code, current);
+    }
 
     return {
       ticketTypes: ticketTypes.map((t) => ({
@@ -309,6 +684,7 @@ export const salesSummaryForEvent = query({
       grossRevenueGHS: paidOrders.reduce((sum, order) => sum + order.totalGHS, 0),
       ordersPaid: paidOrders.length,
       ordersPending: orders.filter((order) => order.status === "reserved").length,
+      referralSummary: [...referralSummary.values()].sort((a, b) => b.revenueGHS - a.revenueGHS),
     };
   },
 });
@@ -335,6 +711,7 @@ const eventFields = {
   endsAt: v.optional(v.number()),
   heroImageUrl: v.optional(v.string()),
   category: v.string(),
+  ageRating: v.optional(v.string()),
   organizerName: v.string(),
   organizerPayoutPhone: v.optional(v.string()),
 };
@@ -349,6 +726,7 @@ interface RawEventFields {
   endsAt?: number;
   heroImageUrl?: string;
   category: string;
+  ageRating?: string;
   organizerName: string;
   organizerPayoutPhone?: string;
 }
@@ -366,9 +744,13 @@ function sanitizeEventFields(fields: RawEventFields) {
     city: requireNonEmpty(fields.city, "City", 80),
     startsAt: fields.startsAt,
     endsAt: fields.endsAt,
+    slug: eventSlug(fields.title, fields.startsAt),
     heroImageUrl: optionalTrimmed(fields.heroImageUrl, 2000),
     category: requireNonEmpty(fields.category, "Category", 40),
+    ageRating: optionalTrimmed(fields.ageRating, 40),
     organizerName: requireNonEmpty(fields.organizerName, "Organizer name", 140),
+    organizerSlug: slugify(fields.organizerName),
+    venueSlug: slugify(fields.venue),
     organizerPayoutPhone: fields.organizerPayoutPhone
       ? requireValidGhanaPhone(fields.organizerPayoutPhone)
       : undefined,
@@ -398,10 +780,8 @@ export const updateEvent = mutation({
   },
 });
 
-// Cancellation is deliberately not offered here: cancelling a published
-// event with paid orders needs a refund flow (see README "Known gaps"),
-// which doesn't exist yet. Only the safe draft <-> published toggle is
-// exposed until that's built.
+// Self-serve organizers can only draft/publish. Event cancellation touches
+// paid orders and ticket validity, so it lives in the admin ops module.
 export const setEventStatus = mutation({
   args: {
     eventId: v.id("events"),
@@ -677,8 +1057,9 @@ export const seedDemoEvent = mutation({
 
     const eventIds = [];
     for (const demo of demoEvents) {
+      const normalizedEvent = sanitizeEventFields(demo.event);
       const eventId = await ctx.db.insert("events", {
-        ...demo.event,
+        ...normalizedEvent,
         status: "published",
         createdAt: now,
       });

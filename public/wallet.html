@@ -58,6 +58,10 @@
 
       function renderTicketGroup(group, groupIndex = 0) {
         const { order, event, ticketType, tickets } = group;
+        const walletLink = `${window.location.origin}/wallet?orderId=${encodeURIComponent(order._id)}`;
+        const shareText = `Nsaa ticket for ${event?.title || "this event"}: ${walletLink}`;
+        const whatsappLink = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
+        const emailLink = `mailto:?subject=${encodeURIComponent("Nsaa ticket")}&body=${encodeURIComponent(shareText)}`;
         return `
         <section class="nsaa-panel mb-4">
           <div class="d-flex flex-column flex-lg-row justify-content-between gap-3 mb-4">
@@ -69,6 +73,10 @@
             <div class="text-lg-end">
               <p class="nsaa-faint small mb-1">Order total</p>
               <p class="h5 mb-0" style="color: var(--nsaa-gold);">${NSAA.money(order.totalGHS)}</p>
+              <div class="d-flex flex-wrap justify-content-lg-end gap-2 mt-3">
+                <a class="btn btn-outline-nsaa btn-sm" href="${NSAA.escapeAttr(whatsappLink)}" target="_blank" rel="noreferrer">WhatsApp</a>
+                <a class="btn btn-outline-nsaa btn-sm" href="${NSAA.escapeAttr(emailLink)}">Email link</a>
+              </div>
             </div>
           </div>
           <div class="row g-3">

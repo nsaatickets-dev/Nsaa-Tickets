@@ -27,21 +27,31 @@ export default defineSchema({
     city: v.string(),
     startsAt: v.number(), // unix ms
     endsAt: v.optional(v.number()),
+    slug: v.optional(v.string()),
     heroImageUrl: v.optional(v.string()),
     category: v.string(), // "concert" | "nightlife" | "conference" | etc.
+    ageRating: v.optional(v.string()),
     status: v.union(
       v.literal("draft"),
       v.literal("published"),
       v.literal("cancelled"),
     ),
     organizerName: v.string(), // display name shown publicly on the event
+    organizerSlug: v.optional(v.string()),
+    venueSlug: v.optional(v.string()),
     organizerClerkUserId: v.optional(v.string()), // owner for the self-serve dashboard; unset for pre-v1 seeded/manual events
     organizerPayoutPhone: v.optional(v.string()), // Moolre payout target
     createdAt: v.number(),
   })
     .index("by_status", ["status"])
     .index("by_status_category", ["status", "category"])
-    .index("by_organizer", ["organizerClerkUserId"]),
+    .index("by_status_startsAt", ["status", "startsAt"])
+    .index("by_status_city_startsAt", ["status", "city", "startsAt"])
+    .index("by_status_category_startsAt", ["status", "category", "startsAt"])
+    .index("by_slug", ["slug"])
+    .index("by_organizer", ["organizerClerkUserId"])
+    .index("by_organizer_slug", ["organizerSlug"])
+    .index("by_venue_slug", ["venueSlug"]),
 
   // A purchasable tier within an event, e.g. "Regular", "VIP".
   ticketTypes: defineTable({
@@ -64,6 +74,7 @@ export default defineSchema({
     buyerPhone: v.string(), // MoMo number, also identity for guest checkout
     buyerEmail: v.string(), // required - the ticket receipt (with QR codes) is emailed here
     clerkUserId: v.optional(v.string()), // set if buyer is signed in
+    referralCode: v.optional(v.string()), // organizer/promoter attribution from event links
 
     ticketSubtotalGHS: v.number(), // priceGHS * quantity
     serviceFeeGHS: v.number(), // NON-REFUNDABLE, always retained
@@ -214,4 +225,63 @@ export default defineSchema({
     createdAt: v.number(),
     paidAt: v.optional(v.number()),
   }).index("by_event", ["eventId"]),
+
+  // Public, reusable venue profile pages. Events can keep working without
+  // a linked venue row; venueSlug on events lets us derive profile pages
+  // from existing listings until a formal venue record exists.
+  venueProfiles: defineTable({
+    slug: v.string(),
+    name: v.string(),
+    city: v.string(),
+    address: v.optional(v.string()),
+    description: v.optional(v.string()),
+    heroImageUrl: v.optional(v.string()),
+    mapUrl: v.optional(v.string()),
+    verifiedAt: v.optional(v.number()),
+    createdAt: v.number(),
+  })
+    .index("by_slug", ["slug"])
+    .index("by_city", ["city"]),
+
+  // Public organizer profile pages, separate from billing/pricing profile.
+  organizerPublicProfiles: defineTable({
+    slug: v.string(),
+    displayName: v.string(),
+    organizerClerkUserId: v.optional(v.string()),
+    description: v.optional(v.string()),
+    websiteUrl: v.optional(v.string()),
+    logoUrl: v.optional(v.string()),
+    verifiedAt: v.optional(v.number()),
+    createdAt: v.number(),
+  })
+    .index("by_slug", ["slug"])
+    .index("by_organizer", ["organizerClerkUserId"]),
+
+  scannerStaff: defineTable({
+    eventId: v.id("events"),
+    name: v.string(),
+    gateLabel: v.string(),
+    role: v.union(v.literal("scanner"), v.literal("lead")),
+    tokenHash: v.string(),
+    tokenPreview: v.string(),
+    status: v.union(v.literal("active"), v.literal("revoked")),
+    createdByClerkUserId: v.optional(v.string()),
+    createdAt: v.number(),
+    revokedAt: v.optional(v.number()),
+  })
+    .index("by_event", ["eventId"])
+    .index("by_token_hash", ["tokenHash"]),
+
+  scanLogs: defineTable({
+    eventId: v.optional(v.id("events")),
+    ticketId: v.optional(v.id("tickets")),
+    scannerStaffId: v.optional(v.id("scannerStaff")),
+    gateLabel: v.optional(v.string()),
+    scannedBy: v.optional(v.string()),
+    outcome: v.union(v.literal("accepted"), v.literal("rejected")),
+    reason: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_event", ["eventId"])
+    .index("by_scanner", ["scannerStaffId"]),
 });

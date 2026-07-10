@@ -42,6 +42,7 @@
     <script src="js/nsaa.js"></script>
     <script type="module">
       import { ConvexClient } from "https://esm.sh/convex/browser";
+      import QRCode from "https://esm.sh/qrcode@1.5.4";
 
       const root = document.getElementById("dashboard-root");
       const newEventBtn = document.getElementById("new-event-btn");
@@ -115,6 +116,14 @@
             <div class="col-md-6">
               <label class="form-label nsaa-muted small" for="ef-category">Category</label>
               <select id="ef-category" class="form-select form-select-nsaa" required></select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label nsaa-muted small" for="ef-age">Age rating optional</label>
+              <select id="ef-age" class="form-select form-select-nsaa">
+                <option value="">Not specified</option>
+                <option value="all-ages" ${event?.ageRating === "all-ages" ? "selected" : ""}>All ages</option>
+                <option value="18-plus" ${event?.ageRating === "18-plus" ? "selected" : ""}>18+</option>
+              </select>
             </div>
             <div class="col-12">
               <label class="form-label nsaa-muted small" for="ef-description">Description</label>
@@ -202,6 +211,236 @@
       `;
       }
 
+      function absoluteEventUrl(event, refCode = "") {
+        const url = new URL(NSAA.eventHref(event), window.location.origin);
+        if (refCode) url.searchParams.set("ref", refCode);
+        return url.toString();
+      }
+
+      function shareToolkitHtml(event, summary) {
+        const directUrl = absoluteEventUrl(event);
+        const referralRows = summary?.referralSummary?.length
+          ? summary.referralSummary
+              .map(
+                (row) => `
+                <div class="d-flex justify-content-between gap-3 py-1">
+                  <span class="nsaa-muted">${NSAA.escapeHtml(row.code)}</span>
+                  <span>${row.tickets} tickets · ${NSAA.money(row.revenueGHS)}</span>
+                </div>
+              `,
+              )
+              .join("")
+          : '<p class="nsaa-muted small mb-0">Referral sales appear after buyers purchase through a campaign link.</p>';
+
+        return `
+        <div class="nsaa-panel mb-4">
+          <div class="d-flex flex-column flex-lg-row justify-content-between gap-3 mb-3">
+            <div>
+              <h2 class="h5 mb-1">Distribution kit</h2>
+              <p class="nsaa-muted small mb-0">Share links, poster QR codes, embed snippets, and referral codes for this event.</p>
+            </div>
+            <a class="btn btn-outline-nsaa align-self-lg-start" href="${NSAA.escapeAttr(directUrl)}" target="_blank" rel="noreferrer">Open public page</a>
+          </div>
+          <div class="row g-3">
+            <div class="col-lg-5">
+              <label class="form-label nsaa-muted small" for="campaign-code">Campaign or promoter code</label>
+              <div class="d-flex gap-2">
+                <input id="campaign-code" class="form-control form-control-nsaa" type="text" value="main" />
+                <button id="copy-campaign-link" class="btn btn-nsaa" type="button">Copy</button>
+              </div>
+              <div class="d-grid gap-2 mt-2">
+                <a id="whatsapp-campaign-link" class="btn btn-outline-nsaa" target="_blank" rel="noreferrer" href="#">Share on WhatsApp</a>
+                <button id="copy-embed-code" class="btn btn-outline-nsaa" type="button">Copy embed</button>
+              </div>
+              <textarea id="embed-code" class="form-control form-control-nsaa mt-2" rows="3" readonly></textarea>
+            </div>
+            <div class="col-lg-3 text-center">
+              <div class="nsaa-qr-shell">
+                <canvas id="event-share-qr" aria-label="Event share QR code"></canvas>
+              </div>
+              <p class="nsaa-faint small mt-2 mb-0">Poster QR updates with the campaign code.</p>
+            </div>
+            <div class="col-lg-4">
+              <div class="nsaa-price-breakdown p-3 h-100">
+                <p class="fw-semibold mb-2">Referral performance</p>
+                ${referralRows}
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      }
+
+      function scannerStaffShellHtml() {
+        return `
+        <div class="nsaa-panel mb-4">
+          <h2 class="h5 mb-1">Scanner staff</h2>
+          <p class="nsaa-muted small mb-3">Create revocable scanner links for each gate or door team. The full token is shown once.</p>
+          <form id="scanner-staff-form" class="row g-2 align-items-end">
+            <div class="col-md-4">
+              <label class="form-label nsaa-muted small" for="scanner-staff-name">Staff name</label>
+              <input id="scanner-staff-name" class="form-control form-control-nsaa" type="text" placeholder="Gate A lead" required />
+            </div>
+            <div class="col-md-3">
+              <label class="form-label nsaa-muted small" for="scanner-gate-label">Gate</label>
+              <input id="scanner-gate-label" class="form-control form-control-nsaa" type="text" placeholder="VIP Gate" required />
+            </div>
+            <div class="col-md-3">
+              <label class="form-label nsaa-muted small" for="scanner-role">Role</label>
+              <select id="scanner-role" class="form-select form-select-nsaa">
+                <option value="scanner">Scanner</option>
+                <option value="lead">Lead</option>
+              </select>
+            </div>
+            <div class="col-md-2">
+              <button class="btn btn-nsaa w-100" type="submit">Create</button>
+            </div>
+          </form>
+          <div id="scanner-token-result" class="mt-3"></div>
+          <div id="scanner-staff-list" class="mt-3"></div>
+        </div>
+      `;
+      }
+
+      function bindShareToolkit(event, summary) {
+        const campaignInput = document.getElementById("campaign-code");
+        const embedEl = document.getElementById("embed-code");
+        const whatsappEl = document.getElementById("whatsapp-campaign-link");
+        const canvas = document.getElementById("event-share-qr");
+        if (!campaignInput || !embedEl || !whatsappEl || !canvas) return;
+
+        async function sync() {
+          const code = campaignInput.value.trim();
+          const link = absoluteEventUrl(event, code);
+          const embedUrl = new URL("/embed", window.location.origin);
+          embedUrl.searchParams.set("eventId", event._id);
+          if (code) embedUrl.searchParams.set("ref", code);
+          embedEl.value = `<iframe src="${embedUrl.toString()}" width="100%" height="420" style="border:0;" loading="lazy"></iframe>`;
+          whatsappEl.href = `https://wa.me/?text=${encodeURIComponent(`${event.title} tickets: ${link}`)}`;
+          await QRCode.toCanvas(canvas, link, {
+            width: 180,
+            margin: 1,
+            color: { dark: "#241f1a", light: "#ffffff" },
+          });
+        }
+
+        campaignInput.addEventListener("input", sync);
+        document.getElementById("copy-campaign-link").addEventListener("click", async () => {
+          await navigator.clipboard.writeText(absoluteEventUrl(event, campaignInput.value.trim()));
+        });
+        document.getElementById("copy-embed-code").addEventListener("click", async () => {
+          await navigator.clipboard.writeText(embedEl.value);
+        });
+        sync();
+      }
+
+      function renderScannerStaff(staffRows) {
+        const list = document.getElementById("scanner-staff-list");
+        if (!list) return;
+        if (!staffRows || staffRows.length === 0) {
+          list.innerHTML = '<p class="nsaa-muted small mb-0">No scanner staff links yet.</p>';
+          return;
+        }
+
+        list.innerHTML = staffRows
+          .map(
+            (staff) => `
+            <div class="nsaa-meta-item d-flex flex-column flex-md-row justify-content-between gap-2 mb-2" data-scanner-staff-id="${NSAA.escapeAttr(staff._id)}">
+              <div>
+                <p class="mb-0 fw-semibold">${NSAA.escapeHtml(staff.name)} <span class="nsaa-chip ms-1">${NSAA.escapeHtml(staff.role)}</span></p>
+                <p class="nsaa-muted small mb-0">${NSAA.escapeHtml(staff.gateLabel)} · token ends ${NSAA.escapeHtml(staff.tokenPreview)} · ${NSAA.escapeHtml(staff.status)}</p>
+              </div>
+              <button class="btn btn-outline-nsaa btn-sm revoke-scanner-staff" type="button" ${staff.status === "revoked" ? "disabled" : ""}>Revoke</button>
+            </div>
+          `,
+          )
+          .join("");
+      }
+
+      function renderScanLogs(logs) {
+        const slot = document.getElementById("scan-log-slot");
+        if (!slot) return;
+        const rows = logs && logs.length
+          ? logs
+              .map(
+                (log) => `
+                <div class="d-flex justify-content-between gap-3 py-2 nsaa-divider-dashed">
+                  <div>
+                    <p class="mb-0 fw-semibold ${log.outcome === "accepted" ? "ticket-status-valid" : "ticket-status-used"}">${log.outcome === "accepted" ? "Accepted" : "Rejected"}</p>
+                    <p class="nsaa-muted small mb-0">${NSAA.escapeHtml(log.gateLabel || "Gate")} · ${NSAA.escapeHtml(log.scannedBy || "Scanner")}</p>
+                  </div>
+                  <div class="text-end">
+                    <p class="nsaa-faint small mb-0">${NSAA.escapeHtml(NSAA.formatDate(log.createdAt))}</p>
+                    <p class="nsaa-muted small mb-0">${NSAA.escapeHtml(log.reason || "OK")}</p>
+                  </div>
+                </div>
+              `,
+              )
+              .join("")
+          : '<p class="nsaa-muted small mb-0">Recent scan results appear here once doors open.</p>';
+
+        slot.innerHTML = `
+          <div class="nsaa-panel mb-4">
+            <h2 class="h5 mb-3">Recent scan log</h2>
+            ${rows}
+          </div>
+        `;
+      }
+
+      function setupScannerStaff(client, eventId) {
+        const staffForm = document.getElementById("scanner-staff-form");
+        const tokenResult = document.getElementById("scanner-token-result");
+        if (!staffForm || !tokenResult) return;
+
+        client.onUpdate("tickets:listScannerStaff", { eventId }, renderScannerStaff);
+        client.onUpdate("tickets:scanLogsForEvent", { eventId }, renderScanLogs);
+
+        staffForm.addEventListener("submit", async (evt) => {
+          evt.preventDefault();
+          const payload = {
+            eventId,
+            name: document.getElementById("scanner-staff-name").value.trim(),
+            gateLabel: document.getElementById("scanner-gate-label").value.trim(),
+            role: document.getElementById("scanner-role").value,
+          };
+          try {
+            const result = await client.mutation("tickets:createScannerStaff", payload);
+            const scanUrl = `${window.location.origin}/scan?token=${encodeURIComponent(result.token)}`;
+            tokenResult.innerHTML = `
+              <div class="nsaa-status-box success">
+                <p class="fw-semibold mb-1">Scanner link created</p>
+                <p class="mb-2">This full token is shown once. Share the link only with door staff.</p>
+                <div class="d-flex gap-2">
+                  <input class="form-control form-control-nsaa" value="${NSAA.escapeAttr(scanUrl)}" readonly />
+                  <button id="copy-scanner-link" class="btn btn-nsaa" type="button">Copy</button>
+                </div>
+              </div>
+            `;
+            document.getElementById("copy-scanner-link").addEventListener("click", async () => {
+              await navigator.clipboard.writeText(scanUrl);
+            });
+            staffForm.reset();
+          } catch (err) {
+            tokenResult.innerHTML = NSAA.errorState("Could not create scanner", err.message || "Please try again.");
+          }
+        });
+
+        document.getElementById("scanner-staff-list").addEventListener("click", async (evt) => {
+          const button = evt.target.closest(".revoke-scanner-staff");
+          if (!button) return;
+          const row = button.closest("[data-scanner-staff-id]");
+          button.disabled = true;
+          try {
+            await client.mutation("tickets:revokeScannerStaff", {
+              scannerStaffId: row.dataset.scannerStaffId,
+            });
+          } catch (err) {
+            tokenResult.innerHTML = NSAA.errorState("Could not revoke scanner", err.message || "Please try again.");
+            button.disabled = false;
+          }
+        });
+      }
+
       function populateCategorySelect(selected) {
         const select = document.getElementById("ef-category");
         if (!select) return;
@@ -223,6 +462,7 @@
           startsAt: new Date(document.getElementById("ef-starts").value).getTime(),
           heroImageUrl: document.getElementById("ef-image").value.trim() || undefined,
           category: document.getElementById("ef-category").value,
+          ageRating: document.getElementById("ef-age").value || undefined,
           organizerName: document.getElementById("ef-organizer-name").value.trim(),
           organizerPayoutPhone:
             document.getElementById("ef-payout-phone").value.trim() || undefined,
@@ -270,6 +510,7 @@
           <i class="ph ph-arrow-left"></i> Back to my events
         </a>
         <div id="sales-summary-slot"></div>
+        <div id="share-toolkit-slot"></div>
         ${isEditing ? "" : planPickerHtml(organizerProfile?.tier)}
         <div class="nsaa-panel mb-4">
           <div class="d-flex justify-content-between align-items-center mb-3">
@@ -279,6 +520,8 @@
           ${eventFormHtml(existingEvent)}
         </div>
         <div id="ticket-types-slot"></div>
+        <div id="scanner-staff-slot"></div>
+        <div id="scan-log-slot"></div>
       `;
 
         populateCategorySelect(existingEvent?.category);
@@ -361,6 +604,8 @@
           }
         });
         statusSlot.appendChild(toggleBtn);
+        document.getElementById("scanner-staff-slot").innerHTML = scannerStaffShellHtml();
+        setupScannerStaff(client, existingEvent._id);
 
         // Sales summary + ticket types (reactive)
         client.onUpdate(
@@ -370,6 +615,9 @@
             if (!summary) return;
             document.getElementById("sales-summary-slot").innerHTML =
               salesSummaryHtml(summary);
+            document.getElementById("share-toolkit-slot").innerHTML =
+              shareToolkitHtml(existingEvent, summary);
+            bindShareToolkit(existingEvent, summary);
             renderTicketTypes(client, existingEvent._id, summary.ticketTypes);
           },
         );

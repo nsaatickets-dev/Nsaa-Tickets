@@ -24,7 +24,7 @@ Confident & premium, local & culturally grounded, calm & clear. Modern, not dull
 
 - Generic Eventbrite/ticket-site template — no distinct identity.
 - Informal resale/WhatsApp-flyer aesthetic — this product is explicitly positioned against that culture.
-- Generic dark "crypto/SaaS" template (black bg, gold/purple accent, glassmorphism) — worth flagging explicitly since the current CSS tokens (`nsaa.css`) already use a dark bg + gold accent; future design work should push the palette toward something distinctly NSAA/Ghanaian rather than the AI-generated-site cliché this superficially resembles.
+- Generic dark "crypto/SaaS" template (black bg, gold/purple accent, glassmorphism) — this was an early risk, but the current product direction is warm paper, charcoal chrome, and coral action color. Future work should preserve that clearer Ghana marketplace identity.
 - Anything that reads as dull or generic rather than modern.
 
 ## Design Principles

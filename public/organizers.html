@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en" data-bs-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script type="module" src="js/nsaa-chrome.js"></script>
+    <title>Organizers | Nsaa Tickets</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link href="css/nsaa.css" rel="stylesheet" />
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  </head>
+  <body>
+    <div id="nsaa-chrome-nav"></div>
+
+    <script src="js/clerk-config.js"></script>
+    <script src="js/clerk-loader.js"></script>
+
+    <main>
+      <header class="nsaa-hero-band">
+        <div class="container nsaa-hero-inner">
+          <p class="nsaa-eyebrow mb-3">Organizers</p>
+          <h1 class="nsaa-page-title mb-3">Follow trusted event teams.</h1>
+          <p class="lead nsaa-muted mb-0" style="max-width: 640px;">Organizer profiles collect upcoming events, verified identity signals, and the public trail behind each event brand.</p>
+        </div>
+      </header>
+
+      <section class="container py-5">
+        <div id="organizers-root"></div>
+      </section>
+    </main>
+
+    <div id="nsaa-chrome-footer"></div>
+
+    <script src="js/convex-config.js"></script>
+    <script src="js/nsaa.js"></script>
+    <script type="module">
+      import { ConvexClient } from "https://esm.sh/convex/browser";
+
+      const params = new URLSearchParams(window.location.search);
+      const slug = params.get("slug");
+      const root = document.getElementById("organizers-root");
+
+      function renderList(profiles) {
+        if (!profiles?.length) {
+          root.innerHTML = NSAA.emptyState("No organizer profiles yet", "Published events will automatically create organizer pages.");
+          return;
+        }
+        root.innerHTML = `<div class="row g-3">${profiles
+          .map(
+            (profile) => `
+            <div class="col-md-6 col-xl-4">
+              <a class="text-decoration-none d-block h-100" href="/organizers?slug=${NSAA.escapeAttr(profile.slug)}">
+                <article class="nsaa-panel h-100">
+                  <span class="nsaa-chip mb-3">${profile.verified ? "Verified" : `${profile.eventCount} event${profile.eventCount === 1 ? "" : "s"}`}</span>
+                  <h2 class="h5 mb-2">${NSAA.escapeHtml(profile.displayName)}</h2>
+                  <p class="nsaa-muted mb-0">${NSAA.escapeHtml(profile.description || "Event organizer on Nsaa Tickets.")}</p>
+                </article>
+              </a>
+            </div>
+          `,
+          )
+          .join("")}</div>`;
+      }
+
+      function renderDetail(data) {
+        if (!data) {
+          root.innerHTML = NSAA.emptyState("Organizer not found", "This organizer may not have published events yet.", '<a class="btn btn-nsaa" href="/organizers">All organizers</a>');
+          return;
+        }
+        const { profile, events } = data;
+        root.innerHTML = `
+          <section class="nsaa-panel mb-4">
+            <div class="d-flex flex-column flex-lg-row justify-content-between gap-3">
+              <div>
+                <span class="nsaa-chip mb-3">${profile.verified ? "Verified organizer" : "Organizer profile"}</span>
+                <h1 class="nsaa-section-title mb-2">${NSAA.escapeHtml(profile.displayName)}</h1>
+                <p class="nsaa-muted mb-0">${NSAA.escapeHtml(profile.description || "Upcoming events from this organizer.")}</p>
+              </div>
+              ${profile.websiteUrl ? `<a class="btn btn-outline-nsaa align-self-lg-start" href="${NSAA.escapeAttr(profile.websiteUrl)}" target="_blank" rel="noreferrer">Website</a>` : ""}
+            </div>
+          </section>
+          <h2 class="h4 mb-3">Upcoming events</h2>
+          <div class="row g-4">${events.length ? events.map((event, index) => NSAA.eventCard(event, { colClass: "col-md-6 col-xl-4", index })).join("") : `<div class="col-12">${NSAA.emptyState("No upcoming events", "Check back when this organizer publishes its next event.")}</div>`}</div>
+        `;
+      }
+
+      if (!NSAA.isConvexConfigured()) {
+        root.innerHTML = NSAA.setupNotice("Organizers");
+      } else {
+        const client = new ConvexClient(NSAA.CONVEX_URL);
+        if (slug) {
+          client.onUpdate("events:getOrganizerProfilePublic", { slug }, renderDetail);
+        } else {
+          client.onUpdate("events:listOrganizerProfilesPublic", {}, renderList);
+        }
+      }
+    </script>
+    <script src="js/clerk-nav.js"></script>
+  </body>
+</html>

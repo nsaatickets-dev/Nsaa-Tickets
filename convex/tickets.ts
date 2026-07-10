@@ -3,6 +3,8 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { requireAdminSecret } from "./admin";
 import { rateLimiter } from "./rateLimit";
+import { requireNonEmpty } from "./validation";
+import { Doc } from "./_generated/dataModel";
 
 // --- Signed QR token ---
 // A ticket's QR encodes: ticketId.expiryUnixMs.signature
@@ -30,6 +32,20 @@ async function hmacSign(message: string, secret: string): Promise<string> {
   return Array.from(new Uint8Array(sigBuffer))
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
+}
+
+async function sha256Hex(message: string): Promise<string> {
+  const enc = new TextEncoder();
+  const digest = await crypto.subtle.digest("SHA-256", enc.encode(message));
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+async function scannerTokenHash(token: string): Promise<string> {
+  const pepper = process.env.SCANNER_KEY || process.env.QR_SIGNING_SECRET;
+  if (!pepper) throw new Error("Scanner token pepper is not configured");
+  return await sha256Hex(`${pepper}:${token}`);
 }
 
 async function buildSignedToken(ticketId: string): Promise<string> {
@@ -166,6 +182,84 @@ export const ticketsForCurrentUserDetailed = query({
   },
 });
 
+async function requireEventOwner(ctx: any, eventId: any) {
+  const identity = await ctx.auth.getUserIdentity();
+  if (!identity) throw new Error("Sign in required.");
+
+  const event = await ctx.db.get(eventId);
+  if (!event) throw new Error("Event not found.");
+  if (event.organizerClerkUserId !== identity.subject) {
+    throw new Error("You do not have access to this event.");
+  }
+  return { identity, event };
+}
+
+export const listScannerStaff = query({
+  args: { eventId: v.id("events") },
+  handler: async (ctx, { eventId }) => {
+    await requireEventOwner(ctx, eventId);
+    return await ctx.db
+      .query("scannerStaff")
+      .withIndex("by_event", (q) => q.eq("eventId", eventId))
+      .collect();
+  },
+});
+
+export const createScannerStaff = mutation({
+  args: {
+    eventId: v.id("events"),
+    name: v.string(),
+    gateLabel: v.string(),
+    role: v.union(v.literal("scanner"), v.literal("lead")),
+  },
+  handler: async (ctx, args) => {
+    const { identity } = await requireEventOwner(ctx, args.eventId);
+    const name = requireNonEmpty(args.name, "Staff name", 120);
+    const gateLabel = requireNonEmpty(args.gateLabel, "Gate label", 80);
+    const token = `nsaa_scan_${crypto.randomUUID().replace(/-/g, "")}`;
+    const tokenHash = await scannerTokenHash(token);
+
+    const scannerStaffId = await ctx.db.insert("scannerStaff", {
+      eventId: args.eventId,
+      name,
+      gateLabel,
+      role: args.role,
+      tokenHash,
+      tokenPreview: token.slice(-8),
+      status: "active",
+      createdByClerkUserId: identity.subject,
+      createdAt: Date.now(),
+    });
+
+    return { scannerStaffId, token, tokenPreview: token.slice(-8) };
+  },
+});
+
+export const revokeScannerStaff = mutation({
+  args: { scannerStaffId: v.id("scannerStaff") },
+  handler: async (ctx, { scannerStaffId }) => {
+    const staff = await ctx.db.get(scannerStaffId);
+    if (!staff) throw new Error("Scanner staff record not found.");
+    await requireEventOwner(ctx, staff.eventId);
+    await ctx.db.patch(scannerStaffId, {
+      status: "revoked",
+      revokedAt: Date.now(),
+    });
+  },
+});
+
+export const scanLogsForEvent = query({
+  args: { eventId: v.id("events") },
+  handler: async (ctx, { eventId }) => {
+    await requireEventOwner(ctx, eventId);
+    return await ctx.db
+      .query("scanLogs")
+      .withIndex("by_event", (q) => q.eq("eventId", eventId))
+      .order("desc")
+      .take(80);
+  },
+});
+
 // The core anti-fraud mutation: scan a QR token at the gate.
 // Convex mutations run transactionally, so two door-staff devices
 // scanning the same screenshotted code within the same second cannot
@@ -180,23 +274,60 @@ export const validateScan = mutation({
   args: { qrToken: v.string(), scannedBy: v.optional(v.string()), scannerKey: v.string() },
   handler: async (ctx, { qrToken, scannedBy, scannerKey }) => {
     const expectedScannerKey = process.env.SCANNER_KEY;
-    if (!expectedScannerKey || scannerKey !== expectedScannerKey) {
-      return { ok: false, reason: "Scanner not authorized" };
+    let scannerStaff: Doc<"scannerStaff"> | null = null;
+    let rateLimitKey = scannerKey;
+
+    if (expectedScannerKey && scannerKey === expectedScannerKey) {
+      rateLimitKey = "legacy-shared-scanner-key";
+    } else {
+      const tokenHash = await scannerTokenHash(scannerKey);
+      rateLimitKey = tokenHash;
+      const staff = await ctx.db
+        .query("scannerStaff")
+        .withIndex("by_token_hash", (q) => q.eq("tokenHash", tokenHash))
+        .unique();
+
+      if (!staff || staff.status !== "active") {
+        return { ok: false, reason: "Scanner not authorized" };
+      }
+      scannerStaff = staff;
     }
 
-    const scanLimit = await rateLimiter.limit(ctx, "scansByKey", { key: scannerKey });
+    const logScan = async (
+      outcome: "accepted" | "rejected",
+      reason?: string,
+      ticket?: Doc<"tickets">,
+    ) => {
+      await ctx.db.insert("scanLogs", {
+        eventId: ticket?.eventId ?? scannerStaff?.eventId,
+        ticketId: ticket?._id,
+        scannerStaffId: scannerStaff?._id,
+        gateLabel: scannerStaff?.gateLabel,
+        scannedBy: scannedBy || scannerStaff?.name,
+        outcome,
+        reason,
+        createdAt: Date.now(),
+      });
+    };
+
+    const reject = async (reason: string, ticket?: Doc<"tickets">) => {
+      await logScan("rejected", reason, ticket);
+      return { ok: false, reason };
+    };
+
+    const scanLimit = await rateLimiter.limit(ctx, "scansByKey", { key: rateLimitKey });
     if (!scanLimit.ok) {
-      return { ok: false, reason: "Scanning too fast - wait a moment and try again" };
+      return await reject("Scanning too fast - wait a moment and try again");
     }
 
     const [ticketId, expiryStr, signature] = qrToken.split(".");
     if (!ticketId || !expiryStr || !signature) {
-      return { ok: false, reason: "Malformed code" };
+      return await reject("Malformed code");
     }
 
     const secret = process.env.QR_SIGNING_SECRET;
     if (!secret) {
-      return { ok: false, reason: "Scanner misconfigured" };
+      return await reject("Scanner misconfigured");
     }
 
     const expectedSignature = await hmacSign(
@@ -204,43 +335,43 @@ export const validateScan = mutation({
       secret,
     );
     if (expectedSignature !== signature) {
-      return { ok: false, reason: "Invalid ticket - signature mismatch" };
+      return await reject("Invalid ticket - signature mismatch");
     }
 
     if (Date.now() > Number(expiryStr)) {
-      return { ok: false, reason: "Ticket expired" };
+      return await reject("Ticket expired");
     }
 
     const ticket = await ctx.db.get(ticketId as any);
     if (!ticket) {
-      return { ok: false, reason: "Ticket not found" };
+      return await reject("Ticket not found");
     }
 
     if (ticket.status === "used") {
-      return {
-        ok: false,
-        reason: `Already used at ${new Date(ticket.usedAt ?? 0).toLocaleString()}`,
-      };
+      return await reject(`Already used at ${new Date(ticket.usedAt ?? 0).toLocaleString()}`, ticket);
     }
 
     if (ticket.status === "void") {
-      return { ok: false, reason: "Ticket voided (event cancelled)" };
+      return await reject("Ticket voided (event cancelled)", ticket);
     }
 
     if (ticket.status !== "valid") {
-      return { ok: false, reason: `Ticket is ${ticket.status}` };
+      return await reject(`Ticket is ${ticket.status}`, ticket);
     }
 
     await ctx.db.patch(ticket._id, {
       status: "used",
       usedAt: Date.now(),
-      scannedBy,
+      scannedBy: scannedBy || scannerStaff?.name,
     });
+    await logScan("accepted", undefined, ticket);
 
     return {
       ok: true,
       ownerName: ticket.ownerName,
       ticketTypeId: ticket.ticketTypeId,
+      gateLabel: scannerStaff?.gateLabel,
+      scannerName: scannerStaff?.name,
     };
   },
 });

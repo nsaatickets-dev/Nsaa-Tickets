@@ -23,6 +23,9 @@ Clerk, Convex, Brevo, and Moolre.
   browsing, search, event detail, guest checkout with itemized fee
   breakdown, order status, ticket wallet with real QR rendering, door
   scanner using the device camera, organizer inquiry, about, and 404.
+- **Marketplace profile surfaces** (`public/venues.html`,
+  `public/organizers.html`) - venue and organizer directories/details
+  derived from published event data, with slug-friendly event links.
 - **Organizer self-serve dashboard** (`public/organizer-dashboard.html`,
   the `events:createEvent`/`updateEvent`/`setEventStatus`/
   `createTicketType`/`updateTicketType`/`deleteTicketType` mutations and
@@ -33,6 +36,10 @@ Clerk, Convex, Brevo, and Moolre.
   on `events` and always derived server-side from the verified identity,
   never a client-supplied id. `seedDemoEvent` is unrelated/still
   available for local demo data (seeded events have no organizer owner).
+- **Organizer distribution kit** - public event links use slugs, campaign
+  refs are carried into paid orders, the dashboard generates WhatsApp
+  links, poster QR codes, embed snippets, referral summaries, scanner
+  staff tokens, and recent scan logs.
 - **Organizer pricing tiers** (`convex/events.ts`, `organizerProfiles`
   table) - Free (0%), Essential (4%), Pro (6.5%) self-serve at event
   creation, plus an admin-only Custom tier with a per-organizer rate.
@@ -49,6 +56,9 @@ Clerk, Convex, Brevo, and Moolre.
   a payout) minus anything already paid/pending, then transfers via
   Moolre. Same "verify via Moolre's own status endpoint" pattern as
   collections, since Moolre documents no webhook signature scheme.
+- **Admin ops console** (`public/admin-ops.html`, `convex/ops.ts`) -
+  admin-secret-gated triage for organizer inquiries, support messages,
+  event moderation, cancellation/refund marking, and payout initiation.
 
 ## What you MUST fill in before this runs for real
 
@@ -59,8 +69,9 @@ Clerk, Convex, Brevo, and Moolre.
    npx convex dev
    ```
 
-   This gives you a deployment URL (`https://xxxx.convex.cloud`). Replace
-   `https://REPLACE_ME.convex.cloud` in `public/js/nsaa.js` with it.
+   This gives you a deployment URL (`https://xxxx.convex.cloud`). Local
+   dev reads `CONVEX_URL` from `.env.local`; Vercel builds regenerate
+   `public/js/convex-config.js` automatically after `convex deploy`.
 
 2. **Seed a demo event** - once `convex dev` is running, open the Convex
    dashboard's function runner and call `events:seedDemoEvent` once.
@@ -128,18 +139,19 @@ Serves `public/` on `http://localhost:8080`.
 - **Guest checkout is the default path** - name + phone only, no
   password, no account wall before paying.
 
-## Known gaps (intentionally out of scope for the initial build)
+## Known gaps
 
-- Escrow/ledger and payout batching to organizers
-- Cancellation to cascading refund automation - `setEventStatus` in
-  `convex/events.ts` deliberately only allows the draft/published
-  toggle, not cancellation, until a refund flow exists to go with it
-- Admin/ops tooling (e.g. reviewing `organizerInquiries` submissions,
-  which still land in the database with no UI to view/action them)
+- Real payment-processor refund automation. The admin console can cancel
+  an event, mark paid orders as refunded, void tickets, and release
+  reserved inventory, but it does not yet call a processor refund API.
+- Payout batching and approval workflows. Per-event payout initiation
+  exists; batch selection, approval notes, and reconciliation exports are
+  still future work.
+- Rich profile management UI. Venue and organizer pages exist and can be
+  derived from published events, but there is no admin/editor form yet for
+  adding logos, descriptions, custom maps, or verification documents.
 - Clerk-based optional account claim after guest purchase
-- Moolre's OTP-required collection flow (response code `TP14`) isn't
-  handled - `initiateMoolrePayment` treats any `status: 1` response as
-  "accepted, wait for webhook," so a channel/account config that requires
-  OTP verification would need a retry-with-otpcode step added
+- Referral/campaign attribution is tracked on paid orders, but click
+  analytics before checkout are not yet stored.
 
 See the project's 6-month roadmap discussion for when these come in.

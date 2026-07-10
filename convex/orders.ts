@@ -2,7 +2,7 @@ import { mutation, query, internalMutation, action } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { feePercentForTier } from "./events";
-import { requireNonEmpty, requireValidEmail, requireValidGhanaPhone } from "./validation";
+import { optionalTrimmed, requireNonEmpty, requireValidEmail, requireValidGhanaPhone } from "./validation";
 import { rateLimiter } from "./rateLimit";
 
 // How long a reservation holds inventory before it's released back to
@@ -65,12 +65,14 @@ export const createReservation = mutation({
     buyerPhone: v.string(),
     buyerEmail: v.string(),
     clerkUserId: v.optional(v.string()),
+    referralCode: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     const buyerName = requireNonEmpty(args.buyerName, "Full name", 120);
     const buyerPhone = requireValidGhanaPhone(args.buyerPhone);
     const buyerEmail = requireValidEmail(args.buyerEmail);
+    const referralCode = optionalTrimmed(args.referralCode, 80);
 
     await rateLimiter.limit(ctx, "reservationsGlobal", { throws: true });
     await rateLimiter.limit(ctx, "reservationsByPhone", { key: buyerPhone, throws: true });
@@ -129,6 +131,7 @@ export const createReservation = mutation({
       buyerPhone,
       buyerEmail,
       clerkUserId: identity?.subject,
+      referralCode,
       ticketSubtotalGHS,
       serviceFeeGHS,
       totalGHS,

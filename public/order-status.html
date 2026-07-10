@@ -100,6 +100,9 @@
         const eventLink = event
           ? `/event?id=${encodeURIComponent(event._id)}`
           : "/";
+        const shareText = `My Nsaa ticket for ${event?.title || "this event"} is ready: ${window.location.origin}${walletLink}`;
+        const whatsappLink = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
+        const emailLink = `mailto:?subject=${encodeURIComponent("Nsaa ticket")}&body=${encodeURIComponent(shareText)}`;
 
         root.innerHTML = `
         <section class="nsaa-panel">
@@ -159,6 +162,8 @@
 
           <div class="d-grid gap-2 d-sm-flex">
             ${order.status === "paid" ? `<a class="btn btn-nsaa" href="${NSAA.escapeAttr(walletLink)}">View tickets</a>` : ""}
+            ${order.status === "paid" ? `<a class="btn btn-outline-nsaa" href="${NSAA.escapeAttr(whatsappLink)}" target="_blank" rel="noreferrer">Send on WhatsApp</a>` : ""}
+            ${order.status === "paid" ? `<a class="btn btn-outline-nsaa" href="${NSAA.escapeAttr(emailLink)}">Email link</a>` : ""}
             ${order.status === "reserved" ? `<a class="btn btn-outline-nsaa" href="${NSAA.escapeAttr(walletLink)}">Check ticket wallet</a>` : ""}
             <a class="btn btn-outline-nsaa" href="${NSAA.escapeAttr(eventLink)}">Back to event</a>
           </div>

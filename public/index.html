@@ -108,6 +108,15 @@
               <p class="nsaa-eyebrow mb-2">Browse</p>
               <h2 class="h4 mb-3">Find events</h2>
               <div id="category-chip-row" class="d-flex flex-wrap gap-2 mb-4"></div>
+              <div id="quick-filter-row" class="nsaa-quick-filter-row mb-4">
+                <button class="nsaa-quick-filter" type="button" data-quick="today">Today</button>
+                <button class="nsaa-quick-filter" type="button" data-quick="weekend">This weekend</button>
+                <button class="nsaa-quick-filter" type="button" data-quick="free">Free</button>
+                <button class="nsaa-quick-filter" type="button" data-quick="paid">Paid</button>
+                <button class="nsaa-quick-filter" type="button" data-quick="accra">Accra</button>
+                <button class="nsaa-quick-filter" type="button" data-quick="kumasi">Kumasi</button>
+                <button class="nsaa-quick-filter" type="button" data-quick="selling-fast">Selling fast</button>
+              </div>
               <form id="filter-form">
                 <div class="mb-3">
                   <label class="form-label nsaa-muted small" for="filter-q">Keyword</label>
@@ -149,6 +158,24 @@
                     />
                   </div>
                 </div>
+                <div class="row g-2 mt-1">
+                  <div class="col-6">
+                    <label class="form-label nsaa-muted small" for="filter-price">Price</label>
+                    <select id="filter-price" name="price" class="form-select form-select-nsaa">
+                      <option value="all">Any price</option>
+                      <option value="free">Free</option>
+                      <option value="paid">Paid</option>
+                    </select>
+                  </div>
+                  <div class="col-6">
+                    <label class="form-label nsaa-muted small" for="filter-age">Age</label>
+                    <select id="filter-age" name="ageRating" class="form-select form-select-nsaa">
+                      <option value="">Any age</option>
+                      <option value="all-ages">All ages</option>
+                      <option value="18-plus">18+</option>
+                    </select>
+                  </div>
+                </div>
                 <button class="btn btn-nsaa w-100 mt-4" type="submit">
                   Apply filters
                 </button>
@@ -172,6 +199,7 @@
               >
             </div>
             <div id="results-grid" class="row g-4"></div>
+            <div id="results-pagination" class="d-flex justify-content-between align-items-center gap-3 mt-4"></div>
           </section>
         </div>
       </section>
@@ -220,8 +248,10 @@
       import { ConvexClient } from "https://esm.sh/convex/browser";
 
       const resultsEl = document.getElementById("results-grid");
+      const paginationEl = document.getElementById("results-pagination");
       const headingEl = document.getElementById("results-heading");
       const chipRowEl = document.getElementById("category-chip-row");
+      const quickFilterRowEl = document.getElementById("quick-filter-row");
       const homeCategorySelect = document.getElementById("home-category");
       const filterForm = document.getElementById("filter-form");
       const homeSearchForm = document.getElementById("home-search-form");
@@ -234,6 +264,10 @@
           city: params.get("city") || "",
           from: params.get("from") || "",
           to: params.get("to") || "",
+          price: params.get("price") || "all",
+          availability: params.get("availability") || "any",
+          ageRating: params.get("ageRating") || "",
+          page: Math.max(1, Number(params.get("page") || 1)),
         };
       }
 
@@ -252,6 +286,8 @@
         document.getElementById("filter-city").value = state.city;
         document.getElementById("filter-from").value = state.from;
         document.getElementById("filter-to").value = state.to;
+        document.getElementById("filter-price").value = state.price || "all";
+        document.getElementById("filter-age").value = state.ageRating || "";
         document.getElementById("home-search").value = state.q;
         homeCategorySelect.value = state.category;
       }
@@ -263,6 +299,10 @@
         if (state.city) params.set("city", state.city);
         if (state.from) params.set("from", state.from);
         if (state.to) params.set("to", state.to);
+        if (state.price && state.price !== "all") params.set("price", state.price);
+        if (state.availability && state.availability !== "any") params.set("availability", state.availability);
+        if (state.ageRating) params.set("ageRating", state.ageRating);
+        if (state.page && state.page > 1) params.set("page", String(state.page));
         const query = params.toString();
         const url = query ? `${window.location.pathname}?${query}` : window.location.pathname;
         history.replaceState(null, "", url);
@@ -297,6 +337,47 @@
         });
       }
 
+      function formatDateInput(date) {
+        return date.toISOString().slice(0, 10);
+      }
+
+      function weekendRange() {
+        const now = new Date();
+        const day = now.getDay();
+        const daysUntilSaturday = (6 - day + 7) % 7;
+        const saturday = new Date(now);
+        saturday.setDate(now.getDate() + daysUntilSaturday);
+        const sunday = new Date(saturday);
+        sunday.setDate(saturday.getDate() + 1);
+        return { from: formatDateInput(saturday), to: formatDateInput(sunday) };
+      }
+
+      function syncQuickFilters() {
+        quickFilterRowEl.querySelector('[data-quick="free"]').classList.toggle("active", state.price === "free");
+        quickFilterRowEl.querySelector('[data-quick="paid"]').classList.toggle("active", state.price === "paid");
+        quickFilterRowEl.querySelector('[data-quick="accra"]').classList.toggle("active", state.city.toLowerCase() === "accra");
+        quickFilterRowEl.querySelector('[data-quick="kumasi"]').classList.toggle("active", state.city.toLowerCase() === "kumasi");
+        quickFilterRowEl.querySelector('[data-quick="selling-fast"]').classList.toggle("active", state.availability === "selling_fast");
+      }
+
+      quickFilterRowEl.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-quick]");
+        if (!button) return;
+        const quick = button.dataset.quick;
+        const today = formatDateInput(new Date());
+
+        if (quick === "today") state = { ...state, from: today, to: today, page: 1 };
+        if (quick === "weekend") state = { ...state, ...weekendRange(), page: 1 };
+        if (quick === "free") state = { ...state, price: state.price === "free" ? "all" : "free", page: 1 };
+        if (quick === "paid") state = { ...state, price: state.price === "paid" ? "all" : "paid", page: 1 };
+        if (quick === "accra") state = { ...state, city: state.city.toLowerCase() === "accra" ? "" : "Accra", page: 1 };
+        if (quick === "kumasi") state = { ...state, city: state.city.toLowerCase() === "kumasi" ? "" : "Kumasi", page: 1 };
+        if (quick === "selling-fast") {
+          state = { ...state, availability: state.availability === "selling_fast" ? "any" : "selling_fast", page: 1 };
+        }
+        applyState();
+      });
+
       function dateStart(value) {
         return value ? new Date(`${value}T00:00:00`).getTime() : undefined;
       }
@@ -305,20 +386,45 @@
         return value ? new Date(`${value}T23:59:59`).getTime() : undefined;
       }
 
-      function renderResults(events) {
-        const list = [...(events || [])].sort((a, b) => a.startsAt - b.startsAt);
-        headingEl.textContent = state.q || state.category || state.city || state.from || state.to
-          ? `${list.length} ${list.length === 1 ? "event" : "events"}`
+      function renderPagination(result) {
+        if (!result || result.total <= result.pageSize) {
+          paginationEl.innerHTML = "";
+          return;
+        }
+        paginationEl.innerHTML = `
+          <button class="btn btn-outline-nsaa" type="button" data-page-prev ${result.page <= 1 ? "disabled" : ""}>Previous</button>
+          <span class="nsaa-muted small">Page ${result.page} of ${Math.ceil(result.total / result.pageSize)}</span>
+          <button class="btn btn-outline-nsaa" type="button" data-page-next ${result.hasNextPage ? "" : "disabled"}>Next</button>
+        `;
+      }
+
+      paginationEl.addEventListener("click", (event) => {
+        if (event.target.closest("[data-page-prev]")) {
+          state = { ...state, page: Math.max(1, state.page - 1) };
+          applyState();
+        }
+        if (event.target.closest("[data-page-next]")) {
+          state = { ...state, page: state.page + 1 };
+          applyState();
+        }
+      });
+
+      function renderResults(result) {
+        const list = result?.items || [];
+        headingEl.textContent = state.q || state.category || state.city || state.from || state.to || state.price !== "all" || state.availability !== "any"
+          ? `${result?.total ?? list.length} ${(result?.total ?? list.length) === 1 ? "event" : "events"}`
           : "Built for the whole calendar.";
 
         if (list.length === 0) {
           resultsEl.innerHTML = `<div class="col-12">${NSAA.emptyState("No matching events", "Try a different category, city, keyword, or date range.", '<a class="btn btn-nsaa" href="/organizer-inquiry">Bring an event to Nsaa</a>')}</div>`;
+          paginationEl.innerHTML = "";
           return;
         }
 
         resultsEl.innerHTML = list
-          .map((event) => NSAA.eventCard(event, { colClass: "col-md-6 col-xl-4" }))
+          .map((event, index) => NSAA.eventCard(event, { colClass: "col-md-6 col-xl-4", index }))
           .join("");
+        renderPagination(result);
       }
 
       let unsubscribeResults = null;
@@ -327,6 +433,7 @@
 
       function applyState() {
         syncFormsFromState();
+        syncQuickFilters();
         syncUrl();
         renderChips(lastCounts);
 
@@ -339,8 +446,13 @@
           city: state.city || undefined,
           startsAfter: dateStart(state.from),
           startsBefore: dateEnd(state.to),
+          price: state.price && state.price !== "all" ? state.price : undefined,
+          availability: state.availability && state.availability !== "any" ? state.availability : undefined,
+          ageRating: state.ageRating || undefined,
+          page: state.page || 1,
+          pageSize: 18,
         };
-        unsubscribeResults = client.onUpdate("events:searchPublished", queryArgs, renderResults);
+        unsubscribeResults = client.onUpdate("events:searchPublishedPage", queryArgs, renderResults);
       }
 
       let lastCounts = {};
@@ -353,6 +465,9 @@
           city: document.getElementById("filter-city").value.trim(),
           from: document.getElementById("filter-from").value,
           to: document.getElementById("filter-to").value,
+          price: document.getElementById("filter-price").value,
+          ageRating: document.getElementById("filter-age").value,
+          page: 1,
         };
         applyState();
       });
@@ -363,6 +478,7 @@
           ...state,
           q: document.getElementById("home-search").value.trim(),
           category: homeCategorySelect.value,
+          page: 1,
         };
         applyState();
         document.getElementById("browse").scrollIntoView({ behavior: "smooth" });

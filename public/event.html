@@ -33,9 +33,13 @@
 
       const params = new URLSearchParams(window.location.search);
       const eventId = params.get("id");
+      const eventSlug = params.get("slug");
+      const referralCode = params.get("ref") || "";
       const root = document.getElementById("event-root");
       let currentEvent = null;
       let currentTicketTypes = [];
+      let client = null;
+      let unsubscribeTicketTypes = null;
 
       document.getElementById("event-loading").innerHTML = NSAA.loading(
         "Loading event details",
@@ -52,9 +56,19 @@
         }
 
         currentEvent = event;
+        if (client) {
+          if (unsubscribeTicketTypes) unsubscribeTicketTypes();
+          unsubscribeTicketTypes = client.onUpdate(
+            "events:ticketTypesForEvent",
+            { eventId: event._id },
+            renderTicketTypes,
+          );
+        }
         const meta = NSAA.categoryMeta(event.category);
         const image = NSAA.eventImage(event);
         const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${event.venue} ${event.address} ${event.city} Ghana`)}`;
+        const venueLink = event.venueSlug ? `/venues?slug=${encodeURIComponent(event.venueSlug)}` : mapUrl;
+        const organizerLink = event.organizerSlug ? `/organizers?slug=${encodeURIComponent(event.organizerSlug)}` : "/organizers";
         document.title = `${event.title} | Nsaa Tickets`;
 
         root.innerHTML = `
@@ -81,14 +95,14 @@
                   <span class="nsaa-icon-badge flex-shrink-0"><i class="ph ph-map-pin nsaa-trust-icon"></i></span>
                   <div>
                     <p class="nsaa-faint small mb-1">Venue</p>
-                    <p class="mb-0 fw-semibold">${NSAA.escapeHtml(event.venue)}</p>
+                    <p class="mb-0 fw-semibold"><a href="${NSAA.escapeAttr(venueLink)}">${NSAA.escapeHtml(event.venue)}</a></p>
                   </div>
                 </div>
                 <div class="nsaa-meta-item d-flex align-items-center gap-3">
                   <span class="nsaa-icon-badge flex-shrink-0"><i class="ph ph-user-focus nsaa-trust-icon"></i></span>
                   <div>
                     <p class="nsaa-faint small mb-1">Organizer</p>
-                    <p class="mb-0 fw-semibold">${NSAA.escapeHtml(event.organizerName)}</p>
+                    <p class="mb-0 fw-semibold"><a href="${NSAA.escapeAttr(organizerLink)}">${NSAA.escapeHtml(event.organizerName)}</a></p>
                   </div>
                 </div>
                 <div class="nsaa-meta-item d-flex align-items-center gap-3">
@@ -107,7 +121,10 @@
                 <p class="nsaa-eyebrow mb-2">Venue</p>
                 <h3 class="h5 mb-2">${NSAA.escapeHtml(event.venue)}</h3>
                 <p class="nsaa-muted mb-3">${NSAA.escapeHtml(event.address)}, ${NSAA.escapeHtml(event.city)}</p>
-                <a class="btn btn-outline-nsaa" href="${NSAA.escapeAttr(mapUrl)}" target="_blank" rel="noreferrer"><i class="ph ph-map-trifold me-2"></i>Open map</a>
+                <div class="d-flex flex-wrap gap-2">
+                  <a class="btn btn-outline-nsaa" href="${NSAA.escapeAttr(mapUrl)}" target="_blank" rel="noreferrer"><i class="ph ph-map-trifold me-2"></i>Open map</a>
+                  <a class="btn btn-outline-nsaa" href="${NSAA.escapeAttr(venueLink)}"><i class="ph ph-buildings me-2"></i>Venue profile</a>
+                </div>
               </div>
             </div>
 
@@ -141,8 +158,8 @@
         container.innerHTML = currentTicketTypes
           .map((ticket) => {
             const subtotal = ticket.priceGHS;
-            const fee = serviceFee(subtotal);
-            const total = subtotal + fee;
+            const fee = ticket.serviceFeeGHS ?? serviceFee(subtotal);
+            const total = ticket.totalPerTicketGHS ?? subtotal + fee;
             const soldOut = ticket.quantityAvailable <= 0;
             const availability = soldOut
               ? "Sold out"
@@ -173,7 +190,7 @@
                   </div>
                 </div>
               </div>
-              <a class="btn btn-nsaa ${soldOut ? "disabled" : ""}" href="/checkout?eventId=${encodeURIComponent(currentEvent._id)}&ticketTypeId=${encodeURIComponent(ticket._id)}" aria-disabled="${soldOut ? "true" : "false"}">${soldOut ? "Sold out" : "Buy ticket"}</a>
+              <a class="btn btn-nsaa ${soldOut ? "disabled" : ""}" href="/checkout?eventId=${encodeURIComponent(currentEvent._id)}&ticketTypeId=${encodeURIComponent(ticket._id)}${referralCode ? `&ref=${encodeURIComponent(referralCode)}` : ""}" aria-disabled="${soldOut ? "true" : "false"}">${soldOut ? "Sold out" : "Buy ticket"}</a>
             </div>
           </article>
         `;
@@ -181,18 +198,16 @@
           .join("");
       }
 
-      if (!eventId) {
+      if (!eventId && !eventSlug) {
         root.innerHTML = `<section class="container py-5">${NSAA.emptyState("No event selected", "Choose an event from discovery to view ticket options.", '<a class="btn btn-nsaa" href="/">Browse events</a>')}</section>`;
       } else if (!NSAA.isConvexConfigured()) {
         root.innerHTML = `<section class="container py-5">${NSAA.setupNotice("Event detail")}</section>`;
       } else {
-        const client = new ConvexClient(NSAA.CONVEX_URL);
-        client.onUpdate("events:getById", { eventId }, renderEvent);
-        client.onUpdate(
-          "events:ticketTypesForEvent",
-          { eventId },
-          renderTicketTypes,
-        );
+        client = new ConvexClient(NSAA.CONVEX_URL);
+        const eventArgs = {};
+        if (eventId) eventArgs.eventId = eventId;
+        if (eventSlug) eventArgs.slug = eventSlug;
+        client.onUpdate("events:getPublicEvent", eventArgs, renderEvent);
       }
     </script>
     <script src="js/clerk-nav.js"></script>

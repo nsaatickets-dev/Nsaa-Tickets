@@ -220,7 +220,7 @@ a:hover {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 1.9rem;
+  gap: 1.15rem;
 }
 
 .nsaa-nav-link {
@@ -892,6 +892,38 @@ a:hover {
   box-shadow: inset 0 0 0 1.5px currentColor;
 }
 
+.nsaa-quick-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.nsaa-quick-filter {
+  min-height: 2rem;
+  padding: 0.35rem 0.65rem;
+  border: 1px solid var(--nsaa-border);
+  border-radius: 4px;
+  background: rgba(36, 31, 26, 0.03);
+  color: var(--nsaa-ink-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background-color 0.16s var(--nsaa-ease-out),
+    border-color 0.16s var(--nsaa-ease-out),
+    color 0.16s var(--nsaa-ease-out),
+    transform 0.16s var(--nsaa-ease-out);
+}
+
+.nsaa-quick-filter:hover,
+.nsaa-quick-filter.active {
+  background: rgba(235, 90, 60, 0.1);
+  border-color: rgba(235, 90, 60, 0.35);
+  color: var(--nsaa-coral);
+  transform: translateY(-1px);
+}
+
 .nsaa-event-card {
   background: transparent !important;
   border: none !important;
@@ -996,6 +1028,22 @@ a:hover {
 .nsaa-status-box {
   border-radius: 8px;
   padding: 1rem;
+}
+
+.nsaa-hold-countdown {
+  display: grid;
+  gap: 0.15rem;
+  padding: 1rem;
+  border: 1px solid rgba(217, 164, 65, 0.32);
+  border-radius: 4px;
+  background: var(--nsaa-warning-bg);
+}
+
+.nsaa-hold-countdown strong {
+  color: var(--nsaa-warning);
+  font-size: 1.65rem;
+  line-height: 1;
+  letter-spacing: -0.03em;
 }
 
 .nsaa-status-box.waiting {
