@@ -280,6 +280,31 @@ a:hover {
   flex: none;
 }
 
+.nsaa-nav-context {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.2rem;
+  border: 1px solid var(--nsaa-on-charcoal-border);
+  border-radius: 999px;
+}
+
+.nsaa-nav-context button.nsaa-nav-link {
+  background: none;
+  border: none;
+  border-radius: 999px;
+  padding: 0.2rem 0.7rem;
+  cursor: pointer;
+}
+
+.nsaa-nav-context button.nsaa-nav-link::after {
+  display: none;
+}
+
+.nsaa-nav-context button.nsaa-nav-link.active {
+  background: var(--nsaa-on-charcoal-border);
+}
+
 .nsaa-nav-toggle {
   display: none;
   align-items: center;
@@ -852,6 +877,19 @@ a:hover {
   background: rgba(124, 140, 74, 0.08);
   border-color: rgba(124, 140, 74, 0.28);
   color: var(--nsaa-olive);
+}
+
+.nsaa-chip-filter {
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.nsaa-chip-filter:hover {
+  transform: translateY(-1px);
+}
+
+.nsaa-chip-filter.active {
+  box-shadow: inset 0 0 0 1.5px currentColor;
 }
 
 .nsaa-event-card {

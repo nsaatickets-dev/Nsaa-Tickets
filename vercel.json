@@ -1,6 +1,6 @@
 {
   "buildCommand": "npx convex deploy --cmd 'node scripts/write-convex-config.js'",
   "outputDirectory": "public",
-  "cleanUrls": false,
+  "cleanUrls": true,
   "trailingSlash": false
 }

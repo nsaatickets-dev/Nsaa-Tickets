@@ -350,7 +350,7 @@ export const initiateCardPayment = action({
         reusable: 0,
         currency: "GHS",
         accountnumber: process.env.MOOLRE_ACCOUNT_NUMBER ?? "",
-        redirect: siteUrl ? `${siteUrl}/order-status.html?orderId=${order._id}` : undefined,
+        redirect: siteUrl ? `${siteUrl}/order-status?orderId=${order._id}` : undefined,
       }),
     });
 

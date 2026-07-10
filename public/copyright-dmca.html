@@ -3,6 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script type="module" src="js/nsaa-chrome.js"></script>
     <title>Copyright &amp; DMCA | Nsaa Tickets</title>
     <link
       href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
@@ -12,35 +13,7 @@
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
   </head>
   <body>
-    <nav class="navbar nsaa-navbar navbar-expand sticky-top">
-      <div class="container">
-        <a class="nsaa-brand-lockup" href="index.html" aria-label="Nsaa Tickets home">
-          <span class="nsaa-wordmark">Nsaa</span>
-          <span class="nsaa-brand-tickets" aria-label="Tickets">T I C K E T S</span>
-        </a>
-        <div class="ms-auto d-flex align-items-center gap-2">
-          <button
-            class="nsaa-nav-toggle"
-            type="button"
-            aria-label="Open menu"
-            aria-expanded="false"
-            aria-controls="nsaa-nav-links"
-          >
-            <i class="ph ph-list" aria-hidden="true"></i>
-            <i class="ph ph-x" aria-hidden="true"></i>
-          </button>
-          <div class="nsaa-nav-links" id="nsaa-nav-links">
-            <a href="search-results.html" class="nsaa-nav-link">Browse</a>
-            <a href="about.html" class="nsaa-nav-link">About</a>
-            <a href="wallet.html" class="nsaa-nav-link">My tickets</a>
-            <span class="nsaa-nav-sep" aria-hidden="true"></span>
-            <a href="organizer-inquiry.html" class="nsaa-nav-link nsaa-nav-link--quiet">List your event</a>
-            <a href="organizer-dashboard.html" class="nsaa-nav-link nsaa-nav-link--quiet">Dashboard</a>
-            <div id="clerk-auth-slot"></div>
-          </div>
-        </div>
-      </div>
-    </nav>
+    <div id="nsaa-chrome-nav"></div>
 
     <script src="js/clerk-config.js"></script>
     <script src="js/clerk-loader.js"></script>
@@ -76,7 +49,7 @@
           <p class="nsaa-muted">
             If you believe an event listing or other content on Nsaa
             infringes your copyright, send a notice to
-            <a href="contact.html">our team</a> including: identification
+            <a href="/contact">our team</a> including: identification
             of the copyrighted work, the specific listing or URL involved,
             a statement that you have a good-faith belief the use is
             unauthorized, and your contact information. We'll review and,
@@ -88,7 +61,7 @@
           <h2 class="h5 mb-2">Counter-notices</h2>
           <p class="nsaa-muted">
             An organizer whose listing was removed following a copyright
-            claim can dispute it by <a href="contact.html">contacting us</a>
+            claim can dispute it by <a href="/contact">contacting us</a>
             with an explanation of why the content doesn't infringe (e.g.
             you own the rights, or had permission to use it). We'll review
             the counter-notice and restore the listing if the dispute is
@@ -98,66 +71,7 @@
       </div>
     </main>
 
-    <footer class="nsaa-footer">
-      <div class="container">
-        <div class="row g-4 pb-4">
-          <div class="col-lg-4">
-            <a class="nsaa-brand-lockup d-inline-flex mb-3" href="index.html">
-              <span class="nsaa-wordmark">Nsaa</span>
-              <span class="nsaa-brand-tickets" aria-label="Tickets">T I C K E T S</span>
-            </a>
-            <p class="nsaa-muted small mb-3" style="max-width: 320px;">
-              Ghana-first ticketing with clear fees and fraud-resistant entry.
-            </p>
-            <div class="d-flex gap-2">
-              <a href="#" class="nsaa-icon-badge" aria-label="Nsaa on X"><i class="ph ph-x-logo nsaa-trust-icon"></i></a>
-              <a href="#" class="nsaa-icon-badge" aria-label="Nsaa on Instagram"><i class="ph ph-instagram-logo nsaa-trust-icon"></i></a>
-              <a href="#" class="nsaa-icon-badge" aria-label="Nsaa on Facebook"><i class="ph ph-facebook-logo nsaa-trust-icon"></i></a>
-            </div>
-          </div>
-          <div class="col-6 col-lg-2">
-            <p class="nsaa-faint small text-uppercase mb-3">Discover</p>
-            <ul class="list-unstyled d-grid gap-2 mb-0">
-              <li><a href="search-results.html" class="nsaa-muted text-decoration-none">Search</a></li>
-              <li><a href="category.html" class="nsaa-muted text-decoration-none">Categories</a></li>
-              <li><a href="organizer-inquiry.html" class="nsaa-muted text-decoration-none">List an event</a></li>
-            </ul>
-          </div>
-          <div class="col-6 col-lg-2">
-            <p class="nsaa-faint small text-uppercase mb-3">Company</p>
-            <ul class="list-unstyled d-grid gap-2 mb-0">
-              <li><a href="about.html" class="nsaa-muted text-decoration-none">About</a></li>
-              <li><a href="faq.html" class="nsaa-muted text-decoration-none">FAQ</a></li>
-              <li><a href="contact.html" class="nsaa-muted text-decoration-none">Contact</a></li>
-              <li><a href="blog.html" class="nsaa-muted text-decoration-none">News</a></li>
-            </ul>
-          </div>
-          <div class="col-6 col-lg-2">
-            <p class="nsaa-faint small text-uppercase mb-3">Legal</p>
-            <ul class="list-unstyled d-grid gap-2 mb-0">
-              <li><a href="privacy-policy.html" class="nsaa-muted text-decoration-none">Privacy</a></li>
-              <li><a href="terms-of-service.html" class="nsaa-muted text-decoration-none">Terms</a></li>
-              <li><a href="refund-and-cancellation-policy.html" class="nsaa-muted text-decoration-none">Refunds</a></li>
-              <li><a href="sitemap.html" class="nsaa-muted text-decoration-none">All pages</a></li>
-            </ul>
-          </div>
-          <div class="col-lg-2">
-            <p class="nsaa-faint small text-uppercase mb-3">Stay updated</p>
-            <form class="d-flex flex-column gap-2" data-newsletter-form>
-              <input type="email" class="form-control form-control-nsaa" placeholder="you@example.com" required />
-              <button class="btn btn-outline-nsaa btn-sm" type="submit">Subscribe</button>
-            </form>
-          </div>
-        </div>
-        <div
-          class="pt-4 d-flex flex-column flex-md-row justify-content-between gap-2"
-          style="border-top: 1px solid var(--nsaa-border);"
-        >
-          <span class="nsaa-faint small">&copy; 2026 Nsaa Tickets. All rights reserved.</span>
-          <span class="nsaa-faint small">Accra, Ghana</span>
-        </div>
-      </div>
-    </footer>
+    <div id="nsaa-chrome-footer"></div>
 
     <script src="js/convex-config.js"></script>
     <script src="js/nsaa.js"></script>

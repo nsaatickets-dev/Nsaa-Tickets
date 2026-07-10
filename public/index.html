@@ -8,6 +8,7 @@
       name="description"
       content="Discover concerts, conferences, sports, weddings, comedy, theatre, religious events, workshops, and nightlife in Ghana with transparent fees."
     />
+    <script type="module" src="js/nsaa-chrome.js"></script>
     <link
       href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
       rel="stylesheet"
@@ -16,41 +17,7 @@
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
   </head>
   <body>
-    <nav class="navbar nsaa-navbar navbar-expand sticky-top">
-      <div class="container">
-        <a
-          class="nsaa-brand-lockup"
-          href="index.html"
-          aria-label="Nsaa Tickets home"
-        >
-          <span class="nsaa-wordmark">Nsaa</span>
-          <span class="nsaa-brand-tickets" aria-label="Tickets"
-            >T I C K E T S</span
-          >
-        </a>
-        <div class="ms-auto d-flex align-items-center gap-2">
-          <button
-            class="nsaa-nav-toggle"
-            type="button"
-            aria-label="Open menu"
-            aria-expanded="false"
-            aria-controls="nsaa-nav-links"
-          >
-            <i class="ph ph-list" aria-hidden="true"></i>
-            <i class="ph ph-x" aria-hidden="true"></i>
-          </button>
-          <div class="nsaa-nav-links" id="nsaa-nav-links">
-            <a href="search-results.html" class="nsaa-nav-link">Browse</a>
-            <a href="about.html" class="nsaa-nav-link">About</a>
-            <a href="wallet.html" class="nsaa-nav-link">My tickets</a>
-            <span class="nsaa-nav-sep" aria-hidden="true"></span>
-            <a href="organizer-inquiry.html" class="nsaa-nav-link nsaa-nav-link--quiet">List your event</a>
-            <a href="organizer-dashboard.html" class="nsaa-nav-link nsaa-nav-link--quiet">Dashboard</a>
-            <div id="clerk-auth-slot"></div>
-          </div>
-        </div>
-      </div>
-    </nav>
+    <div id="nsaa-chrome-nav"></div>
 
     <script src="js/clerk-config.js"></script>
     <script src="js/clerk-loader.js"></script>
@@ -70,7 +37,6 @@
             <form
               id="home-search-form"
               class="nsaa-search-shell d-flex flex-column flex-md-row align-items-center gap-2"
-              action="search-results.html"
               style="max-width: 560px;"
             >
               <div class="flex-grow-1 w-100 position-relative">
@@ -135,41 +101,78 @@
     </header>
 
     <main>
-      <section class="container py-5">
-        <div
-          class="d-flex flex-column flex-md-row justify-content-between gap-3 mb-4"
-        >
-          <div>
-            <h2 class="nsaa-section-title mb-0">
-              Built for the whole calendar.
-            </h2>
-          </div>
-          <a
-            class="btn btn-outline-nsaa align-self-md-end"
-            href="search-results.html"
-            >View all events</a
-          >
-        </div>
-        <div id="category-grid" class="nsaa-category-grid"></div>
-      </section>
+      <section class="container py-5" id="browse">
+        <div class="row g-4">
+          <aside class="col-lg-4 col-xl-3">
+            <div class="nsaa-panel position-sticky" style="top: 88px">
+              <p class="nsaa-eyebrow mb-2">Browse</p>
+              <h2 class="h4 mb-3">Find events</h2>
+              <div id="category-chip-row" class="d-flex flex-wrap gap-2 mb-4"></div>
+              <form id="filter-form">
+                <div class="mb-3">
+                  <label class="form-label nsaa-muted small" for="filter-q">Keyword</label>
+                  <input
+                    id="filter-q"
+                    name="q"
+                    class="form-control form-control-nsaa"
+                    type="search"
+                    placeholder="Artist, venue, city"
+                  />
+                </div>
+                <div class="mb-3">
+                  <label class="form-label nsaa-muted small" for="filter-city">City</label>
+                  <input
+                    id="filter-city"
+                    name="city"
+                    class="form-control form-control-nsaa"
+                    type="text"
+                    placeholder="Accra, Kumasi, Takoradi"
+                  />
+                </div>
+                <div class="row g-2">
+                  <div class="col-6">
+                    <label class="form-label nsaa-muted small" for="filter-from">From</label>
+                    <input
+                      id="filter-from"
+                      name="from"
+                      class="form-control form-control-nsaa"
+                      type="date"
+                    />
+                  </div>
+                  <div class="col-6">
+                    <label class="form-label nsaa-muted small" for="filter-to">To</label>
+                    <input
+                      id="filter-to"
+                      name="to"
+                      class="form-control form-control-nsaa"
+                      type="date"
+                    />
+                  </div>
+                </div>
+                <button class="btn btn-nsaa w-100 mt-4" type="submit">
+                  Apply filters
+                </button>
+              </form>
+            </div>
+          </aside>
 
-      <section class="container pb-5">
-        <div
-          class="d-flex flex-column flex-md-row justify-content-between gap-3 mb-4"
-        >
-          <div>
-            <h2 class="nsaa-section-title mb-0">
-              Curated for Ghana this month.
-            </h2>
-          </div>
-          <a
-            class="btn btn-outline-nsaa align-self-md-end"
-            href="organizer-inquiry.html"
-            >List your event</a
-          >
-        </div>
-        <div id="featured-events" class="row g-4">
-          <div class="col-12" id="featured-loading"></div>
+          <section class="col-lg-8 col-xl-9">
+            <div
+              class="d-flex flex-column flex-md-row justify-content-between gap-3 mb-4"
+            >
+              <div>
+                <h2 id="results-heading" class="nsaa-section-title mb-0">
+                  Built for the whole calendar.
+                </h2>
+              </div>
+              <a
+                class="btn btn-outline-nsaa align-self-md-end"
+                href="/organizer-inquiry"
+                >List your event</a
+              >
+            </div>
+            <div id="results-grid" class="row g-4"></div>
+          </section>
         </div>
       </section>
 
@@ -209,77 +212,34 @@
       </section>
     </main>
 
-    <footer class="nsaa-footer">
-      <div class="container">
-        <div class="row g-4 pb-4">
-          <div class="col-lg-4">
-            <a class="nsaa-brand-lockup d-inline-flex mb-3" href="index.html">
-              <span class="nsaa-wordmark">Nsaa</span>
-              <span class="nsaa-brand-tickets" aria-label="Tickets">T I C K E T S</span>
-            </a>
-            <p class="nsaa-muted small mb-3" style="max-width: 320px;">
-              Ghana-first ticketing with clear fees and fraud-resistant entry.
-            </p>
-            <div class="d-flex gap-2">
-              <a href="#" class="nsaa-icon-badge" aria-label="Nsaa on X"><i class="ph ph-x-logo nsaa-trust-icon"></i></a>
-              <a href="#" class="nsaa-icon-badge" aria-label="Nsaa on Instagram"><i class="ph ph-instagram-logo nsaa-trust-icon"></i></a>
-              <a href="#" class="nsaa-icon-badge" aria-label="Nsaa on Facebook"><i class="ph ph-facebook-logo nsaa-trust-icon"></i></a>
-            </div>
-          </div>
-          <div class="col-6 col-lg-2">
-            <p class="nsaa-faint small text-uppercase mb-3">Discover</p>
-            <ul class="list-unstyled d-grid gap-2 mb-0">
-              <li><a href="search-results.html" class="nsaa-muted text-decoration-none">Search</a></li>
-              <li><a href="category.html" class="nsaa-muted text-decoration-none">Categories</a></li>
-              <li><a href="organizer-inquiry.html" class="nsaa-muted text-decoration-none">List an event</a></li>
-            </ul>
-          </div>
-          <div class="col-6 col-lg-2">
-            <p class="nsaa-faint small text-uppercase mb-3">Company</p>
-            <ul class="list-unstyled d-grid gap-2 mb-0">
-              <li><a href="about.html" class="nsaa-muted text-decoration-none">About</a></li>
-              <li><a href="faq.html" class="nsaa-muted text-decoration-none">FAQ</a></li>
-              <li><a href="contact.html" class="nsaa-muted text-decoration-none">Contact</a></li>
-              <li><a href="blog.html" class="nsaa-muted text-decoration-none">News</a></li>
-            </ul>
-          </div>
-          <div class="col-6 col-lg-2">
-            <p class="nsaa-faint small text-uppercase mb-3">Legal</p>
-            <ul class="list-unstyled d-grid gap-2 mb-0">
-              <li><a href="privacy-policy.html" class="nsaa-muted text-decoration-none">Privacy</a></li>
-              <li><a href="terms-of-service.html" class="nsaa-muted text-decoration-none">Terms</a></li>
-              <li><a href="refund-and-cancellation-policy.html" class="nsaa-muted text-decoration-none">Refunds</a></li>
-              <li><a href="sitemap.html" class="nsaa-muted text-decoration-none">All pages</a></li>
-            </ul>
-          </div>
-          <div class="col-lg-2">
-            <p class="nsaa-faint small text-uppercase mb-3">Stay updated</p>
-            <form class="d-flex flex-column gap-2" data-newsletter-form>
-              <input type="email" class="form-control form-control-nsaa" placeholder="you@example.com" required />
-              <button class="btn btn-outline-nsaa btn-sm" type="submit">Subscribe</button>
-            </form>
-          </div>
-        </div>
-        <div
-          class="pt-4 d-flex flex-column flex-md-row justify-content-between gap-2"
-          style="border-top: 1px solid var(--nsaa-border);"
-        >
-          <span class="nsaa-faint small">&copy; 2026 Nsaa Tickets. All rights reserved.</span>
-          <span class="nsaa-faint small">Accra, Ghana</span>
-        </div>
-      </div>
-    </footer>
+    <div id="nsaa-chrome-footer"></div>
 
     <script src="js/convex-config.js"></script>
     <script src="js/nsaa.js"></script>
     <script type="module">
       import { ConvexClient } from "https://esm.sh/convex/browser";
 
-      const gridEl = document.getElementById("category-grid");
-      const featuredEl = document.getElementById("featured-events");
-      const categorySelect = document.getElementById("home-category");
+      const resultsEl = document.getElementById("results-grid");
+      const headingEl = document.getElementById("results-heading");
+      const chipRowEl = document.getElementById("category-chip-row");
+      const homeCategorySelect = document.getElementById("home-category");
+      const filterForm = document.getElementById("filter-form");
+      const homeSearchForm = document.getElementById("home-search-form");
 
-      categorySelect.innerHTML = [
+      function readParams() {
+        const params = new URLSearchParams(window.location.search);
+        return {
+          q: params.get("q") || "",
+          category: params.get("category") || "",
+          city: params.get("city") || "",
+          from: params.get("from") || "",
+          to: params.get("to") || "",
+        };
+      }
+
+      let state = readParams();
+
+      homeCategorySelect.innerHTML = [
         '<option value="">All categories</option>',
         ...NSAA.categories.map(
           (category) =>
@@ -287,49 +247,141 @@
         ),
       ].join("");
 
-      function renderCategories(counts = {}) {
-        gridEl.innerHTML = NSAA.categories
-          .map((category, index) => {
-            const count = counts[category.value] ?? 0;
-            const countText = count === 1 ? "1 event" : `${count} events`;
-            return `
-          <a class="nsaa-card nsaa-category-tile" href="category.html?category=${NSAA.escapeAttr(category.value)}" style="--category-image: url('${NSAA.escapeAttr(category.image)}'); --stagger-index: ${index};">
-            <span class="nsaa-chip" data-tone="${NSAA.escapeAttr(category.tone)}">${NSAA.escapeHtml(category.label)}</span>
-            <span>
-              <span class="d-block text-white fw-semibold">${NSAA.escapeHtml(category.description)}</span>
-              <span class="d-block nsaa-category-count mt-2">${NSAA.escapeHtml(countText)}</span>
-            </span>
-          </a>
-        `;
-          })
-          .join("");
+      function syncFormsFromState() {
+        document.getElementById("filter-q").value = state.q;
+        document.getElementById("filter-city").value = state.city;
+        document.getElementById("filter-from").value = state.from;
+        document.getElementById("filter-to").value = state.to;
+        document.getElementById("home-search").value = state.q;
+        homeCategorySelect.value = state.category;
       }
 
-      function renderFeatured(events) {
-        if (!events || events.length === 0) {
-          featuredEl.innerHTML = `<div class="col-12">${NSAA.emptyState("No published events yet", "Seed demo events from the Convex dashboard or publish the first organizer listing.", '<a class="btn btn-nsaa" href="organizer-inquiry.html">Bring an event to Nsaa</a>')}</div>`;
+      function syncUrl() {
+        const params = new URLSearchParams();
+        if (state.q) params.set("q", state.q);
+        if (state.category) params.set("category", state.category);
+        if (state.city) params.set("city", state.city);
+        if (state.from) params.set("from", state.from);
+        if (state.to) params.set("to", state.to);
+        const query = params.toString();
+        const url = query ? `${window.location.pathname}?${query}` : window.location.pathname;
+        history.replaceState(null, "", url);
+      }
+
+      function renderChips(counts = {}) {
+        const chips = [
+          { value: "", label: "All categories", tone: "" },
+          ...NSAA.categories.map((c) => ({ value: c.value, label: c.label, tone: c.tone })),
+        ];
+
+        chipRowEl.innerHTML = chips
+          .map((chip) => {
+            const isActive = chip.value === state.category;
+            const count = chip.value ? (counts[chip.value] ?? 0) : Object.values(counts).reduce((sum, n) => sum + n, 0);
+            return `
+              <button
+                type="button"
+                class="nsaa-chip nsaa-chip-filter${isActive ? " active" : ""}"
+                data-tone="${NSAA.escapeAttr(chip.tone)}"
+                data-category="${NSAA.escapeAttr(chip.value)}"
+              >${NSAA.escapeHtml(chip.label)}${chip.value ? ` (${count})` : ""}</button>
+            `;
+          })
+          .join("");
+
+        chipRowEl.querySelectorAll("[data-category]").forEach((button) => {
+          button.addEventListener("click", () => {
+            state = { ...state, category: button.getAttribute("data-category") };
+            applyState();
+          });
+        });
+      }
+
+      function dateStart(value) {
+        return value ? new Date(`${value}T00:00:00`).getTime() : undefined;
+      }
+
+      function dateEnd(value) {
+        return value ? new Date(`${value}T23:59:59`).getTime() : undefined;
+      }
+
+      function renderResults(events) {
+        const list = [...(events || [])].sort((a, b) => a.startsAt - b.startsAt);
+        headingEl.textContent = state.q || state.category || state.city || state.from || state.to
+          ? `${list.length} ${list.length === 1 ? "event" : "events"}`
+          : "Built for the whole calendar.";
+
+        if (list.length === 0) {
+          resultsEl.innerHTML = `<div class="col-12">${NSAA.emptyState("No matching events", "Try a different category, city, keyword, or date range.", '<a class="btn btn-nsaa" href="/organizer-inquiry">Bring an event to Nsaa</a>')}</div>`;
           return;
         }
 
-        const sorted = [...events]
-          .sort((a, b) => a.startsAt - b.startsAt)
-          .slice(0, 6);
-        featuredEl.innerHTML = sorted
-          .map((event, index) => NSAA.eventCard(event, { index }))
+        resultsEl.innerHTML = list
+          .map((event) => NSAA.eventCard(event, { colClass: "col-md-6 col-xl-4" }))
           .join("");
       }
 
-      renderCategories();
-      featuredEl.innerHTML = NSAA.skeletonCards(3);
+      let unsubscribeResults = null;
+      let unsubscribeCounts = null;
+      let client = null;
+
+      function applyState() {
+        syncFormsFromState();
+        syncUrl();
+        renderChips(lastCounts);
+
+        if (!client) return;
+
+        if (unsubscribeResults) unsubscribeResults();
+        const queryArgs = {
+          search: state.q || undefined,
+          category: state.category || undefined,
+          city: state.city || undefined,
+          startsAfter: dateStart(state.from),
+          startsBefore: dateEnd(state.to),
+        };
+        unsubscribeResults = client.onUpdate("events:searchPublished", queryArgs, renderResults);
+      }
+
+      let lastCounts = {};
+
+      filterForm.addEventListener("submit", (event) => {
+        event.preventDefault();
+        state = {
+          ...state,
+          q: document.getElementById("filter-q").value.trim(),
+          city: document.getElementById("filter-city").value.trim(),
+          from: document.getElementById("filter-from").value,
+          to: document.getElementById("filter-to").value,
+        };
+        applyState();
+      });
+
+      homeSearchForm.addEventListener("submit", (event) => {
+        event.preventDefault();
+        state = {
+          ...state,
+          q: document.getElementById("home-search").value.trim(),
+          category: homeCategorySelect.value,
+        };
+        applyState();
+        document.getElementById("browse").scrollIntoView({ behavior: "smooth" });
+      });
+
+      renderChips();
+      resultsEl.innerHTML = NSAA.skeletonCards(3);
+      syncFormsFromState();
 
       if (!NSAA.isConvexConfigured()) {
-        featuredEl.innerHTML = `<div class="col-12">${NSAA.setupNotice("Discovery")}</div>`;
+        resultsEl.innerHTML = `<div class="col-12">${NSAA.setupNotice("Discovery")}</div>`;
       } else {
-        const client = new ConvexClient(NSAA.CONVEX_URL);
-        client.onUpdate("events:categorySummary", {}, renderCategories);
-        client.onUpdate("events:listPublished", {}, renderFeatured);
+        client = new ConvexClient(NSAA.CONVEX_URL);
+        unsubscribeCounts = client.onUpdate("events:categorySummary", {}, (counts) => {
+          lastCounts = counts;
+          renderChips(counts);
+        });
+        applyState();
       }
     </script>
-    <script src="js/clerk-nav.js"></script>
   </body>
 </html>

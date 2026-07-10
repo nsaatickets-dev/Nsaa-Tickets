@@ -16,7 +16,7 @@
       <div class="container">
         <a
           class="nsaa-brand-lockup"
-          href="index.html"
+          href="/"
           aria-label="Nsaa Tickets home"
         >
           <span class="nsaa-wordmark">Nsaa</span>
@@ -294,7 +294,7 @@
         document.getElementById("details-step").classList.add("d-none");
         document.getElementById("payment-step").classList.remove("d-none");
         document.getElementById("status-link").href =
-          `order-status.html?orderId=${encodeURIComponent(currentOrderId)}`;
+          `/order-status?orderId=${encodeURIComponent(currentOrderId)}`;
 
         client.onUpdate(
           "orders:getOrderSummary",
@@ -312,7 +312,7 @@
             );
 
             if (order.status === "paid") {
-              window.location.href = `wallet.html?orderId=${encodeURIComponent(order._id)}`;
+              window.location.href = `/wallet?orderId=${encodeURIComponent(order._id)}`;
             }
             if (order.status === "expired") {
               setPaymentState(
@@ -433,7 +433,7 @@
         root.innerHTML = NSAA.emptyState(
           "Checkout link incomplete",
           "Choose a ticket from an event page to begin checkout.",
-          '<a class="btn btn-nsaa" href="index.html">Browse events</a>',
+          '<a class="btn btn-nsaa" href="/">Browse events</a>',
         );
       } else if (!NSAA.isConvexConfigured()) {
         root.innerHTML = NSAA.setupNotice("Checkout");
@@ -459,7 +459,7 @@
               root.innerHTML = NSAA.emptyState(
                 "Ticket type not found",
                 "This ticket may no longer be available for the selected event.",
-                '<a class="btn btn-nsaa" href="index.html">Browse events</a>',
+                '<a class="btn btn-nsaa" href="/">Browse events</a>',
               );
               return;
             }

@@ -164,7 +164,7 @@
     const image = eventImage(event);
     const date = formatDate(event.startsAt);
     const href =
-      options.href || `event.html?id=${encodeURIComponent(event._id)}`;
+      options.href || `/event?id=${encodeURIComponent(event._id)}`;
     const cityLine = [event.venue, event.city].filter(Boolean).join(", ");
     const staggerIndex = Number.isFinite(options.index) ? options.index : 0;
     return `
@@ -346,7 +346,7 @@
       banner.className = "nsaa-cookie-banner";
       banner.innerHTML = `
         <div class="container d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-3 py-3">
-          <p class="nsaa-muted small mb-0">We use essential cookies and local storage to keep checkout and sign-in working. <a href="cookie-policy.html">Learn more</a>.</p>
+          <p class="nsaa-muted small mb-0">We use essential cookies and local storage to keep checkout and sign-in working. <a href="/cookie-policy">Learn more</a>.</p>
           <button id="nsaa-cookie-accept" class="btn btn-nsaa btn-sm flex-shrink-0" type="button">Got it</button>
         </div>
       `;
@@ -434,11 +434,13 @@
 
       const navLinks = Array.from(links.querySelectorAll(".nsaa-nav-link"));
 
-      const currentPage = window.location.pathname.split("/").pop() || "index.html";
+      const currentPath = window.location.pathname;
       const inferredActiveHref =
-        currentPage === "category.html" || currentPage === "event.html"
-          ? "search-results.html"
-          : currentPage;
+        currentPath === "/category" ||
+        currentPath === "/search-results" ||
+        currentPath === "/event"
+          ? "/"
+          : currentPath;
       const exactActiveLink = navLinks.find(
         (link) => link.getAttribute("href") === inferredActiveHref,
       );

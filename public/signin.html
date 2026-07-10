@@ -17,7 +17,7 @@
       <div class="container">
         <a
           class="nsaa-brand-lockup"
-          href="index.html"
+          href="/"
           aria-label="Nsaa Tickets home"
         >
           <span class="nsaa-wordmark">Nsaa</span>
@@ -31,8 +31,9 @@
 
     <script src="js/clerk-config.js"></script>
     <script src="js/clerk-loader.js"></script>
+    <script src="js/convex-config.js"></script>
 
-    <main class="container py-5" style="max-width: 440px">
+    <main class="container py-5" style="max-width: 420px">
       <div class="text-center mb-4">
         <p class="nsaa-eyebrow mb-2">Welcome back</p>
         <h1 class="h3 mb-2">Sign in to Nsaa Tickets</h1>
@@ -41,45 +42,92 @@
           all your past tickets in one place.
         </p>
       </div>
+
       <div class="nsaa-panel">
-        <div id="clerk-mount"></div>
-        <div id="clerk-fallback" class="d-none">
-          <div id="clerk-fallback-body"></div>
+        <div id="oauth-slot" class="d-grid gap-2 mb-3"></div>
+        <div id="oauth-divider" class="d-flex align-items-center gap-2 mb-3 d-none">
+          <div class="flex-grow-1" style="border-top: 1px solid var(--nsaa-border);"></div>
+          <span class="nsaa-faint small">or</span>
+          <div class="flex-grow-1" style="border-top: 1px solid var(--nsaa-border);"></div>
         </div>
+
+        <form id="signin-form" novalidate>
+          <div class="mb-3">
+            <label class="form-label nsaa-muted small" for="si-email">Email</label>
+            <input
+              id="si-email"
+              class="form-control form-control-nsaa"
+              type="email"
+              autocomplete="email"
+              placeholder="you@example.com"
+              required
+            />
+          </div>
+          <div class="mb-3">
+            <label class="form-label nsaa-muted small" for="si-password">Password</label>
+            <input
+              id="si-password"
+              class="form-control form-control-nsaa"
+              type="password"
+              autocomplete="current-password"
+              required
+            />
+          </div>
+          <div id="signin-error"></div>
+          <button id="signin-submit" class="btn btn-nsaa w-100 mt-2" type="submit">
+            Sign in
+          </button>
+        </form>
       </div>
+
+      <p class="text-center nsaa-muted small mt-4">
+        New to Nsaa? <a id="signup-link" href="/signup">Create an account</a>
+      </p>
     </main>
 
-    <script src="js/convex-config.js"></script>
     <script src="js/nsaa.js"></script>
     <script type="module">
       const params = new URLSearchParams(window.location.search);
-      const redirectUrl = params.get("redirect_url") || "index.html";
-      const mountEl = document.getElementById("clerk-mount");
-      const fallbackEl = document.getElementById("clerk-fallback");
-      const fallbackBodyEl = document.getElementById("clerk-fallback-body");
+      const redirectUrl = params.get("redirect_url") || "/";
+      document.getElementById("signup-link").href =
+        `/signup?redirect_url=${encodeURIComponent(redirectUrl)}`;
 
-      const CLERK_APPEARANCE = {
-        variables: {
-          colorPrimary: "#eb5a3c",
-          colorBackground: "#ffffff",
-          colorInputBackground: "#ffffff",
-          colorInputText: "#241f1a",
-          colorText: "#241f1a",
-          colorTextSecondary: "#6b5f52",
-          colorDanger: "#c43d3d",
-          colorSuccess: "#279485",
-          colorWarning: "#d9a441",
-          borderRadius: "4px",
-          fontFamily: "'Instrument Sans', sans-serif",
-        },
-      };
+      const form = document.getElementById("signin-form");
+      const submitBtn = document.getElementById("signin-submit");
+      const errorEl = document.getElementById("signin-error");
+      const oauthSlot = document.getElementById("oauth-slot");
+      const oauthDivider = document.getElementById("oauth-divider");
+
+      function showError(message) {
+        errorEl.innerHTML = NSAA.errorState("Could not sign in", message);
+      }
+
+      function oauthButton(strategy, label, icon) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "btn btn-outline-nsaa w-100 d-flex align-items-center justify-content-center gap-2";
+        btn.innerHTML = `<i class="ph ${icon}" aria-hidden="true"></i> Continue with ${NSAA.escapeHtml(label)}`;
+        btn.addEventListener("click", async () => {
+          try {
+            await clerk.client.signIn.authenticateWithRedirect({
+              strategy,
+              redirectUrl: `/sso-callback?redirect_url=${encodeURIComponent(redirectUrl)}`,
+              redirectUrlComplete: redirectUrl,
+            });
+          } catch (err) {
+            showError(err?.errors?.[0]?.message || err.message || "Could not start sign-in.");
+          }
+        });
+        return btn;
+      }
+
+      let clerk = null;
 
       async function boot() {
-        const clerk = await NSAA.getClerk();
+        clerk = await NSAA.getClerk();
 
         if (!clerk) {
-          fallbackEl.classList.remove("d-none");
-          fallbackBodyEl.innerHTML = NSAA.emptyState(
+          document.querySelector(".nsaa-panel").innerHTML = NSAA.emptyState(
             "Sign-in setup needed",
             "Add your Clerk publishable key and Frontend API URL before this page will work.",
           );
@@ -91,11 +139,48 @@
           return;
         }
 
-        clerk.mountSignIn(mountEl, {
-          appearance: CLERK_APPEARANCE,
-          signUpUrl: `signup.html?redirect_url=${encodeURIComponent(redirectUrl)}`,
-          afterSignInUrl: redirectUrl,
-          redirectUrl,
+        // Google/Apple are configured as sign-in strategies on this Clerk
+        // instance - offered as a faster path alongside the password form.
+        oauthSlot.appendChild(oauthButton("oauth_google", "Google", "ph-google-logo"));
+        oauthSlot.appendChild(oauthButton("oauth_apple", "Apple", "ph-apple-logo"));
+        oauthDivider.classList.remove("d-none");
+
+        form.addEventListener("submit", async (event) => {
+          event.preventDefault();
+          errorEl.innerHTML = "";
+          const email = document.getElementById("si-email").value.trim();
+          const password = document.getElementById("si-password").value;
+
+          if (!email || !password) {
+            showError("Enter your email and password.");
+            return;
+          }
+
+          submitBtn.disabled = true;
+          submitBtn.textContent = "Signing in...";
+
+          try {
+            const attempt = await clerk.client.signIn.create({
+              identifier: email,
+              password,
+            });
+
+            if (attempt.status === "complete") {
+              await clerk.setActive({ session: attempt.createdSessionId });
+              window.location.href = redirectUrl;
+              return;
+            }
+
+            // Any other status (e.g. needs_second_factor) isn't handled by
+            // this form - this Clerk instance has no second factors
+            // configured today, so this path shouldn't normally be hit.
+            showError("Additional verification is required. Please contact support.");
+          } catch (err) {
+            showError(err?.errors?.[0]?.message || err.message || "Please check your details and try again.");
+          } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = "Sign in";
+          }
         });
       }
 

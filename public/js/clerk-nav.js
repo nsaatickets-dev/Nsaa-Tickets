@@ -23,8 +23,8 @@ window.addEventListener("load", async () => {
       const signInLink = document.createElement("a");
       signInLink.className = "btn btn-sm btn-outline-nsaa";
       signInLink.textContent = "Sign in";
-      const here = window.location.pathname.split("/").pop() || "index.html";
-      signInLink.href = `signin.html?redirect_url=${encodeURIComponent(here)}`;
+      const here = window.location.pathname + window.location.search;
+      signInLink.href = `/signin?redirect_url=${encodeURIComponent(here)}`;
       slot.appendChild(signInLink);
     }
   } catch (err) {

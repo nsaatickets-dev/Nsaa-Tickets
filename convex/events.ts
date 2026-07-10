@@ -249,6 +249,34 @@ export const eventsForCurrentOrganizer = query({
   },
 });
 
+// Used by the nav to decide whether to offer the organizer context switch.
+// "Organizer" here means owns at least one event OR has picked a pricing
+// tier - either is enough to have a dashboard worth switching into, even
+// before their first event exists.
+export const organizerStatus = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return { isOrganizer: false };
+
+    const ownedEvent = await ctx.db
+      .query("events")
+      .withIndex("by_organizer", (q) =>
+        q.eq("organizerClerkUserId", identity.subject),
+      )
+      .first();
+
+    if (ownedEvent) return { isOrganizer: true };
+
+    const profile = await ctx.db
+      .query("organizerProfiles")
+      .withIndex("by_organizer", (q) => q.eq("organizerClerkUserId", identity.subject))
+      .unique();
+
+    return { isOrganizer: Boolean(profile) };
+  },
+});
+
 // Ticket sales are separate from event ownership so an organizer can see
 // how their event is performing without exposing this to other users.
 export const salesSummaryForEvent = query({

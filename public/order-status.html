@@ -16,7 +16,7 @@
       <div class="container">
         <a
           class="nsaa-brand-lockup"
-          href="index.html"
+          href="/"
           aria-label="Nsaa Tickets home"
         >
           <span class="nsaa-wordmark">Nsaa</span>
@@ -89,17 +89,17 @@
           root.innerHTML = NSAA.emptyState(
             "Order not found",
             "Check the link from your SMS or email and try again.",
-            '<a class="btn btn-nsaa" href="index.html">Back to discovery</a>',
+            '<a class="btn btn-nsaa" href="/">Back to discovery</a>',
           );
           return;
         }
 
         const { order, event, ticketType } = summary;
         const copy = statusCopy(order);
-        const walletLink = `wallet.html?orderId=${encodeURIComponent(order._id)}`;
+        const walletLink = `/wallet?orderId=${encodeURIComponent(order._id)}`;
         const eventLink = event
-          ? `event.html?id=${encodeURIComponent(event._id)}`
-          : "index.html";
+          ? `/event?id=${encodeURIComponent(event._id)}`
+          : "/";
 
         root.innerHTML = `
         <section class="nsaa-panel">
@@ -170,7 +170,7 @@
         root.innerHTML = NSAA.emptyState(
           "No order selected",
           "Open the status link from checkout, SMS, or email.",
-          '<a class="btn btn-nsaa" href="index.html">Back to discovery</a>',
+          '<a class="btn btn-nsaa" href="/">Back to discovery</a>',
         );
       } else if (!NSAA.isConvexConfigured()) {
         root.innerHTML = NSAA.setupNotice("Order status");
