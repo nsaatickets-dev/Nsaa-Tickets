@@ -1,5 +1,11 @@
 (function () {
-  const CONVEX_URL = "https://adjoining-aardvark-475.convex.cloud";
+  // Injectable per-deployment, same pattern as clerk-config.js - lets
+  // Vercel's build step point each preview deployment at its own fresh
+  // Convex backend (see convex-config.js, scripts/write-convex-config.js,
+  // vercel.json). Falls back to the known production URL for local dev
+  // via `npm run serve`, where no build step runs to generate the file.
+  const CONVEX_URL =
+    window.NSAA_CONVEX_CONFIG?.url || "https://adjoining-aardvark-475.convex.cloud";
 
   const categories = [
     {
