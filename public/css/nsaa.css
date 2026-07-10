@@ -29,7 +29,7 @@
      checkout CTAs. */
   --nsaa-coral: #f44e25;
   --nsaa-coral-hover: #f66946;
-  --nsaa-coral-ink: #ffffff;
+  --nsaa-coral-ink: #241f1a;
 
   /* Gold rush - highlights, "selling fast" badges, price tags,
      celebratory moments. Never used for the primary action button. */
@@ -193,7 +193,7 @@ a:hover {
 }
 
 .nsaa-brand-lockup:hover::before {
-  background: var(--nsaa-coral);
+  background-color: var(--nsaa-coral);
   border-color: var(--nsaa-coral);
   color: var(--nsaa-coral-ink);
   transform: translateY(-1px);
@@ -261,6 +261,32 @@ a:hover {
 .nsaa-nav-link:hover::after,
 .nsaa-nav-link.active::after {
   transform: scaleX(1);
+}
+
+.nsaa-nav-link--cta {
+  min-height: 2.38rem;
+  padding: 0.58rem 0.9rem;
+  background: var(--nsaa-coral);
+  border: 1px solid rgba(247, 241, 230, 0.3);
+  border-radius: 4px;
+  color: var(--nsaa-coral-ink);
+  font-weight: 800;
+  transition:
+    background-color 0.18s var(--nsaa-ease-out),
+    border-color 0.18s var(--nsaa-ease-out),
+    color 0.18s var(--nsaa-ease-out),
+    transform 0.12s var(--nsaa-ease-out);
+}
+
+.nsaa-nav-link--cta::after {
+  content: none;
+}
+
+.nsaa-nav-link--cta:hover,
+.nsaa-nav-link--cta.active {
+  background-color: var(--nsaa-coral-hover);
+  border-color: rgba(247, 241, 230, 0.48);
+  color: var(--nsaa-coral-ink);
 }
 
 .nsaa-nav-link--quiet {
@@ -430,6 +456,20 @@ a:hover {
     color: var(--nsaa-on-charcoal);
   }
 
+  .nsaa-nav-links .nsaa-nav-link--cta,
+  .nsaa-nav-links .nsaa-nav-link--cta.active {
+    background-color: var(--nsaa-coral);
+    border-color: rgba(247, 241, 230, 0.3);
+    color: var(--nsaa-coral-ink);
+  }
+
+  .nsaa-nav-links .nsaa-nav-link--cta:hover,
+  .nsaa-nav-links .nsaa-nav-link--cta:focus-visible {
+    background-color: var(--nsaa-coral-hover);
+    border-color: rgba(247, 241, 230, 0.48);
+    color: var(--nsaa-coral-ink);
+  }
+
   .nsaa-nav-links .nsaa-nav-sep {
     width: auto;
     height: 1px;
@@ -500,6 +540,15 @@ a:hover {
 }
 
 .btn-nsaa {
+  --bs-btn-bg: var(--nsaa-coral);
+  --bs-btn-border-color: var(--nsaa-coral);
+  --bs-btn-color: var(--nsaa-coral-ink);
+  --bs-btn-hover-bg: var(--nsaa-coral-hover);
+  --bs-btn-hover-border-color: var(--nsaa-coral-hover);
+  --bs-btn-hover-color: var(--nsaa-coral-ink);
+  --bs-btn-active-bg: var(--nsaa-coral-hover);
+  --bs-btn-active-border-color: var(--nsaa-coral-hover);
+  --bs-btn-active-color: var(--nsaa-coral-ink);
   background-color: var(--nsaa-coral);
   border: 1px solid var(--nsaa-coral);
   border-radius: 4px;
@@ -510,6 +559,7 @@ a:hover {
   transition:
     background-color 0.2s var(--nsaa-ease-out),
     border-color 0.2s var(--nsaa-ease-out),
+    box-shadow 0.2s var(--nsaa-ease-out),
     transform 0.12s var(--nsaa-ease-out);
   letter-spacing: -0.01em;
 }
@@ -530,6 +580,23 @@ a:hover {
 .btn-nsaa.disabled {
   opacity: 0.45;
   pointer-events: none;
+}
+
+.nsaa-navbar .btn-nsaa,
+.nsaa-footer .btn-nsaa,
+.nsaa-cookie-banner .btn-nsaa {
+  border-color: rgba(247, 241, 230, 0.34);
+  box-shadow: inset 0 0 0 1px rgba(247, 241, 230, 0.18);
+}
+
+.nsaa-navbar .btn-nsaa:hover,
+.nsaa-navbar .btn-nsaa:focus,
+.nsaa-footer .btn-nsaa:hover,
+.nsaa-footer .btn-nsaa:focus,
+.nsaa-cookie-banner .btn-nsaa:hover,
+.nsaa-cookie-banner .btn-nsaa:focus {
+  border-color: rgba(247, 241, 230, 0.52);
+  box-shadow: inset 0 0 0 1px rgba(247, 241, 230, 0.28);
 }
 
 .btn-outline-nsaa {

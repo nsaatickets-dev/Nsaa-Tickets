@@ -100,7 +100,7 @@ function navLinksHtml(context, showSwitcher) {
     `<a href="/" class="nsaa-nav-link">Browse</a>`,
     `<a href="/venues" class="nsaa-nav-link">Venues</a>`,
     `<a href="/organizers" class="nsaa-nav-link">Organizers</a>`,
-    `<a href="/organizer-inquiry" class="nsaa-nav-link">Sell tickets</a>`,
+    `<a href="/organizer-inquiry" class="nsaa-nav-link nsaa-nav-link--cta">Sell tickets</a>`,
   ];
 
   if (context === "organizer") {
