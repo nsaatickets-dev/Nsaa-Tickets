@@ -63,12 +63,6 @@
 
       function inquiryDetails(item) {
         const bits = [
-          item.eventType ? `Event: ${labelize(item.eventType)}` : "",
-          item.eventCity ? `City: ${item.eventCity}` : "",
-          item.ticketingModel ? `Ticketing: ${labelize(item.ticketingModel)}` : "",
-          item.launchWindow ? `Timing: ${labelize(item.launchWindow)}` : "",
-          item.eventDate ? `Date: ${item.eventDate}` : "",
-          item.expectedAttendance ? `Expected: ${item.expectedAttendance}` : "",
           item.payoutReadiness ? `Payout: ${labelize(item.payoutReadiness)}` : "",
         ].filter(Boolean);
 
