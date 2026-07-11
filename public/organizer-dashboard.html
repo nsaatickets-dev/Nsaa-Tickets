@@ -61,11 +61,14 @@
       }
 
       function signInGate() {
-        const redirectUrl = `/organizer-dashboard${window.location.search}`;
+        const redirectUrl = isNew ? "/organizer-dashboard" : `/organizer-dashboard${window.location.search}`;
         root.innerHTML = NSAA.emptyState(
-          "Sign in to manage your events",
+          "Create an organizer account",
           "The organizer dashboard is tied to your Nsaa account so only you can edit or publish your own events.",
-          `<a id="dashboard-sign-in" class="btn btn-nsaa" href="/signin?redirect_url=${encodeURIComponent(redirectUrl)}">Sign in</a>`,
+          `<div class="d-grid d-sm-flex gap-2 justify-content-center">
+            <a class="btn btn-nsaa" href="/signup?redirect_url=${encodeURIComponent(redirectUrl)}">Create account</a>
+            <a id="dashboard-sign-in" class="btn btn-nsaa" href="/signin?redirect_url=${encodeURIComponent(redirectUrl)}">Sign in</a>
+          </div>`,
         );
         newEventBtn.classList.add("d-none");
       }
@@ -103,28 +106,44 @@
       }
 
       // ---- Editor view (create or edit) ----
-      function starterTicketSetupHtml() {
+      function ticketTierInputRowHtml(tier = {}, index = 0) {
+        const name = tier.name || (index === 0 ? "Standard" : "");
+        return `
+          <div class="nsaa-ticket-tier-row" data-ticket-tier-row>
+            <div>
+              <label class="form-label nsaa-muted small" for="ticket-tier-name-${index}">Tier name</label>
+              <input id="ticket-tier-name-${index}" class="form-control form-control-nsaa ticket-tier-name" type="text" value="${NSAA.escapeAttr(name)}" placeholder="Standard, VIP, Table" required />
+            </div>
+            <div>
+              <label class="form-label nsaa-muted small" for="ticket-tier-price-${index}">Price GHS</label>
+              <input id="ticket-tier-price-${index}" class="form-control form-control-nsaa ticket-tier-price" type="number" min="0" step="0.01" value="${NSAA.escapeAttr(tier.priceGHS ?? "")}" placeholder="80" required />
+            </div>
+            <div>
+              <label class="form-label nsaa-muted small" for="ticket-tier-quantity-${index}">Quantity</label>
+              <input id="ticket-tier-quantity-${index}" class="form-control form-control-nsaa ticket-tier-quantity" type="number" min="1" value="${NSAA.escapeAttr(tier.quantityTotal ?? "")}" placeholder="100" required />
+            </div>
+            <button class="btn btn-outline-nsaa btn-sm remove-ticket-tier" type="button" aria-label="Remove ticket tier">
+              <i class="ph ph-trash" aria-hidden="true"></i>
+            </button>
+          </div>
+        `;
+      }
+
+      function ticketTierSetupHtml() {
         return `
           <section class="nsaa-form-section mt-4">
             <div class="d-flex align-items-center gap-2 mb-3">
               <span class="nsaa-form-step">2</span>
-              <h3 class="h6 mb-0">Ticket setup</h3>
+              <h3 class="h6 mb-0">Ticket tiers</h3>
             </div>
-            <p class="nsaa-muted small mb-3">Create the first ticket type with this event. You can add VIP, group, or extra tiers after the draft is saved.</p>
-            <div class="row g-3">
-              <div class="col-md-5">
-                <label class="form-label nsaa-muted small" for="starter-ticket-name">Ticket name</label>
-                <input id="starter-ticket-name" class="form-control form-control-nsaa" type="text" value="Regular" required />
-              </div>
-              <div class="col-md-3">
-                <label class="form-label nsaa-muted small" for="starter-ticket-price">Price GHS</label>
-                <input id="starter-ticket-price" class="form-control form-control-nsaa" type="number" min="0" step="0.01" placeholder="80" required />
-              </div>
-              <div class="col-md-4">
-                <label class="form-label nsaa-muted small" for="starter-ticket-quantity">Quantity</label>
-                <input id="starter-ticket-quantity" class="form-control form-control-nsaa" type="number" min="1" placeholder="100" required />
-              </div>
+            <p class="nsaa-muted small mb-3">Add the Standard, VIP, table, early-bird, or group tiers before the event draft is created.</p>
+            <div id="ticket-tier-list" class="d-grid gap-2">
+              ${ticketTierInputRowHtml({ name: "Standard" }, 0)}
             </div>
+            <button id="add-ticket-tier" class="btn btn-outline-nsaa btn-sm mt-3" type="button">
+              <i class="ph ph-plus" aria-hidden="true"></i>
+              Add ticket tier
+            </button>
           </section>
         `;
       }
@@ -178,8 +197,22 @@
               <input id="ef-starts" class="form-control form-control-nsaa" type="datetime-local" value="${startsAtValue}" required />
             </div>
             <div class="col-md-6">
-              <label class="form-label nsaa-muted small" for="ef-image">Hero image URL optional</label>
+              <label class="form-label nsaa-muted small" for="ef-image-file">Event thumbnail upload optional</label>
+              <input id="ef-image-file" class="form-control form-control-nsaa" type="file" accept="image/png,image/jpeg,image/webp" />
+              <p class="nsaa-faint small mt-1 mb-0">JPG, PNG, or WebP up to 5 MB.</p>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label nsaa-muted small" for="ef-image">Or paste image URL</label>
               <input id="ef-image" class="form-control form-control-nsaa" type="url" value="${NSAA.escapeAttr(event?.heroImageUrl || "")}" placeholder="https://..." />
+            </div>
+            <div class="col-12">
+              <div id="hero-image-preview" class="nsaa-upload-preview ${event?.heroImageUrl ? "" : "d-none"}">
+                <div id="hero-image-preview-media" class="nsaa-upload-preview-media" style="${event?.heroImageUrl ? `background-image: url('${NSAA.escapeAttr(event.heroImageUrl)}');` : ""}"></div>
+                <div>
+                  <p id="hero-image-preview-title" class="fw-semibold mb-1">${event?.heroImageUrl ? "Current event thumbnail" : "Event thumbnail preview"}</p>
+                  <p class="nsaa-muted small mb-0">This image appears on event cards and the public event page.</p>
+                </div>
+              </div>
             </div>
             <div class="col-md-6">
               <label class="form-label nsaa-muted small" for="ef-organizer-name">Organizer display name</label>
@@ -191,7 +224,7 @@
             </div>
           </div>
           </section>
-          ${event ? "" : starterTicketSetupHtml()}
+          ${event ? "" : ticketTierSetupHtml()}
           <div id="event-form-result" class="mt-3"></div>
           <button id="event-form-submit" class="btn btn-nsaa mt-4" type="submit">
             ${event ? "Save changes" : "Create event"}
@@ -498,6 +531,70 @@
         select.innerHTML = `<option value="">Not specified</option>${NSAA.ageRatingOptionsHtml(selected)}`;
       }
 
+      const MAX_HERO_IMAGE_BYTES = 5 * 1024 * 1024;
+      let heroPreviewObjectUrl = null;
+
+      function setHeroImagePreview(src, label) {
+        const preview = document.getElementById("hero-image-preview");
+        const media = document.getElementById("hero-image-preview-media");
+        const title = document.getElementById("hero-image-preview-title");
+        if (!preview || !media || !title) return;
+
+        if (!src) {
+          preview.classList.add("d-none");
+          media.style.backgroundImage = "";
+          title.textContent = "Event thumbnail preview";
+          return;
+        }
+
+        media.style.backgroundImage = `url('${src.replace(/'/g, "\\'")}')`;
+        title.textContent = label;
+        preview.classList.remove("d-none");
+      }
+
+      function validateHeroImageFile(file) {
+        if (!file) return;
+        if (!file.type.startsWith("image/")) {
+          throw new Error("Upload a JPG, PNG, or WebP image for the event thumbnail.");
+        }
+        if (file.size > MAX_HERO_IMAGE_BYTES) {
+          throw new Error("Event thumbnail must be 5 MB or smaller.");
+        }
+      }
+
+      function bindHeroImageControls() {
+        const fileInput = document.getElementById("ef-image-file");
+        const urlInput = document.getElementById("ef-image");
+        if (!fileInput || !urlInput) return;
+
+        fileInput.addEventListener("change", () => {
+          const file = fileInput.files?.[0];
+          if (heroPreviewObjectUrl) {
+            URL.revokeObjectURL(heroPreviewObjectUrl);
+            heroPreviewObjectUrl = null;
+          }
+          if (!file) {
+            setHeroImagePreview(urlInput.value.trim(), "Event thumbnail from URL");
+            return;
+          }
+          try {
+            validateHeroImageFile(file);
+            heroPreviewObjectUrl = URL.createObjectURL(file);
+            setHeroImagePreview(heroPreviewObjectUrl, file.name);
+          } catch (err) {
+            fileInput.value = "";
+            setHeroImagePreview(urlInput.value.trim(), "Event thumbnail from URL");
+            document.getElementById("event-form-result").innerHTML =
+              NSAA.errorState("Check event thumbnail", err.message || "Choose a valid image.");
+          }
+        });
+
+        urlInput.addEventListener("input", () => {
+          if (fileInput.files?.[0]) return;
+          setHeroImagePreview(urlInput.value.trim(), "Event thumbnail from URL");
+        });
+      }
+
       function readEventForm() {
         return {
           title: document.getElementById("ef-title").value.trim(),
@@ -515,16 +612,84 @@
         };
       }
 
-      function readStarterTicketForm() {
-        const nameEl = document.getElementById("starter-ticket-name");
-        const priceEl = document.getElementById("starter-ticket-price");
-        const quantityEl = document.getElementById("starter-ticket-quantity");
-        if (!nameEl || !priceEl || !quantityEl) return null;
-        return {
-          name: nameEl.value.trim(),
-          priceGHS: Number(priceEl.value),
-          quantityTotal: Number(quantityEl.value),
-        };
+      function bindTicketTierBuilder() {
+        const list = document.getElementById("ticket-tier-list");
+        const addButton = document.getElementById("add-ticket-tier");
+        if (!list || !addButton) return;
+
+        let nextIndex = list.querySelectorAll("[data-ticket-tier-row]").length;
+
+        function syncRemoveButtons() {
+          const rows = list.querySelectorAll("[data-ticket-tier-row]");
+          rows.forEach((row) => {
+            const button = row.querySelector(".remove-ticket-tier");
+            if (button) button.disabled = rows.length === 1;
+          });
+        }
+
+        addButton.addEventListener("click", () => {
+          const defaults = ["VIP", "Table", "Early bird", "Group"];
+          const tierName = defaults[(nextIndex - 1) % defaults.length];
+          list.insertAdjacentHTML("beforeend", ticketTierInputRowHtml({ name: tierName }, nextIndex));
+          nextIndex += 1;
+          syncRemoveButtons();
+          list.querySelector("[data-ticket-tier-row]:last-child .ticket-tier-name")?.focus();
+        });
+
+        list.addEventListener("click", (event) => {
+          const button = event.target.closest(".remove-ticket-tier");
+          if (!button) return;
+          const rows = list.querySelectorAll("[data-ticket-tier-row]");
+          if (rows.length === 1) return;
+          button.closest("[data-ticket-tier-row]")?.remove();
+          syncRemoveButtons();
+        });
+
+        syncRemoveButtons();
+      }
+
+      function readTicketTypesForm() {
+        return Array.from(document.querySelectorAll("[data-ticket-tier-row]")).map((row) => ({
+          name: row.querySelector(".ticket-tier-name").value.trim(),
+          priceGHS: Number(row.querySelector(".ticket-tier-price").value),
+          quantityTotal: Number(row.querySelector(".ticket-tier-quantity").value),
+        }));
+      }
+
+      function ticketTypesValidationMessage(ticketTypes) {
+        if (!ticketTypes.length) return "Add at least one ticket tier.";
+        if (ticketTypes.length > 12) return "Create no more than 12 ticket tiers at a time.";
+        const invalid = ticketTypes.find(
+          (ticketType) =>
+            !ticketType.name ||
+            Number.isNaN(ticketType.priceGHS) ||
+            ticketType.priceGHS < 0 ||
+            !Number.isInteger(ticketType.quantityTotal) ||
+            ticketType.quantityTotal < 1,
+        );
+        if (invalid) {
+          return "Each ticket tier needs a name, a price of 0 or more, and a whole-number quantity of at least 1.";
+        }
+        return "";
+      }
+
+      async function heroImageUrlForSave(client) {
+        const fileInput = document.getElementById("ef-image-file");
+        const urlInput = document.getElementById("ef-image");
+        const file = fileInput?.files?.[0];
+        if (!file) return urlInput.value.trim() || undefined;
+
+        validateHeroImageFile(file);
+        const uploadUrl = await client.mutation("events:generateHeroImageUploadUrl", {});
+        const response = await fetch(uploadUrl, {
+          method: "POST",
+          headers: { "Content-Type": file.type },
+          body: file,
+        });
+        if (!response.ok) throw new Error("Could not upload the event thumbnail.");
+
+        const { storageId } = await response.json();
+        return await client.mutation("events:resolveHeroImageUpload", { storageId });
       }
 
       const PLAN_OPTIONS = [
@@ -585,6 +750,8 @@
         populateCategorySelect(existingEvent?.category);
         populateCitySelect(existingEvent?.city);
         populateAgeSelect(existingEvent?.ageRating);
+        bindHeroImageControls();
+        if (!isEditing) bindTicketTierBuilder();
 
         const form = document.getElementById("event-form");
         const resultEl = document.getElementById("event-form-result");
@@ -594,7 +761,7 @@
           evt.preventDefault();
           resultEl.innerHTML = "";
           const fields = readEventForm();
-          const starterTicket = isEditing ? null : readStarterTicketForm();
+          const ticketTypes = isEditing ? [] : readTicketTypesForm();
 
           if (!fields.title || !fields.description || !fields.venue || !fields.city || !fields.address || !fields.organizerName || !fields.startsAt || Number.isNaN(fields.startsAt)) {
             resultEl.innerHTML = NSAA.errorState(
@@ -604,10 +771,11 @@
             return;
           }
 
-          if (!isEditing && (!starterTicket || !starterTicket.name || Number.isNaN(starterTicket.priceGHS) || starterTicket.priceGHS < 0 || !Number.isInteger(starterTicket.quantityTotal) || starterTicket.quantityTotal < 1)) {
+          const ticketTypeError = isEditing ? "" : ticketTypesValidationMessage(ticketTypes);
+          if (ticketTypeError) {
             resultEl.innerHTML = NSAA.errorState(
-              "Check ticket setup",
-              "Create Event needs a starter ticket name, a price of 0 or more, and a whole-number quantity of at least 1.",
+              "Check ticket tiers",
+              ticketTypeError,
             );
             return;
           }
@@ -615,19 +783,21 @@
           submitBtn.disabled = true;
           submitBtn.textContent = "Saving...";
           try {
+            const heroImageUrl = await heroImageUrlForSave(client);
+            const eventFields = { ...fields, heroImageUrl };
             if (isEditing) {
               await client.mutation("events:updateEvent", {
                 eventId: existingEvent._id,
-                ...fields,
+                ...eventFields,
               });
               resultEl.innerHTML = `<div class="nsaa-status-box success"><p class="fw-semibold mb-1">Saved</p><p class="mb-0">Your event details were updated.</p></div>`;
             } else {
               const selectedTier =
                 document.querySelector('input[name="plan-tier"]:checked')?.value || "essential";
               await client.mutation("events:setOrganizerTier", { tier: selectedTier });
-              const newId = await client.mutation("events:createEventWithStarterTicket", {
-                ...fields,
-                starterTicket,
+              const newId = await client.mutation("events:createEventWithTicketTypes", {
+                ...eventFields,
+                ticketTypes,
               });
               window.location.href = `/organizer-dashboard?eventId=${encodeURIComponent(newId)}`;
               return;

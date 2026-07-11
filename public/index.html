@@ -189,7 +189,7 @@
               </div>
               <a
                 class="btn btn-nsaa align-self-md-end"
-                href="/organizer-inquiry"
+                href="/organizer-inquiry#organizer-inquiry-form"
                 >List your event</a
               >
             </div>
@@ -420,7 +420,7 @@
           : "Built for the whole calendar.";
 
         if (list.length === 0) {
-          resultsEl.innerHTML = `<div class="col-12">${NSAA.emptyState("No matching events", "Try a different category, city, keyword, or date range.", '<a class="btn btn-nsaa" href="/organizer-inquiry">Bring an event to Nsaa</a>')}</div>`;
+          resultsEl.innerHTML = `<div class="col-12">${NSAA.emptyState("No matching events", "Try a different category, city, keyword, or date range.", '<a class="btn btn-nsaa" href="/organizer-inquiry#organizer-inquiry-form">Bring an event to Nsaa</a>')}</div>`;
           paginationEl.innerHTML = "";
           return;
         }

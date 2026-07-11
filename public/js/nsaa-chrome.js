@@ -54,7 +54,7 @@ function footerHtml() {
               <li><a href="/" class="nsaa-muted text-decoration-none">Browse events</a></li>
               <li><a href="/venues" class="nsaa-muted text-decoration-none">Venues</a></li>
               <li><a href="/organizers" class="nsaa-muted text-decoration-none">Organizers</a></li>
-              <li><a href="/organizer-inquiry" class="nsaa-muted text-decoration-none">List an event</a></li>
+              <li><a href="/organizer-inquiry#organizer-inquiry-form" class="nsaa-muted text-decoration-none">List an event</a></li>
             </ul>
           </div>
           <div class="col-6 col-lg-2">
@@ -100,7 +100,7 @@ function navLinksHtml(context, showSwitcher) {
     `<a href="/" class="nsaa-nav-link">Browse</a>`,
     `<a href="/venues" class="nsaa-nav-link">Venues</a>`,
     `<a href="/organizers" class="nsaa-nav-link">Organizers</a>`,
-    `<a href="/organizer-inquiry" class="nsaa-nav-link nsaa-nav-link--cta">Sell tickets</a>`,
+    `<a href="/organizer-inquiry#organizer-inquiry-form" class="nsaa-nav-link nsaa-nav-link--cta">Sell tickets</a>`,
   ];
 
   if (context === "organizer") {
@@ -152,7 +152,13 @@ function navShellHtml() {
 function highlightActiveLink(linksRoot) {
   const active = activePageForNav();
   linksRoot.querySelectorAll(".nsaa-nav-link[href]").forEach((link) => {
-    const isActive = link.getAttribute("href") === active;
+    let linkPath = link.getAttribute("href");
+    try {
+      linkPath = new URL(linkPath, window.location.origin).pathname;
+    } catch (_err) {
+      linkPath = link.getAttribute("href");
+    }
+    const isActive = linkPath === active;
     link.classList.toggle("active", isActive);
     if (isActive) {
       link.setAttribute("aria-current", "page");

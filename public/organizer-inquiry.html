@@ -30,8 +30,8 @@
             nightlife.
           </p>
           <div class="d-grid d-sm-flex gap-2 mb-4">
-            <a class="btn btn-nsaa" href="/organizer-dashboard?new=1">Create first event</a>
-            <a class="btn btn-nsaa" href="#organizer-inquiry-form">Talk to Nsaa</a>
+            <a class="btn btn-nsaa" href="#organizer-inquiry-form">Start organizer signup</a>
+            <a class="btn btn-nsaa" href="/organizer-dashboard">Organizer dashboard</a>
           </div>
           <div class="row g-3">
             <div class="col-sm-6">
@@ -53,7 +53,7 @@
           </div>
         </section>
 
-        <section class="col-lg-7" id="organizer-inquiry-form">
+        <section class="col-lg-7" id="organizer-inquiry-form" style="scroll-margin-top: 96px;">
           <div class="nsaa-panel">
             <h2 class="h3 mb-2">Organizer signup</h2>
             <p class="nsaa-muted mb-4">
@@ -239,6 +239,13 @@
       const resultEl = document.getElementById("form-result");
       const submitBtn = document.getElementById("submit-btn");
 
+      if (window.location.hash === "#organizer-inquiry-form") {
+        requestAnimationFrame(() => {
+          document.getElementById("organizer-inquiry-form")?.scrollIntoView({ block: "start" });
+          document.getElementById("organizer-name")?.focus({ preventScroll: true });
+        });
+      }
+
       if (!NSAA.isConvexConfigured()) {
         resultEl.innerHTML = NSAA.errorState(
           "Setup needed",
@@ -355,7 +362,8 @@
             resultEl.innerHTML = `
             <div class="nsaa-status-box success">
               <p class="fw-semibold mb-1">Signup received</p>
-              <p class="mb-0">The Nsaa team has your organizer details for follow-up. Ready to list it yourself instead? <a href="/organizer-dashboard">Open your organizer dashboard</a>.</p>
+              <p class="mb-3">The Nsaa team has your organizer details for follow-up. Continue to your dashboard when you are ready to create the event.</p>
+              <a class="btn btn-nsaa" href="/organizer-dashboard">Continue to dashboard</a>
             </div>
           `;
           } catch (err) {

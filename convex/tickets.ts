@@ -4,7 +4,7 @@ import { internal } from "./_generated/api";
 import { requireAdminSecret } from "./admin";
 import { rateLimiter } from "./rateLimit";
 import { requireNonEmpty } from "./validation";
-import { Doc } from "./_generated/dataModel";
+import { Doc, Id } from "./_generated/dataModel";
 
 // --- Signed QR token ---
 // A ticket's QR encodes: ticketId.expiryUnixMs.signature
@@ -342,7 +342,7 @@ export const validateScan = mutation({
       return await reject("Ticket expired");
     }
 
-    const ticket = await ctx.db.get(ticketId as any);
+    const ticket = await ctx.db.get(ticketId as Id<"tickets">);
     if (!ticket) {
       return await reject("Ticket not found");
     }

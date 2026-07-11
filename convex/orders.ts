@@ -1,4 +1,4 @@
-import { mutation, query, internalMutation, action } from "./_generated/server";
+import { mutation, query, internalMutation, internalQuery, action } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { feePercentForTier } from "./events";
@@ -381,7 +381,7 @@ export const initiateCardPayment = action({
   },
 });
 
-export const getOrderInternal = query({
+export const getOrderInternal = internalQuery({
   args: { orderId: v.id("orders") },
   handler: async (ctx, { orderId }) => {
     return await ctx.db.get(orderId);

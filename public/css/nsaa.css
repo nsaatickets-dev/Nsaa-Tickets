@@ -1099,6 +1099,38 @@ a:hover {
   padding: 1rem 1.25rem;
 }
 
+.nsaa-ticket-tier-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(8rem, 0.8fr) minmax(8rem, 0.8fr) auto;
+  gap: 0.75rem;
+  align-items: end;
+  padding: 0.9rem;
+  background: rgba(36, 31, 26, 0.03);
+  border: 1px solid var(--nsaa-border);
+  border-radius: 4px;
+}
+
+.nsaa-upload-preview {
+  display: grid;
+  grid-template-columns: 7rem minmax(0, 1fr);
+  gap: 1rem;
+  align-items: center;
+  padding: 0.9rem;
+  background: rgba(36, 31, 26, 0.03);
+  border: 1px solid var(--nsaa-border);
+  border-radius: 4px;
+}
+
+.nsaa-upload-preview-media {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  background-color: var(--nsaa-paper-soft);
+  background-position: center;
+  background-size: cover;
+  border: 1px solid var(--nsaa-border);
+  border-radius: 4px;
+}
+
 .nsaa-event-detail-hero {
   min-height: 48vh;
   display: flex;
@@ -1783,5 +1815,24 @@ a:hover {
 
   .nsaa-navbar .nsaa-nav-links .nsaa-nav-sep {
     background: rgba(36, 31, 26, 0.14);
+  }
+}
+
+@media (max-width: 767.98px) {
+  .nsaa-ticket-tier-row {
+    grid-template-columns: 1fr;
+  }
+
+  .nsaa-ticket-tier-row .remove-ticket-tier {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .nsaa-upload-preview {
+    grid-template-columns: 1fr;
+  }
+
+  .nsaa-upload-preview-media {
+    max-width: 14rem;
   }
 }

@@ -60,6 +60,27 @@ export function feePercentForTier(
   return TIER_FEE_PERCENT[tier] ?? TIER_FEE_PERCENT.essential;
 }
 
+export const generateHeroImageUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Sign in required to upload an event image.");
+    return await ctx.storage.generateUploadUrl();
+  },
+});
+
+export const resolveHeroImageUpload = mutation({
+  args: { storageId: v.id("_storage") },
+  handler: async (ctx, { storageId }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Sign in required to upload an event image.");
+
+    const url = await ctx.storage.getUrl(storageId);
+    if (!url) throw new Error("Uploaded image could not be found.");
+    return url;
+  },
+});
+
 export const myOrganizerTier = query({
   args: {},
   handler: async (ctx) => {
@@ -731,6 +752,18 @@ interface RawEventFields {
   organizerPayoutPhone?: string;
 }
 
+const ticketTypeInput = {
+  name: v.string(),
+  priceGHS: v.number(),
+  quantityTotal: v.number(),
+};
+
+interface RawTicketTypeFields {
+  name: string;
+  priceGHS: number;
+  quantityTotal: number;
+}
+
 // Shared by createEvent/updateEvent - trims and length-bounds every
 // free-text field. Client-side forms already discourage garbage input,
 // but that's UX only; this is the real gate, since these fields render
@@ -757,6 +790,27 @@ function sanitizeEventFields(fields: RawEventFields) {
   };
 }
 
+function sanitizeTicketTypeFields(ticketType: RawTicketTypeFields) {
+  return {
+    name: requireNonEmpty(ticketType.name, "Ticket type name", 80),
+    priceGHS: requirePositiveNumber(ticketType.priceGHS, "Price", 100_000),
+    quantityTotal: requirePositiveInteger(ticketType.quantityTotal, "Quantity", 100_000),
+    quantitySold: 0,
+    quantityReserved: 0,
+  };
+}
+
+function sanitizeTicketTypes(ticketTypes: RawTicketTypeFields[]) {
+  if (ticketTypes.length < 1) {
+    throw new Error("Add at least one ticket tier.");
+  }
+  if (ticketTypes.length > 12) {
+    throw new Error("Create no more than 12 ticket tiers at a time.");
+  }
+
+  return ticketTypes.map(sanitizeTicketTypeFields);
+}
+
 export const createEvent = mutation({
   args: eventFields,
   handler: async (ctx, args) => {
@@ -775,15 +829,12 @@ export const createEvent = mutation({
 export const createEventWithStarterTicket = mutation({
   args: {
     ...eventFields,
-    starterTicket: v.object({
-      name: v.string(),
-      priceGHS: v.number(),
-      quantityTotal: v.number(),
-    }),
+    starterTicket: v.object(ticketTypeInput),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Sign in required to create an event.");
+    const [starterTicket] = sanitizeTicketTypes([args.starterTicket]);
 
     const eventId = await ctx.db.insert("events", {
       ...sanitizeEventFields(args),
@@ -794,12 +845,36 @@ export const createEventWithStarterTicket = mutation({
 
     await ctx.db.insert("ticketTypes", {
       eventId,
-      name: requireNonEmpty(args.starterTicket.name, "Ticket type name", 80),
-      priceGHS: requirePositiveNumber(args.starterTicket.priceGHS, "Price", 100_000),
-      quantityTotal: requirePositiveInteger(args.starterTicket.quantityTotal, "Quantity", 100_000),
-      quantitySold: 0,
-      quantityReserved: 0,
+      ...starterTicket,
     });
+
+    return eventId;
+  },
+});
+
+export const createEventWithTicketTypes = mutation({
+  args: {
+    ...eventFields,
+    ticketTypes: v.array(v.object(ticketTypeInput)),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Sign in required to create an event.");
+    const ticketTypes = sanitizeTicketTypes(args.ticketTypes);
+
+    const eventId = await ctx.db.insert("events", {
+      ...sanitizeEventFields(args),
+      status: "draft",
+      organizerClerkUserId: identity.subject,
+      createdAt: Date.now(),
+    });
+
+    for (const ticketType of ticketTypes) {
+      await ctx.db.insert("ticketTypes", {
+        eventId,
+        ...ticketType,
+      });
+    }
 
     return eventId;
   },
@@ -835,13 +910,10 @@ export const createTicketType = mutation({
   },
   handler: async (ctx, args) => {
     await requireOwnedEvent(ctx, args.eventId);
+    const ticketType = sanitizeTicketTypeFields(args);
     return await ctx.db.insert("ticketTypes", {
       eventId: args.eventId,
-      name: requireNonEmpty(args.name, "Ticket type name", 80),
-      priceGHS: requirePositiveNumber(args.priceGHS, "Price", 100_000),
-      quantityTotal: requirePositiveInteger(args.quantityTotal, "Quantity", 100_000),
-      quantitySold: 0,
-      quantityReserved: 0,
+      ...ticketType,
     });
   },
 });
