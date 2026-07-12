@@ -10,15 +10,15 @@ import {
   requirePositiveInteger,
 } from "./validation";
 
-// Organizer pricing tiers, adapted from a competitor's public pricing
-// (egotickets.com/pricing: Free 0%, Essential 5%, Pro 7.5%) - kept
-// slightly below theirs per product decision. "custom" has no listed
-// rate; an admin sets customFeePercent per organizer via
-// setOrganizerTierAdmin, same "contact us" pattern as the reference.
+// Organizer pricing tiers. The self-serve rates are deliberately below
+// the common local 5% / 7.5% pattern so Nsaa stays visibly competitive
+// while keeping the fee model simple and transparent at checkout.
+// "custom" has no listed rate; an admin sets customFeePercent per
+// organizer via setOrganizerTierAdmin.
 export const TIER_FEE_PERCENT: Record<string, number> = {
   free: 0,
-  essential: 0.04,
-  pro: 0.065,
+  essential: 0.03,
+  pro: 0.05,
 };
 
 export function slugify(value: string): string {

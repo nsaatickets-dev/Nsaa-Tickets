@@ -26,7 +26,7 @@ function computeServiceFee(ticketSubtotalGHS: number, feePercent: number): numbe
 // from Ghana's published numbering-plan prefixes rather than asking the
 // buyer to pick their own network. Coverage is best-effort - carrier
 // number ranges have shifted with the AirtelTigo/Telecel rebrands, so
-// confirm against real numbers on each network during sandbox testing.
+// confirm against real numbers on each network before live rollout.
 // If Moolre routes to the wrong network the collection request itself
 // fails (returned as an error code, not a silent misfire), so a wrong
 // guess here surfaces as a retryable error, not a lost payment.
@@ -242,7 +242,7 @@ export const initiateMoolrePayment = action({
     // Verified against docs.moolre.com (Initiate Payment): POST
     // /open/transact/payment, X-API-USER + X-API-KEY headers, externalref
     // must be unique per attempt so we use the order id (confirmed by
-    // sandbox testing: resubmitting the same externalref with otpcode
+    // Moolre testing: resubmitting the same externalref with otpcode
     // does NOT hit the "must be unique" error - it's recognized as the
     // OTP retry for the same pending request). Moolre has no documented
     // per-request callback field - the webhook URL is registered once at
@@ -277,7 +277,7 @@ export const initiateMoolrePayment = action({
 
     const data = await response.json();
 
-    // TP14: confirmed via sandbox testing - Moolre texts a verification
+    // TP14: confirmed via Moolre testing - Moolre texts a verification
     // code directly to the buyer's phone and won't process the collection
     // until we resubmit this same request with that code as `otpcode`.
     // Not every account/channel triggers this; treat it as optional.
@@ -319,7 +319,7 @@ export const initiateMoolrePayment = action({
 // Confirmation still flows through the same webhook + status-check path
 // as MoMo (convex/moolre.ts:verifyAndProcessPayment) since it's the same
 // underlying externalref/order:<id> convention - this is untested against
-// a real card in sandbox yet, confirm the confirmation path fires before
+// a real card yet, confirm the confirmation path fires before
 // relying on it for real payments.
 export const initiateCardPayment = action({
   args: { orderId: v.id("orders") },

@@ -2,6 +2,39 @@
   const config = window.NSAA_CLERK_CONFIG ?? {};
   const publishableKey = String(config.publishableKey ?? "").trim();
   const frontendApiUrl = String(config.frontendApiUrl ?? "").trim();
+  const applicationName = String(config.applicationName ?? "Nsaa Tickets").trim() || "Nsaa Tickets";
+
+  const localization = {
+    signIn: {
+      alternativePhoneCodeProvider: {
+        title: `Sign in to ${applicationName}`,
+      },
+      emailCode: {
+        subtitle: `to continue to ${applicationName}`,
+      },
+      emailCodeMfa: {
+        subtitle: `to continue to ${applicationName}`,
+      },
+      emailLink: {
+        subtitle: `to continue to ${applicationName}`,
+      },
+      emailLinkMfa: {
+        subtitle: `to continue to ${applicationName}`,
+      },
+      start: {
+        title: `Sign in to ${applicationName}`,
+        titleCombined: `Continue to ${applicationName}`,
+      },
+    },
+    signUp: {
+      alternativePhoneCodeProvider: {
+        title: `Sign up to ${applicationName}`,
+      },
+      emailLink: {
+        subtitle: `to continue to ${applicationName}`,
+      },
+    },
+  };
 
   function normalizeFrontendApiUrl(value) {
     return value.replace(/^https?:\/\//, "").replace(/\/+$/, "");
@@ -61,6 +94,7 @@
     }
 
     await window.Clerk.load({
+      localization,
       ui: { ClerkUI: window.__internal_ClerkUICtor },
     });
 

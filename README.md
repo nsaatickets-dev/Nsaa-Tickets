@@ -41,10 +41,10 @@ Clerk, Convex, Brevo, and Moolre.
   links, poster QR codes, embed snippets, referral summaries, scanner
   staff tokens, and recent scan logs.
 - **Organizer pricing tiers** (`convex/events.ts`, `organizerProfiles`
-  table) - Free (0%), Essential (4%), Pro (6.5%) self-serve at event
+  table) - Free (0%), Essential (3%), Pro (5%) self-serve at event
   creation, plus an admin-only Custom tier with a per-organizer rate.
-  Adapted from a competitor's public pricing (egotickets.com/pricing),
-  kept slightly below theirs. `orders.ts` looks up the event's
+  Deliberately priced below the common local 5% / 7.5% pattern.
+  `orders.ts` looks up the event's
   organizer's tier when computing the checkout service fee - no tier on
   file (legacy/seeded events) falls back to the Essential rate. Fee is a
   pure percentage of ticket price with no flat add-on, and is never
