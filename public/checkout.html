@@ -225,7 +225,12 @@
                     <input id="otp-code" class="form-control form-control-nsaa" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="123456" />
                     <button id="otp-submit-btn" class="btn btn-nsaa" type="button">Verify</button>
                   </div>
-                  <p class="nsaa-faint small mt-2 mb-0">Moolre sent a verification code to your phone via SMS. Enter it above to continue.</p>
+                  <div class="d-flex flex-column flex-sm-row align-items-sm-center gap-2 mt-3">
+                    <button id="otp-resend-btn" class="btn btn-outline-nsaa btn-sm" type="button">
+                      Resend code
+                    </button>
+                    <p class="nsaa-faint small mb-0">No SMS yet? Confirm the network above, then resend the code.</p>
+                  </div>
                 </div>
               </div>
 
@@ -557,6 +562,7 @@
         const payBtn = document.getElementById("pay-btn");
         const otpStep = document.getElementById("otp-step");
         const otpSubmitBtn = document.getElementById("otp-submit-btn");
+        const otpResendBtn = document.getElementById("otp-resend-btn");
         const activeBtn = otpcode ? otpSubmitBtn : payBtn;
         activeBtn.disabled = true;
 
@@ -579,15 +585,17 @@
             otpStep.classList.remove("d-none");
             payBtn.disabled = true;
             otpSubmitBtn.disabled = false;
+            otpResendBtn.disabled = false;
             setPaymentState(
               "waiting",
               result.status === "otp_invalid" ? "Incorrect code" : "Enter verification code",
-              "Moolre sent a code to your phone via SMS. Enter it above to continue.",
+              "Moolre requires a phone verification code before sending the payment prompt. Enter the SMS code, or resend it if nothing arrives.",
             );
             return;
           }
 
           otpStep.classList.add("d-none");
+          otpResendBtn.disabled = true;
           setPaymentState(
             "waiting",
             "Waiting for confirmation",
@@ -602,6 +610,52 @@
           );
           payBtn.disabled = false;
           otpSubmitBtn.disabled = false;
+          otpResendBtn.disabled = false;
+        }
+      }
+
+      async function resendMoolreOtp() {
+        const otpResendBtn = document.getElementById("otp-resend-btn");
+        const payBtn = document.getElementById("pay-btn");
+        otpResendBtn.disabled = true;
+        if (payBtn) payBtn.disabled = true;
+
+        setPaymentState(
+          "waiting",
+          "Resending verification code",
+          "Asking Moolre to send the verification SMS again. Keep this page open.",
+        );
+
+        try {
+          const result = await client.action("orders:initiateMoolrePayment", {
+            orderId: currentOrderId,
+            channel: selectedMomoChannel,
+          });
+
+          if (result.status === "otp_required" || result.status === "otp_invalid") {
+            otpResendBtn.disabled = false;
+            document.getElementById("otp-submit-btn").disabled = false;
+            setPaymentState(
+              "waiting",
+              "Verification code required",
+              "If the SMS still does not arrive, confirm the number and network, then try card checkout or start a fresh checkout.",
+            );
+            return;
+          }
+
+          document.getElementById("otp-step").classList.add("d-none");
+          setPaymentState(
+            "waiting",
+            "Waiting for confirmation",
+            "Approve the prompt on your phone. Nsaa will move you to your tickets as soon as payment is confirmed.",
+          );
+        } catch (err) {
+          otpResendBtn.disabled = false;
+          setPaymentState(
+            "failed",
+            "Could not resend code",
+            err.message || "Please try again.",
+          );
         }
       }
 
@@ -614,6 +668,9 @@
           const code = document.getElementById("otp-code").value.trim();
           if (!code) return;
           await submitMoolrePayment(code);
+        }
+        if (target?.closest("#otp-resend-btn")) {
+          await resendMoolreOtp();
         }
         const cardButton = target?.closest("#pay-card-btn");
         if (cardButton) {

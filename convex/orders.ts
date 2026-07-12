@@ -287,9 +287,6 @@ export const initiateMoolrePayment = action({
     if (!otpcode && order.moolreStatus === "initiated") {
       return { status: "initiated" };
     }
-    if (!otpcode && order.moolreStatus === "otp_required") {
-      return { status: "otp_required" };
-    }
 
     // --- Moolre payment request ---
     // Verified against docs.moolre.com (Initiate Payment): POST
@@ -308,7 +305,8 @@ export const initiateMoolrePayment = action({
     // callback URL since Moolre registers one webhook per account, not
     // per transaction type.
     const externalref =
-      otpcode && order.moolreExternalRef
+      (otpcode || order.moolreStatus === "otp_required" || order.moolreStatus === "otp_invalid") &&
+      order.moolreExternalRef
         ? order.moolreExternalRef
         : `order:${order._id}:momo:${Date.now()}`;
 
