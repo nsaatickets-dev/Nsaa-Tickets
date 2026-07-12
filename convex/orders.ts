@@ -315,12 +315,16 @@ export const initiateMoolrePayment = action({
     }
 
     const accepted = response.ok && moolreAccepted(data);
+    const failureReason = accepted
+      ? undefined
+      : moolreMessage(data, "Payment could not be started. Please try again.");
 
     await ctx.runMutation(internal.orders.recordMoolreReference, {
       orderId,
       moolreReference:
         accepted && typeof data.data === "string" ? data.data : (data.code ?? "unknown"),
       moolreStatus: accepted ? "initiated" : "rejected",
+      moolreFailureReason: failureReason,
     });
 
     if (!accepted) {
@@ -328,7 +332,7 @@ export const initiateMoolrePayment = action({
       // externalref, wrong otpcode, etc). Fail fast rather than leaving
       // the buyer waiting on a webhook that will never arrive.
       await ctx.runMutation(internal.orders.markInitiationFailed, { orderId });
-      throw new Error(moolreMessage(data, "Payment could not be started. Please try again."));
+      throw new Error(failureReason!);
     }
 
     return { status: "initiated" };
@@ -382,22 +386,33 @@ export const initiateCardPayment = action({
 
     const data = await readMoolreJson(response);
     const accepted = response.ok && moolreAccepted(data);
+    const failureReason = accepted
+      ? undefined
+      : moolreMessage(data, "Card payment could not be started. Please try again.");
 
     await ctx.runMutation(internal.orders.recordMoolreReference, {
       orderId,
       moolreReference: accepted ? (data.data?.reference ?? "unknown") : (data.code ?? "unknown"),
       moolreStatus: accepted ? "initiated" : "rejected",
+      moolreFailureReason: failureReason,
     });
 
     if (!accepted) {
       await ctx.runMutation(internal.orders.markInitiationFailed, { orderId });
-      throw new Error(moolreMessage(data, "Card payment could not be started. Please try again."));
+      throw new Error(failureReason!);
     }
 
     const authorizationUrl = data.data?.authorization_url;
     if (!authorizationUrl) {
+      const reason = "Moolre did not return a checkout link.";
+      await ctx.runMutation(internal.orders.recordMoolreReference, {
+        orderId,
+        moolreReference: data.code ?? "unknown",
+        moolreStatus: "rejected",
+        moolreFailureReason: reason,
+      });
       await ctx.runMutation(internal.orders.markInitiationFailed, { orderId });
-      throw new Error("Moolre did not return a checkout link.");
+      throw new Error(reason);
     }
 
     return { authorizationUrl };
@@ -416,9 +431,10 @@ export const recordMoolreReference = internalMutation({
     orderId: v.id("orders"),
     moolreReference: v.string(),
     moolreStatus: v.string(),
+    moolreFailureReason: v.optional(v.string()),
   },
-  handler: async (ctx, { orderId, moolreReference, moolreStatus }) => {
-    await ctx.db.patch(orderId, { moolreReference, moolreStatus });
+  handler: async (ctx, { orderId, moolreReference, moolreStatus, moolreFailureReason }) => {
+    await ctx.db.patch(orderId, { moolreReference, moolreStatus, moolreFailureReason });
   },
 });
 

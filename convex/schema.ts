@@ -92,6 +92,12 @@ export default defineSchema({
 
     moolreReference: v.optional(v.string()), // Moolre's transaction id
     moolreStatus: v.optional(v.string()), // raw status from Moolre webhook
+    // Human-readable reason from Moolre's own response when a request is
+    // rejected at initiation (e.g. bad credentials, insufficient balance,
+    // unsupported channel) - moolreReference only holds a machine code in
+    // that case, so this is what lets the buyer/support see *why* instead
+    // of just a generic "payment did not start".
+    moolreFailureReason: v.optional(v.string()),
 
     createdAt: v.number(),
     paidAt: v.optional(v.number()),

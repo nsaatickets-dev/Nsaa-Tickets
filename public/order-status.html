@@ -57,7 +57,9 @@
           return {
             kind: "failed",
             title: "Payment did not start",
-            body: "No charge was made and no ticket was issued. Start a fresh checkout from the event page or contact support if this keeps happening.",
+            body: order.moolreFailureReason
+              ? `${order.moolreFailureReason} No charge was made and no ticket was issued.`
+              : "No charge was made and no ticket was issued. Start a fresh checkout from the event page or contact support if this keeps happening.",
             activeStep: 1,
           };
         }
