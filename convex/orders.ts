@@ -52,6 +52,50 @@ function detectMoolreChannel(phone: string): string {
   );
 }
 
+function resolveMoolreChannel(phone: string, explicitChannel?: string): string {
+  if (explicitChannel) {
+    const allowed = new Set(["13", "6", "7"]);
+    if (!allowed.has(explicitChannel)) {
+      throw new Error("Choose a valid Mobile Money network.");
+    }
+    return explicitChannel;
+  }
+  return detectMoolreChannel(phone);
+}
+
+function requireMoolreEnv(required: string[]): Record<string, string> {
+  const values: Record<string, string> = {};
+  const missing: string[] = [];
+
+  for (const name of required) {
+    const value = process.env[name]?.trim();
+    if (!value) {
+      missing.push(name);
+    } else {
+      values[name] = value;
+    }
+  }
+
+  if (missing.length > 0) {
+    throw new Error(
+      `Moolre live API is not fully configured. Missing: ${missing.join(", ")}.`,
+    );
+  }
+
+  const apiBase = values.MOOLRE_API_BASE;
+  if (apiBase && /sandbox/i.test(apiBase) && process.env.MOOLRE_ALLOW_SANDBOX !== "1") {
+    throw new Error(
+      "Moolre is pointing at the sandbox API. Set MOOLRE_API_BASE to https://api.moolre.com for live checkout.",
+    );
+  }
+
+  if (apiBase) {
+    values.MOOLRE_API_BASE = apiBase.replace(/\/+$/, "");
+  }
+
+  return values;
+}
+
 function moolreAccepted(data: any): boolean {
   return Number(data?.status) === 1 || String(data?.status ?? "").trim() === "1";
 }
@@ -251,14 +295,32 @@ export const getOrderSummary = query({
 // already-reserved order. Separated from createReservation so the UI
 // can show "reserved, now confirm payment" as a distinct step.
 export const initiateMoolrePayment = action({
-  args: { orderId: v.id("orders"), otpcode: v.optional(v.string()) },
-  handler: async (ctx, { orderId, otpcode }): Promise<{ status: string }> => {
+  args: {
+    orderId: v.id("orders"),
+    otpcode: v.optional(v.string()),
+    channel: v.optional(v.string()),
+  },
+  handler: async (ctx, { orderId, otpcode, channel }): Promise<{ status: string }> => {
     const order = await ctx.runQuery(internal.orders.getOrderInternal, {
       orderId,
     });
     if (!order) throw new Error("Order not found");
     if (order.status !== "reserved") {
       throw new Error(`Order is ${order.status}, cannot pay`);
+    }
+
+    const config = requireMoolreEnv([
+      "MOOLRE_API_BASE",
+      "MOOLRE_API_USER",
+      "MOOLRE_API_KEY",
+      "MOOLRE_ACCOUNT_NUMBER",
+    ]);
+
+    if (!otpcode && order.moolreStatus === "initiated") {
+      return { status: "initiated" };
+    }
+    if (!otpcode && order.moolreStatus === "otp_required") {
+      return { status: "otp_required" };
     }
 
     // --- Moolre payment request ---
@@ -272,28 +334,31 @@ export const initiateMoolrePayment = action({
     // the account level (Moolre dashboard settings, or POST
     // /open/account/update with a `callback` field) pointing at
     // https://<your-deployment>.convex.site/moolre/webhook.
-    const channel = detectMoolreChannel(order.buyerPhone);
+    const resolvedChannel = resolveMoolreChannel(order.buyerPhone, channel);
     // Prefixed so the shared webhook (convex/http.ts) can tell a customer
     // payment apart from an organizer payout - both land on the same
     // callback URL since Moolre registers one webhook per account, not
     // per transaction type.
-    const externalref = `order:${order._id}`;
+    const externalref =
+      otpcode && order.moolreExternalRef
+        ? order.moolreExternalRef
+        : `order:${order._id}:momo:${Date.now()}`;
 
-    const response = await fetch(`${process.env.MOOLRE_API_BASE}/open/transact/payment`, {
+    const response = await fetch(`${config.MOOLRE_API_BASE}/open/transact/payment`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-API-USER": process.env.MOOLRE_API_USER ?? "",
-        "X-API-KEY": process.env.MOOLRE_API_KEY ?? "",
+        "X-API-USER": config.MOOLRE_API_USER,
+        "X-API-KEY": config.MOOLRE_API_KEY,
       },
       body: JSON.stringify({
         type: 1,
-        channel,
+        channel: resolvedChannel,
         currency: "GHS",
         payer: order.buyerPhone,
         amount: String(order.totalGHS),
         externalref,
-        accountnumber: process.env.MOOLRE_ACCOUNT_NUMBER ?? "",
+        accountnumber: config.MOOLRE_ACCOUNT_NUMBER,
         ...(otpcode ? { otpcode } : {}),
       }),
     });
@@ -305,12 +370,25 @@ export const initiateMoolrePayment = action({
     // until we resubmit this same request with that code as `otpcode`.
     // Not every account/channel triggers this; treat it as optional.
     if (data.code === "TP14") {
+      await ctx.runMutation(internal.orders.recordMoolreReference, {
+        orderId,
+        moolreReference: String(data.data ?? data.code ?? "otp_required"),
+        moolreExternalRef: externalref,
+        moolreStatus: "otp_required",
+      });
       return { status: "otp_required" };
     }
 
     // TP15: wrong code, not a real failure - let the buyer retry entering
     // it rather than killing their reservation over a typo.
     if (data.code === "TP15") {
+      await ctx.runMutation(internal.orders.recordMoolreReference, {
+        orderId,
+        moolreReference: String(data.code),
+        moolreExternalRef: externalref,
+        moolreStatus: "otp_invalid",
+        moolreFailureReason: moolreMessage(data, "Incorrect verification code."),
+      });
       return { status: "otp_invalid" };
     }
 
@@ -323,15 +401,15 @@ export const initiateMoolrePayment = action({
       orderId,
       moolreReference:
         accepted && typeof data.data === "string" ? data.data : (data.code ?? "unknown"),
+      moolreExternalRef: externalref,
       moolreStatus: accepted ? "initiated" : "rejected",
       moolreFailureReason: failureReason,
     });
 
     if (!accepted) {
-      // Moolre rejected the request outright (bad number, duplicate
-      // externalref, wrong otpcode, etc). Fail fast rather than leaving
-      // the buyer waiting on a webhook that will never arrive.
-      await ctx.runMutation(internal.orders.markInitiationFailed, { orderId });
+      // Keep the reservation retryable until the hold naturally expires.
+      // Rejections here can be recoverable: the buyer can choose the right
+      // MoMo network, retry a transient processor error, or switch to card.
       throw new Error(failureReason!);
     }
 
@@ -349,8 +427,8 @@ export const initiateMoolrePayment = action({
 // a real card yet, confirm the confirmation path fires before
 // relying on it for real payments.
 export const initiateCardPayment = action({
-  args: { orderId: v.id("orders") },
-  handler: async (ctx, { orderId }): Promise<{ authorizationUrl: string }> => {
+  args: { orderId: v.id("orders"), returnUrl: v.optional(v.string()) },
+  handler: async (ctx, { orderId, returnUrl }): Promise<{ authorizationUrl: string }> => {
     const order = await ctx.runQuery(internal.orders.getOrderInternal, {
       orderId,
     });
@@ -359,15 +437,23 @@ export const initiateCardPayment = action({
       throw new Error(`Order is ${order.status}, cannot pay`);
     }
 
-    const externalref = `order:${order._id}`;
-    const siteUrl = process.env.CONVEX_SITE_URL ?? "";
+    const config = requireMoolreEnv([
+      "MOOLRE_API_BASE",
+      "MOOLRE_API_USER",
+      "MOOLRE_API_PUBKEY",
+      "MOOLRE_ACCOUNT_NUMBER",
+    ]);
 
-    const response = await fetch(`${process.env.MOOLRE_API_BASE}/embed/link`, {
+    const externalref = `order:${order._id}:card:${Date.now()}`;
+    const siteUrl = process.env.CONVEX_SITE_URL ?? "";
+    const callback = siteUrl ? `${siteUrl.replace(/\/+$/, "")}/moolre/webhook` : undefined;
+
+    const response = await fetch(`${config.MOOLRE_API_BASE}/embed/link`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-API-USER": process.env.MOOLRE_API_USER ?? "",
-        "X-API-PUBKEY": process.env.MOOLRE_API_PUBKEY ?? "",
+        "X-API-USER": config.MOOLRE_API_USER,
+        "X-API-PUBKEY": config.MOOLRE_API_PUBKEY,
       },
       body: JSON.stringify({
         type: 1,
@@ -379,8 +465,9 @@ export const initiateCardPayment = action({
         externalref,
         reusable: 0,
         currency: "GHS",
-        accountnumber: process.env.MOOLRE_ACCOUNT_NUMBER ?? "",
-        redirect: siteUrl ? `${siteUrl}/order-status?orderId=${order._id}` : undefined,
+        accountnumber: config.MOOLRE_ACCOUNT_NUMBER,
+        callback,
+        redirect: returnUrl,
       }),
     });
 
@@ -393,12 +480,12 @@ export const initiateCardPayment = action({
     await ctx.runMutation(internal.orders.recordMoolreReference, {
       orderId,
       moolreReference: accepted ? (data.data?.reference ?? "unknown") : (data.code ?? "unknown"),
+      moolreExternalRef: externalref,
       moolreStatus: accepted ? "initiated" : "rejected",
       moolreFailureReason: failureReason,
     });
 
     if (!accepted) {
-      await ctx.runMutation(internal.orders.markInitiationFailed, { orderId });
       throw new Error(failureReason!);
     }
 
@@ -408,10 +495,10 @@ export const initiateCardPayment = action({
       await ctx.runMutation(internal.orders.recordMoolreReference, {
         orderId,
         moolreReference: data.code ?? "unknown",
+        moolreExternalRef: externalref,
         moolreStatus: "rejected",
         moolreFailureReason: reason,
       });
-      await ctx.runMutation(internal.orders.markInitiationFailed, { orderId });
       throw new Error(reason);
     }
 
@@ -430,11 +517,20 @@ export const recordMoolreReference = internalMutation({
   args: {
     orderId: v.id("orders"),
     moolreReference: v.string(),
+    moolreExternalRef: v.optional(v.string()),
     moolreStatus: v.string(),
     moolreFailureReason: v.optional(v.string()),
   },
-  handler: async (ctx, { orderId, moolreReference, moolreStatus, moolreFailureReason }) => {
-    await ctx.db.patch(orderId, { moolreReference, moolreStatus, moolreFailureReason });
+  handler: async (
+    ctx,
+    { orderId, moolreReference, moolreExternalRef, moolreStatus, moolreFailureReason },
+  ) => {
+    await ctx.db.patch(orderId, {
+      moolreReference,
+      ...(moolreExternalRef ? { moolreExternalRef } : {}),
+      moolreStatus,
+      moolreFailureReason,
+    });
   },
 });
 

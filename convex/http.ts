@@ -35,9 +35,7 @@ http.route({
       return new Response("Missing data.externalref", { status: 400 });
     }
 
-    const separatorIndex = externalref.indexOf(":");
-    const prefix = separatorIndex === -1 ? "" : externalref.slice(0, separatorIndex);
-    const id = separatorIndex === -1 ? "" : externalref.slice(separatorIndex + 1);
+    const [prefix = "", id = ""] = externalref.split(":");
 
     if (prefix === "order" && id) {
       await ctx.runAction(internal.moolre.verifyAndProcessPayment, {

@@ -91,6 +91,7 @@ export default defineSchema({
     reservedUntil: v.number(), // unix ms - scheduled function sweeps past this
 
     moolreReference: v.optional(v.string()), // Moolre's transaction id
+    moolreExternalRef: v.optional(v.string()), // exact externalref sent to Moolre for the active attempt
     moolreStatus: v.optional(v.string()), // raw status from Moolre webhook
     // Human-readable reason from Moolre's own response when a request is
     // rejected at initiation (e.g. bad credentials, insufficient balance,

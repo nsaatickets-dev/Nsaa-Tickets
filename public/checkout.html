@@ -58,6 +58,7 @@
       let reservedUntil = null;
       let reservationTimer = null;
       let selectedPaymentMethod = "momo";
+      let selectedMomoChannel = "13";
 
       function serviceFee(subtotal) {
         return Math.round(subtotal * 0.035 * 100) / 100;
@@ -191,6 +192,16 @@
                     </span>
                     <span class="nsaa-payment-method-check"><i class="ph ph-check" aria-hidden="true"></i></span>
                   </button>
+                </div>
+
+                <div id="momo-network-panel" class="nsaa-soft-panel p-3 mb-3">
+                  <label class="form-label nsaa-muted small" for="momo-channel">Mobile Money network</label>
+                  <select id="momo-channel" class="form-select form-select-nsaa">
+                    <option value="13">MTN Mobile Money</option>
+                    <option value="6">Telecel Cash</option>
+                    <option value="7">AirtelTigo Money</option>
+                  </select>
+                  <p class="nsaa-faint small mt-2 mb-0">Choose the network that owns the number receiving the prompt.</p>
                 </div>
 
                 <div class="nsaa-payment-actions">
@@ -335,8 +346,10 @@
         const payBtn = document.getElementById("pay-btn");
         const cardBtn = document.getElementById("pay-card-btn");
         const otpStep = document.getElementById("otp-step");
+        const momoNetworkPanel = document.getElementById("momo-network-panel");
         if (payBtn) payBtn.classList.toggle("d-none", selectedPaymentMethod !== "momo");
         if (cardBtn) cardBtn.classList.toggle("d-none", selectedPaymentMethod !== "card");
+        if (momoNetworkPanel) momoNetworkPanel.classList.toggle("d-none", selectedPaymentMethod !== "momo");
         if (otpStep && selectedPaymentMethod === "card") {
           otpStep.classList.add("d-none");
         }
@@ -373,6 +386,20 @@
             setSelectedPaymentMethod(button.getAttribute("data-payment-method"));
           });
         });
+
+        document.getElementById("momo-channel")?.addEventListener("change", (event) => {
+          selectedMomoChannel = event.target.value;
+        });
+      }
+
+      function inferMomoChannel(phone) {
+        const clean = String(phone || "").replace(/[\s\-\+\(\)]/g, "");
+        const local = clean.startsWith("233") ? `0${clean.slice(3)}` : clean;
+        const prefix = local.slice(0, 3);
+        if (["024", "025", "053", "054", "055", "059"].includes(prefix)) return "13";
+        if (["020", "030", "050"].includes(prefix)) return "6";
+        if (["026", "027", "028", "056", "057"].includes(prefix)) return "7";
+        return "13";
       }
 
       async function reserveOrder(event) {
@@ -450,6 +477,7 @@
 
           currentOrderId = result.orderId;
           reservedUntil = result.reservedUntil;
+          selectedMomoChannel = inferMomoChannel(buyerPhone);
           window.localStorage.setItem("nsaa:lastOrderId", currentOrderId);
           showPaymentStep();
         } catch (err) {
@@ -469,6 +497,8 @@
         document.getElementById("checkout-progress-details")?.classList.add("complete");
         document.getElementById("checkout-progress-payment")?.classList.add("active");
         startReservationCountdown(reservedUntil);
+        const momoChannelEl = document.getElementById("momo-channel");
+        if (momoChannelEl) momoChannelEl.value = selectedMomoChannel;
         document.getElementById("status-link").href =
           `/order-status?orderId=${encodeURIComponent(currentOrderId)}`;
         setSelectedPaymentMethod(selectedPaymentMethod);
@@ -541,6 +571,7 @@
         try {
           const result = await client.action("orders:initiateMoolrePayment", {
             orderId: currentOrderId,
+            channel: selectedMomoChannel,
             ...(otpcode ? { otpcode } : {}),
           });
 
@@ -597,6 +628,7 @@
           try {
             const result = await client.action("orders:initiateCardPayment", {
               orderId: currentOrderId,
+              returnUrl: `${window.location.origin}/order-status?orderId=${encodeURIComponent(currentOrderId)}`,
             });
             window.location.href = result.authorizationUrl;
           } catch (err) {

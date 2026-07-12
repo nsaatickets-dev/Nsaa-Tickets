@@ -9,6 +9,32 @@ function isMoolreSuccess(value: unknown): boolean {
   return Number(value) === 1 || String(value ?? "").trim() === "1";
 }
 
+function requireMoolreStatusEnv() {
+  const required = [
+    "MOOLRE_API_BASE",
+    "MOOLRE_API_USER",
+    "MOOLRE_API_PUBKEY",
+    "MOOLRE_ACCOUNT_NUMBER",
+  ];
+  const values: Record<string, string> = {};
+  const missing = required.filter((name) => {
+    const value = process.env[name]?.trim();
+    if (value) values[name] = value;
+    return !value;
+  });
+
+  if (missing.length > 0) {
+    throw new Error(`Missing Moolre status configuration: ${missing.join(", ")}`);
+  }
+
+  if (/sandbox/i.test(values.MOOLRE_API_BASE) && process.env.MOOLRE_ALLOW_SANDBOX !== "1") {
+    throw new Error("Moolre status check is pointing at sandbox, not live API.");
+  }
+
+  values.MOOLRE_API_BASE = values.MOOLRE_API_BASE.replace(/\/+$/, "");
+  return values;
+}
+
 // Called from convex/http.ts when Moolre POSTs to our webhook, after it
 // has already parsed the `order:<id>` prefix off data.externalref.
 //
@@ -26,18 +52,19 @@ export const verifyAndProcessPayment = internalAction({
     let transactionId: string | undefined;
 
     try {
-      const response = await fetch(`${process.env.MOOLRE_API_BASE}/open/transact/status`, {
+      const config = requireMoolreStatusEnv();
+      const response = await fetch(`${config.MOOLRE_API_BASE}/open/transact/status`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-API-USER": process.env.MOOLRE_API_USER ?? "",
-          "X-API-PUBKEY": process.env.MOOLRE_API_PUBKEY ?? "",
+          "X-API-USER": config.MOOLRE_API_USER,
+          "X-API-PUBKEY": config.MOOLRE_API_PUBKEY,
         },
         body: JSON.stringify({
           type: 1,
           idtype: "1",
           id: externalref,
-          accountnumber: process.env.MOOLRE_ACCOUNT_NUMBER ?? "",
+          accountnumber: config.MOOLRE_ACCOUNT_NUMBER,
         }),
       });
       const payload = await response.json();
