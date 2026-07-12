@@ -27,12 +27,15 @@
           <p class="nsaa-eyebrow mb-2">Dashboard</p>
           <h1 class="nsaa-section-title mb-0">Your events</h1>
         </div>
-        <a
-          id="new-event-btn"
-          class="btn btn-nsaa align-self-md-end"
-          href="/organizer-dashboard?new=1"
-          >New event</a
-        >
+        <div class="d-flex align-items-center gap-2 align-self-md-end">
+          <div id="organizer-avatar-slot"></div>
+          <a
+            id="new-event-btn"
+            class="btn btn-nsaa"
+            href="/organizer-dashboard?new=1"
+            >New event</a
+          >
+        </div>
       </div>
       <div id="dashboard-root"></div>
     </main>
@@ -51,6 +54,27 @@
       const eventId = params.get("eventId");
       const isNew = params.has("new");
       let clerk = null;
+
+      function renderOrganizerAvatar() {
+        const slot = document.getElementById("organizer-avatar-slot");
+        const user = clerk?.user;
+        if (!slot || !user) {
+          if (slot) slot.innerHTML = "";
+          return;
+        }
+
+        const name = user.fullName || user.firstName || "Organizer";
+        const email = user.primaryEmailAddress?.emailAddress || "";
+        slot.innerHTML = `
+          <div class="nsaa-organizer-avatar" title="${NSAA.escapeAttr(name)}">
+            <img src="${NSAA.escapeAttr(user.imageUrl)}" alt="${NSAA.escapeAttr(name)}" />
+            <span>
+              <strong>${NSAA.escapeHtml(name)}</strong>
+              <small>${NSAA.escapeHtml(email || "Signed in")}</small>
+            </span>
+          </div>
+        `;
+      }
 
       function statusChip(status) {
         const tone =
@@ -694,8 +718,8 @@
 
       const PLAN_OPTIONS = [
         { tier: "free", label: "Free", fee: "0%", blurb: "Non-ticketed or free events." },
-        { tier: "essential", label: "Essential", fee: "3%", blurb: "Small to medium paid events." },
-        { tier: "pro", label: "Pro", fee: "5%", blurb: "Growth-focused, higher-volume events." },
+        { tier: "essential", label: "Standard", fee: "3.5%", blurb: "Flat under-cut rate for paid events." },
+        { tier: "pro", label: "Volume", fee: "4.5%", blurb: "Higher-volume support, still capped below 5%." },
       ];
 
       function planPickerHtml(currentTier) {
@@ -703,7 +727,7 @@
         return `
         <section class="nsaa-form-section mb-4">
           <h2 class="h5 mb-1">Your plan</h2>
-          <p class="nsaa-muted small mb-3">Applies to every event on your account. Nsaa's fee is a percentage of ticket price only - never charged on free tickets. Need a custom rate for a large event? <a href="/contact">Contact us</a>.</p>
+          <p class="nsaa-muted small mb-3">Applies to every event on your account. Nsaa's standard paid rate is 3.5% per ticket - designed as payment gateway cost plus Nsaa's margin, and never charged on free tickets. Need a hybrid or custom rate for a premium event? <a href="/contact">Contact us</a>.</p>
           <div class="row g-2" id="plan-picker">
             ${PLAN_OPTIONS.map(
               (opt) => `
@@ -962,9 +986,11 @@
         } else if (!clerk.user && !clerk.isSignedIn) {
           signInGate();
         } else if (isNew) {
+          renderOrganizerAvatar();
           newEventBtn.classList.add("d-none");
           renderEditor(client, null);
         } else if (eventId) {
+          renderOrganizerAvatar();
           newEventBtn.classList.add("d-none");
           const event = await client.query("events:getById", { eventId });
           if (!event) {
@@ -977,6 +1003,7 @@
             renderEditor(client, event);
           }
         } else {
+          renderOrganizerAvatar();
           client.onUpdate("events:eventsForCurrentOrganizer", {}, renderList);
         }
       }

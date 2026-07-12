@@ -386,6 +386,72 @@ a:hover {
   padding-left: 0.32rem;
 }
 
+.nsaa-auth-loading {
+  display: inline-block;
+  width: 2rem;
+  height: 2rem;
+  background: rgba(247, 241, 230, 0.12);
+  border: 1px solid rgba(247, 241, 230, 0.22);
+  border-radius: 999px;
+  animation: nsaaAuthPulse 1s ease-in-out infinite alternate;
+}
+
+.nsaa-organizer-avatar {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  max-width: 18rem;
+  min-height: 2.75rem;
+  padding: 0.38rem 0.65rem 0.38rem 0.38rem;
+  background: rgba(36, 31, 26, 0.035);
+  border: 1px solid var(--nsaa-border);
+  border-radius: 6px;
+}
+
+.nsaa-organizer-avatar img {
+  width: 2rem;
+  height: 2rem;
+  flex: none;
+  border: 1px solid rgba(244, 78, 37, 0.35);
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+.nsaa-organizer-avatar span {
+  display: grid;
+  min-width: 0;
+  line-height: 1.15;
+}
+
+.nsaa-organizer-avatar strong,
+.nsaa-organizer-avatar small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nsaa-organizer-avatar strong {
+  color: var(--nsaa-ink);
+  font-size: 0.86rem;
+  font-weight: 750;
+}
+
+.nsaa-organizer-avatar small {
+  color: var(--nsaa-ink-muted);
+  font-size: 0.72rem;
+}
+
+@keyframes nsaaAuthPulse {
+  from {
+    opacity: 0.45;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 @media (max-width: 991.98px) {
   .nsaa-navbar {
     min-height: 64px;
@@ -1201,6 +1267,263 @@ a:hover {
   letter-spacing: -0.03em;
 }
 
+.nsaa-checkout-shell {
+  display: grid;
+  gap: 1rem;
+}
+
+.nsaa-checkout-hero {
+  display: grid;
+  grid-template-columns: minmax(14rem, 0.52fr) minmax(0, 1fr);
+  min-height: 15rem;
+  overflow: hidden;
+  background: var(--nsaa-paper-soft);
+  border: 1px solid var(--nsaa-border);
+  border-radius: 4px;
+}
+
+.nsaa-checkout-hero-media {
+  min-height: 15rem;
+  background-color: var(--nsaa-charcoal);
+  background-position: center;
+  background-size: cover;
+}
+
+.nsaa-checkout-hero-copy {
+  display: grid;
+  align-content: center;
+  padding: 1.5rem;
+}
+
+.nsaa-checkout-progress {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.nsaa-checkout-progress-item {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-height: 4rem;
+  padding: 0.75rem;
+  background: rgba(36, 31, 26, 0.035);
+  border: 1px solid var(--nsaa-border);
+  border-radius: 4px;
+  color: var(--nsaa-ink-muted);
+}
+
+.nsaa-checkout-progress-item span {
+  display: inline-grid;
+  place-items: center;
+  width: 1.85rem;
+  height: 1.85rem;
+  flex: none;
+  background: var(--nsaa-paper-surface);
+  border: 1px solid var(--nsaa-border-strong);
+  border-radius: 4px;
+  color: var(--nsaa-ink);
+  font-weight: 850;
+}
+
+.nsaa-checkout-progress-item small {
+  color: var(--nsaa-ink-faint);
+}
+
+.nsaa-checkout-progress-item.active,
+.nsaa-checkout-progress-item.complete {
+  background: rgba(244, 78, 37, 0.08);
+  border-color: rgba(244, 78, 37, 0.28);
+  color: var(--nsaa-ink);
+}
+
+.nsaa-checkout-progress-item.active span,
+.nsaa-checkout-progress-item.complete span {
+  background: var(--nsaa-coral);
+  border-color: rgba(36, 31, 26, 0.18);
+  color: var(--nsaa-coral-ink);
+}
+
+.nsaa-checkout-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(19rem, 0.85fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.nsaa-checkout-main {
+  display: grid;
+  gap: 1rem;
+}
+
+.nsaa-checkout-card,
+.nsaa-checkout-summary {
+  background: var(--nsaa-paper-surface);
+}
+
+.nsaa-checkout-aside {
+  position: sticky;
+  top: 88px;
+}
+
+.nsaa-summary-event {
+  display: grid;
+  grid-template-columns: 5.5rem minmax(0, 1fr);
+  gap: 0.85rem;
+  align-items: center;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--nsaa-border);
+}
+
+.nsaa-summary-event-media {
+  width: 100%;
+  aspect-ratio: 1;
+  background-color: var(--nsaa-charcoal);
+  background-position: center;
+  background-size: cover;
+  border-radius: 4px;
+}
+
+.nsaa-summary-lines {
+  font-size: 0.95rem;
+}
+
+.nsaa-checkout-payment-grid {
+  display: grid;
+  grid-template-columns: minmax(11rem, 0.55fr) minmax(0, 1fr);
+  gap: 0.85rem;
+  align-items: stretch;
+}
+
+.nsaa-checkout-payment-grid .nsaa-hold-countdown,
+.nsaa-checkout-payment-grid .nsaa-status-box {
+  min-height: 100%;
+}
+
+.nsaa-payment-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.65rem;
+}
+
+.nsaa-payment-methods {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.nsaa-payment-method {
+  display: grid;
+  grid-template-columns: 2.75rem minmax(0, 1fr) 1.5rem;
+  gap: 0.75rem;
+  align-items: center;
+  min-height: 5.75rem;
+  width: 100%;
+  padding: 0.9rem;
+  background: rgba(36, 31, 26, 0.025);
+  border: 1px solid var(--nsaa-border);
+  border-radius: 6px;
+  color: var(--nsaa-ink);
+  text-align: left;
+  transition:
+    border-color 180ms var(--nsaa-ease-out),
+    background-color 180ms var(--nsaa-ease-out),
+    transform 180ms var(--nsaa-ease-out),
+    box-shadow 180ms var(--nsaa-ease-out);
+}
+
+.nsaa-payment-method:hover {
+  background: rgba(244, 78, 37, 0.045);
+  border-color: rgba(244, 78, 37, 0.24);
+  transform: translateY(-1px);
+}
+
+.nsaa-payment-method:focus-visible {
+  outline: 3px solid rgba(244, 78, 37, 0.32);
+  outline-offset: 3px;
+}
+
+.nsaa-payment-method.active {
+  background: rgba(244, 78, 37, 0.08);
+  border-color: rgba(244, 78, 37, 0.42);
+  box-shadow: 0 12px 28px rgba(36, 31, 26, 0.08);
+}
+
+.nsaa-payment-method-icon,
+.nsaa-payment-method-check {
+  display: inline-grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 6px;
+}
+
+.nsaa-payment-method-icon {
+  background: var(--nsaa-paper-surface);
+  border: 1px solid var(--nsaa-border);
+  color: var(--nsaa-coral);
+  font-size: 1.2rem;
+}
+
+.nsaa-payment-method-check {
+  width: 1.5rem;
+  height: 1.5rem;
+  background: var(--nsaa-paper-surface);
+  border: 1px solid var(--nsaa-border);
+  color: transparent;
+  font-size: 0.8rem;
+}
+
+.nsaa-payment-method.active .nsaa-payment-method-check {
+  background: var(--nsaa-coral);
+  border-color: var(--nsaa-coral);
+  color: var(--nsaa-coral-ink);
+}
+
+.nsaa-payment-method-copy {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.nsaa-payment-method-copy strong {
+  font-size: 0.98rem;
+}
+
+.nsaa-payment-method-copy small {
+  color: var(--nsaa-ink-muted);
+  line-height: 1.35;
+}
+
+.nsaa-payment-actions .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+}
+
+.nsaa-checkout-assurance {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.nsaa-checkout-assurance > div {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 3rem;
+  padding: 0.65rem;
+  background: rgba(36, 31, 26, 0.03);
+  border: 1px solid var(--nsaa-border);
+  border-radius: 4px;
+  color: var(--nsaa-ink-muted);
+  font-size: 0.88rem;
+  font-weight: 650;
+  text-align: center;
+}
+
 .nsaa-status-box.waiting {
   background: var(--nsaa-warning-bg);
   border: 1px solid rgba(217, 164, 65, 0.35);
@@ -1816,9 +2139,39 @@ a:hover {
   .nsaa-navbar .nsaa-nav-links .nsaa-nav-sep {
     background: rgba(36, 31, 26, 0.14);
   }
+
+  .nsaa-checkout-hero,
+  .nsaa-checkout-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .nsaa-checkout-hero-media {
+    min-height: 12rem;
+  }
+
+  .nsaa-checkout-aside {
+    position: static;
+  }
 }
 
 @media (max-width: 767.98px) {
+  .nsaa-checkout-hero-copy,
+  .nsaa-checkout-card,
+  .nsaa-checkout-summary {
+    padding: 1rem;
+  }
+
+  .nsaa-checkout-progress,
+  .nsaa-checkout-payment-grid,
+  .nsaa-payment-methods,
+  .nsaa-checkout-assurance {
+    grid-template-columns: 1fr;
+  }
+
+  .nsaa-summary-event {
+    grid-template-columns: 4.5rem minmax(0, 1fr);
+  }
+
   .nsaa-ticket-tier-row {
     grid-template-columns: 1fr;
   }

@@ -28,6 +28,10 @@ function detectMoolreTransferChannel(phone: string): string {
   throw new Error("Could not detect a mobile money network for this payout phone number.");
 }
 
+function isMoolreSuccess(value: unknown): boolean {
+  return Number(value) === 1 || String(value ?? "").trim() === "1";
+}
+
 // How much of an event's ticket revenue is eligible for payout right now:
 // paid orders' ticket subtotal only (the organizer's cut - the service
 // fee is always retained by the platform and never appears here), minus
@@ -202,7 +206,7 @@ export const verifyAndProcessPayout = internalAction({
 
     await ctx.runMutation(internal.payouts.applyVerifiedPayoutStatus, {
       payoutId,
-      isSuccess: txstatus === 1,
+      isSuccess: isMoolreSuccess(txstatus),
       transactionId,
     });
   },

@@ -81,13 +81,15 @@
 
     const clerkDomain = normalizeFrontendApiUrl(frontendApiUrl);
 
-    await loadScript(`https://${clerkDomain}/npm/@clerk/ui@1/dist/ui.browser.js`);
-    await loadScript(
-      `https://${clerkDomain}/npm/@clerk/clerk-js@6/dist/clerk.browser.js`,
-      {
-        "data-clerk-publishable-key": publishableKey,
-      },
-    );
+    await Promise.all([
+      loadScript(`https://${clerkDomain}/npm/@clerk/ui@1/dist/ui.browser.js`),
+      loadScript(
+        `https://${clerkDomain}/npm/@clerk/clerk-js@6/dist/clerk.browser.js`,
+        {
+          "data-clerk-publishable-key": publishableKey,
+        },
+      ),
+    ]);
 
     if (!window.Clerk) {
       throw new Error("ClerkJS loaded but window.Clerk is unavailable");

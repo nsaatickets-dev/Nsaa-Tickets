@@ -52,6 +52,29 @@ function detectMoolreChannel(phone: string): string {
   );
 }
 
+function moolreAccepted(data: any): boolean {
+  return Number(data?.status) === 1 || String(data?.status ?? "").trim() === "1";
+}
+
+async function readMoolreJson(response: Response): Promise<any> {
+  const text = await response.text();
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch (_err) {
+    return {
+      status: response.ok ? 1 : 0,
+      code: response.status,
+      message: text,
+    };
+  }
+}
+
+function moolreMessage(data: any, fallback: string): string {
+  const message = String(data?.message ?? data?.msg ?? "").trim();
+  return message || fallback;
+}
+
 // Step 1 of checkout: reserve inventory, create a pending order.
 // This is what makes the reservation-with-timeout model work - the
 // ticket count visibly drops the instant someone starts checkout, not
@@ -275,7 +298,7 @@ export const initiateMoolrePayment = action({
       }),
     });
 
-    const data = await response.json();
+    const data = await readMoolreJson(response);
 
     // TP14: confirmed via Moolre testing - Moolre texts a verification
     // code directly to the buyer's phone and won't process the collection
@@ -291,7 +314,7 @@ export const initiateMoolrePayment = action({
       return { status: "otp_invalid" };
     }
 
-    const accepted = data.status === 1;
+    const accepted = response.ok && moolreAccepted(data);
 
     await ctx.runMutation(internal.orders.recordMoolreReference, {
       orderId,
@@ -305,7 +328,7 @@ export const initiateMoolrePayment = action({
       // externalref, wrong otpcode, etc). Fail fast rather than leaving
       // the buyer waiting on a webhook that will never arrive.
       await ctx.runMutation(internal.orders.markInitiationFailed, { orderId });
-      throw new Error(data.message || "Payment could not be started. Please try again.");
+      throw new Error(moolreMessage(data, "Payment could not be started. Please try again."));
     }
 
     return { status: "initiated" };
@@ -357,8 +380,8 @@ export const initiateCardPayment = action({
       }),
     });
 
-    const data = await response.json();
-    const accepted = data.status === 1;
+    const data = await readMoolreJson(response);
+    const accepted = response.ok && moolreAccepted(data);
 
     await ctx.runMutation(internal.orders.recordMoolreReference, {
       orderId,
@@ -368,7 +391,7 @@ export const initiateCardPayment = action({
 
     if (!accepted) {
       await ctx.runMutation(internal.orders.markInitiationFailed, { orderId });
-      throw new Error(data.message || "Card payment could not be started. Please try again.");
+      throw new Error(moolreMessage(data, "Card payment could not be started. Please try again."));
     }
 
     const authorizationUrl = data.data?.authorization_url;

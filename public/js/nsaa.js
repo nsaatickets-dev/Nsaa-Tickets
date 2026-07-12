@@ -329,12 +329,12 @@
     return window.Clerk ?? null;
   }
 
-  async function attachConvexAuth(client) {
+  async function attachConvexAuth(client, options = {}) {
     if (!client || typeof client.setAuth !== "function") {
       return false;
     }
 
-    try {
+    const attach = async () => {
       const clerk = await getClerk();
       if (!clerk) return false;
 
@@ -348,6 +348,17 @@
         return await clerk.session.getToken();
       });
       return true;
+    };
+
+    if (options.wait === false) {
+      attach().catch((err) => {
+        console.warn("Convex auth could not attach to Clerk", err);
+      });
+      return false;
+    }
+
+    try {
+      return await attach();
     } catch (err) {
       console.warn("Convex auth could not attach to Clerk", err);
       return false;

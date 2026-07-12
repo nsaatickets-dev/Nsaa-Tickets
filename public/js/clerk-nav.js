@@ -6,16 +6,38 @@
 // only unlocks "see all your past tickets in one place" convenience,
 // nothing else currently depends on it.
 
-window.addEventListener("load", async () => {
+async function resolveClerk() {
+  if (window.NSAA?.getClerk) {
+    return await window.NSAA.getClerk();
+  }
+  if (window.NSAAClerkReady) {
+    return await window.NSAAClerkReady;
+  }
+  if (window.Clerk) return window.Clerk;
+
+  return await new Promise((resolve) => {
+    const done = () => resolve(window.Clerk ?? null);
+    window.addEventListener("nsaa:clerk-ready", done, { once: true });
+    window.addEventListener("nsaa:clerk-error", () => resolve(null), { once: true });
+    window.addEventListener("nsaa:clerk-unconfigured", () => resolve(null), { once: true });
+    window.setTimeout(() => resolve(window.Clerk ?? null), 4000);
+  });
+}
+
+async function mountClerkNav() {
   const slot = document.getElementById("clerk-auth-slot");
   if (!slot) return;
+  slot.innerHTML = `<span class="nsaa-auth-loading" aria-label="Loading account"></span>`;
 
   try {
-    const clerk = window.NSAA?.getClerk
-      ? await window.NSAA.getClerk()
-      : await (window.NSAAClerkReady ?? Promise.resolve(window.Clerk));
+    const clerk = await resolveClerk();
 
-    if (!clerk) return;
+    if (!clerk) {
+      slot.innerHTML = "";
+      return;
+    }
+
+    slot.innerHTML = "";
 
     if (clerk.user || clerk.isSignedIn) {
       clerk.mountUserButton(slot);
@@ -29,5 +51,15 @@ window.addEventListener("load", async () => {
     }
   } catch (err) {
     console.error("Clerk failed to load", err);
+    slot.innerHTML = "";
   }
-});
+}
+
+window.NSAAMountClerkNav = mountClerkNav;
+window.addEventListener("nsaa:nav-rendered", mountClerkNav);
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", mountClerkNav, { once: true });
+} else {
+  mountClerkNav();
+}

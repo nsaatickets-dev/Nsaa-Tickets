@@ -114,6 +114,7 @@ export async function sendBrevoEmail(params: {
   to: { email: string; name?: string }[];
   subject: string;
   htmlContent: string;
+  attachment?: { name: string; content: string }[];
 }): Promise<void> {
   try {
     const response = await fetch("https://api.brevo.com/v3/smtp/email", {

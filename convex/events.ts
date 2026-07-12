@@ -10,15 +10,16 @@ import {
   requirePositiveInteger,
 } from "./validation";
 
-// Organizer pricing tiers. The self-serve rates are deliberately below
-// the common local 5% / 7.5% pattern so Nsaa stays visibly competitive
-// while keeping the fee model simple and transparent at checkout.
+// Organizer pricing tiers. The standard paid rate is a flat 3.5%:
+// roughly 1.5% gateway cost plus a 2% Nsaa margin. Every self-serve
+// paid tier stays strictly below 5% so Nsaa visibly undercuts local
+// percentage-only ticketing plans.
 // "custom" has no listed rate; an admin sets customFeePercent per
 // organizer via setOrganizerTierAdmin.
 export const TIER_FEE_PERCENT: Record<string, number> = {
   free: 0,
-  essential: 0.03,
-  pro: 0.05,
+  essential: 0.035,
+  pro: 0.045,
 };
 
 export function slugify(value: string): string {
@@ -137,6 +138,13 @@ export const setOrganizerTierAdmin = mutation({
   },
   handler: async (ctx, { adminSecret, organizerClerkUserId, tier, customFeePercent }) => {
     requireAdminSecret(adminSecret);
+    if (
+      tier === "custom" &&
+      customFeePercent !== undefined &&
+      (customFeePercent < 0 || customFeePercent >= 0.05)
+    ) {
+      throw new Error("Custom platform fee must be at least 0% and strictly below 5%.");
+    }
 
     const existing = await ctx.db
       .query("organizerProfiles")

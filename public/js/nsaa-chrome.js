@@ -174,6 +174,7 @@ function setNavContext(context, showSwitcher) {
 
   linksRoot.innerHTML = navLinksHtml(context, showSwitcher);
   highlightActiveLink(linksRoot);
+  window.dispatchEvent(new CustomEvent("nsaa:nav-rendered"));
 
   if (showSwitcher) {
     linksRoot.querySelectorAll("[data-nav-context]").forEach((button) => {
@@ -193,12 +194,30 @@ function setNavContext(context, showSwitcher) {
   }
 }
 
+async function resolveClerkForChrome() {
+  if (window.NSAA?.getClerk) {
+    return await window.NSAA.getClerk();
+  }
+  if (window.NSAAClerkReady) {
+    return await window.NSAAClerkReady;
+  }
+  if (window.Clerk) return window.Clerk;
+
+  return await new Promise((resolve) => {
+    const done = () => resolve(window.Clerk ?? null);
+    window.addEventListener("nsaa:clerk-ready", done, { once: true });
+    window.addEventListener("nsaa:clerk-error", () => resolve(null), { once: true });
+    window.addEventListener("nsaa:clerk-unconfigured", () => resolve(null), { once: true });
+    window.setTimeout(() => resolve(window.Clerk ?? null), 4000);
+  });
+}
+
 async function applyRoleGating() {
   const savedContext = localStorage.getItem(NAV_CONTEXT_KEY);
   const defaultContext = currentPage() === "/organizer-dashboard" ? "organizer" : "attendee";
 
   try {
-    const clerk = await window.NSAA.getClerk();
+    const clerk = await resolveClerkForChrome();
     if (!clerk || !(clerk.user || clerk.isSignedIn)) return;
 
     setNavContext(savedContext || defaultContext, true);

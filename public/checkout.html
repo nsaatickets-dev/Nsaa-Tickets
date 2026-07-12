@@ -32,7 +32,7 @@
     <script src="js/clerk-config.js"></script>
     <script src="js/clerk-loader.js"></script>
 
-<main class="container py-5" style="max-width: 920px">
+<main class="container py-5" style="max-width: 1120px">
       <div id="checkout-root">
         <div id="checkout-loading"></div>
       </div>
@@ -57,9 +57,10 @@
       let checkoutRendered = false;
       let reservedUntil = null;
       let reservationTimer = null;
+      let selectedPaymentMethod = "momo";
 
       function serviceFee(subtotal) {
-        return Math.round(subtotal * 0.03 * 100) / 100;
+        return Math.round(subtotal * 0.035 * 100) / 100;
       }
 
       function totalsFor(qty) {
@@ -81,100 +82,199 @@
         checkoutRendered = true;
         const available = ticketType.quantityAvailable ?? 0;
         quantity = Math.min(Math.max(quantity, 1), Math.max(available, 1));
+        const eventImage = NSAA.eventImage(eventRecord);
+        const eventDate = eventRecord.startsAt ? NSAA.formatDate(eventRecord.startsAt) : "Date TBA";
+        const placeLine = [eventRecord.venue, eventRecord.city].filter(Boolean).join(", ");
 
         root.innerHTML = `
-        <div class="row g-4 align-items-start">
-          <section class="col-lg-7">
-            <div id="details-step" class="nsaa-panel">
-              <p class="nsaa-eyebrow mb-2">Guest checkout</p>
-              <h1 class="h3 mb-2">Your details</h1>
-              <p class="nsaa-muted mb-4">No account required. Your phone number is used for the Mobile Money prompt, and your ticket receipt - with your scannable QR code - is emailed to you.</p>
+        <div class="nsaa-checkout-shell">
+          <header class="nsaa-checkout-hero">
+            <div class="nsaa-checkout-hero-media" style="background-image: linear-gradient(180deg, rgba(34,29,24,0.04), rgba(34,29,24,0.3)), url('${NSAA.escapeAttr(eventImage)}');"></div>
+            <div class="nsaa-checkout-hero-copy">
+              <p class="nsaa-eyebrow mb-2">Secure checkout</p>
+              <h1 class="h3 mb-2">Complete your ticket order</h1>
+              <p class="nsaa-muted mb-3">Reserve your ticket first, then approve Mobile Money or card payment. No account required.</p>
+              <div class="nsaa-checkout-progress" aria-label="Checkout progress">
+                <div id="checkout-progress-details" class="nsaa-checkout-progress-item active">
+                  <span>1</span>
+                  <div>
+                    <p class="mb-0 fw-semibold">Details</p>
+                    <small>Contact and quantity</small>
+                  </div>
+                </div>
+                <div id="checkout-progress-payment" class="nsaa-checkout-progress-item">
+                  <span>2</span>
+                  <div>
+                    <p class="mb-0 fw-semibold">Payment</p>
+                    <small>Approve prompt</small>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </header>
 
-              <form id="details-form" novalidate>
-                <div class="row g-3">
-                  <div class="col-12">
-                    <label class="form-label nsaa-muted small" for="buyer-name">Full name</label>
-                    <input id="buyer-name" class="form-control form-control-nsaa" type="text" autocomplete="name" placeholder="Ama Mensah" required />
+          <div class="nsaa-checkout-grid">
+            <section class="nsaa-checkout-main">
+              <div id="details-step" class="nsaa-panel nsaa-checkout-card">
+                <div class="d-flex align-items-start justify-content-between gap-3 mb-3">
+                  <div>
+                    <p class="nsaa-eyebrow mb-2">Guest details</p>
+                    <h2 class="h4 mb-1">Who should receive the tickets?</h2>
                   </div>
-                  <div class="col-md-6">
-                    <label class="form-label nsaa-muted small" for="buyer-phone">Mobile Money number</label>
-                    <input id="buyer-phone" class="form-control form-control-nsaa" type="tel" autocomplete="tel" placeholder="024 000 0000" required />
-                    <p class="nsaa-faint small mt-2 mb-0">Supports MTN, Telecel, and AirtelTigo Mobile Money numbers.</p>
+                  <span class="nsaa-chip">Step 1 of 2</span>
+                </div>
+                <p class="nsaa-muted mb-4">Your phone number receives the Mobile Money prompt. Your receipt and scannable QR ticket are emailed to you.</p>
+
+                <form id="details-form" novalidate>
+                  <div class="row g-3">
+                    <div class="col-12">
+                      <label class="form-label nsaa-muted small" for="buyer-name">Full name</label>
+                      <input id="buyer-name" class="form-control form-control-nsaa" type="text" autocomplete="name" placeholder="Ama Mensah" required />
+                    </div>
+                    <div class="col-md-6">
+                      <label class="form-label nsaa-muted small" for="buyer-phone">Mobile Money number</label>
+                      <input id="buyer-phone" class="form-control form-control-nsaa" type="tel" autocomplete="tel" placeholder="024 000 0000" required />
+                      <p class="nsaa-faint small mt-2 mb-0">MTN, Telecel, and AirtelTigo numbers are supported.</p>
+                    </div>
+                    <div class="col-md-6">
+                      <label class="form-label nsaa-muted small" for="buyer-email">Email</label>
+                      <input id="buyer-email" class="form-control form-control-nsaa" type="email" autocomplete="email" placeholder="name@email.com" required />
+                      <p class="nsaa-faint small mt-2 mb-0">Your QR ticket is sent here after payment.</p>
+                    </div>
+                    <div class="col-md-6">
+                      <label class="form-label nsaa-muted small" for="buyer-quantity">Quantity</label>
+                      <input id="buyer-quantity" class="form-control form-control-nsaa" type="number" min="1" max="${NSAA.escapeAttr(available)}" value="${NSAA.escapeAttr(quantity)}" required />
+                    </div>
                   </div>
-                  <div class="col-md-6">
-                    <label class="form-label nsaa-muted small" for="buyer-email">Email</label>
-                    <input id="buyer-email" class="form-control form-control-nsaa" type="email" autocomplete="email" placeholder="name@email.com" required />
+
+                  <div id="details-error" class="mt-3"></div>
+                  <button id="reserve-btn" class="btn btn-nsaa w-100 mt-4" type="submit" ${available <= 0 ? "disabled" : ""}>Reserve tickets</button>
+                </form>
+              </div>
+
+              <div id="payment-step" class="nsaa-panel nsaa-checkout-card d-none">
+                <div class="d-flex align-items-start justify-content-between gap-3 mb-3">
+                  <div>
+                    <p class="nsaa-eyebrow mb-2">Payment</p>
+                    <h2 class="h4 mb-1">Approve payment on your phone</h2>
                   </div>
-                  <div class="col-md-6">
-                    <label class="form-label nsaa-muted small" for="buyer-quantity">Quantity</label>
-                    <input id="buyer-quantity" class="form-control form-control-nsaa" type="number" min="1" max="${NSAA.escapeAttr(available)}" value="${NSAA.escapeAttr(quantity)}" required />
+                  <span class="nsaa-chip">Step 2 of 2</span>
+                </div>
+                <p class="nsaa-muted mb-4">Your tickets are held while you approve payment. Keep this page open until Nsaa confirms your order.</p>
+
+                <div class="nsaa-checkout-payment-grid mb-3">
+                  <div class="nsaa-hold-countdown">
+                    <span class="nsaa-faint small d-block">Reservation hold</span>
+                    <strong id="reservation-countdown">10:00</strong>
+                    <span class="nsaa-muted small">Inventory is locked for your order.</span>
+                  </div>
+                  <div id="payment-status" class="nsaa-status-box waiting">
+                    <p class="fw-semibold mb-1">Waiting to send request</p>
+                    <p class="mb-0">Your ticket reservation is held while you start payment.</p>
                   </div>
                 </div>
 
-                <div id="details-error" class="mt-3"></div>
-                <button id="reserve-btn" class="btn btn-nsaa w-100 mt-4" type="submit" ${available <= 0 ? "disabled" : ""}>Reserve and continue</button>
-              </form>
-            </div>
-
-            <div id="payment-step" class="nsaa-panel d-none">
-              <p class="nsaa-eyebrow mb-2">Mobile Money</p>
-              <h2 class="h3 mb-2">Approve payment on your phone</h2>
-              <p class="nsaa-muted mb-4">Nsaa will send a Mobile Money prompt to the number you entered. Confirmation can take a little time after approval.</p>
-              <div class="nsaa-hold-countdown mb-3">
-                <span class="nsaa-faint small d-block">Reservation hold</span>
-                <strong id="reservation-countdown">10:00</strong>
-                <span class="nsaa-muted small">Your tickets are held while you approve payment.</span>
-              </div>
-              <div id="payment-status" class="nsaa-status-box waiting mb-3">
-                <p class="fw-semibold mb-1">Waiting to send request</p>
-                <p class="mb-0">Your ticket reservation is held while you start payment.</p>
-              </div>
-              <button id="pay-btn" class="btn btn-nsaa w-100" type="button">Send payment prompt</button>
-              <div id="otp-step" class="d-none mt-3">
-                <label class="form-label nsaa-muted small" for="otp-code">Verification code</label>
-                <div class="d-flex gap-2">
-                  <input id="otp-code" class="form-control form-control-nsaa" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="123456" />
-                  <button id="otp-submit-btn" class="btn btn-nsaa" type="button">Verify</button>
+                <div class="nsaa-payment-methods mb-3" role="radiogroup" aria-label="Payment method">
+                  <button class="nsaa-payment-method active" type="button" data-payment-method="momo" role="radio" aria-checked="true">
+                    <span class="nsaa-payment-method-icon"><i class="ph ph-device-mobile" aria-hidden="true"></i></span>
+                    <span class="nsaa-payment-method-copy">
+                      <strong>Mobile Money</strong>
+                      <small>MTN, Telecel, and AirtelTigo approval prompt</small>
+                    </span>
+                    <span class="nsaa-payment-method-check"><i class="ph ph-check" aria-hidden="true"></i></span>
+                  </button>
+                  <button class="nsaa-payment-method" type="button" data-payment-method="card" role="radio" aria-checked="false">
+                    <span class="nsaa-payment-method-icon"><i class="ph ph-credit-card" aria-hidden="true"></i></span>
+                    <span class="nsaa-payment-method-copy">
+                      <strong>Card checkout</strong>
+                      <small>Secure hosted Moolre card page</small>
+                    </span>
+                    <span class="nsaa-payment-method-check"><i class="ph ph-check" aria-hidden="true"></i></span>
+                  </button>
                 </div>
-                <p class="nsaa-faint small mt-2 mb-0">Moolre sent a verification code to your phone via SMS. Enter it above to continue.</p>
-              </div>
-              <button id="pay-card-btn" class="btn btn-nsaa w-100 mt-3" type="button">Pay with card instead</button>
-              <a id="status-link" class="btn btn-nsaa w-100 mt-3" href="#">Open order status</a>
-            </div>
-          </section>
 
-          <aside class="col-lg-5">
-            <div class="nsaa-panel position-sticky" style="top: 88px;">
-              <p class="nsaa-eyebrow mb-2">Order summary</p>
-              <h2 class="h4 mb-1">${NSAA.escapeHtml(eventRecord.title)}</h2>
-              <p class="nsaa-muted mb-3">${NSAA.escapeHtml(ticketType.name)} at ${NSAA.escapeHtml(eventRecord.venue)}</p>
-              <div class="d-flex justify-content-between py-2">
-                <span class="nsaa-muted">Ticket price</span>
-                <span id="summary-ticket-price">${NSAA.money(ticketType.priceGHS)}</span>
+                <div class="nsaa-payment-actions">
+                  <button id="pay-btn" class="btn btn-nsaa" type="button">
+                    <i class="ph ph-device-mobile" aria-hidden="true"></i>
+                    Send Mobile Money prompt
+                  </button>
+                  <button id="pay-card-btn" class="btn btn-nsaa d-none" type="button">
+                    <i class="ph ph-credit-card" aria-hidden="true"></i>
+                    Continue to card checkout
+                  </button>
+                  <a id="status-link" class="btn btn-outline-nsaa" href="#">
+                    <i class="ph ph-receipt" aria-hidden="true"></i>
+                    Open order status
+                  </a>
+                </div>
+
+                <div id="otp-step" class="d-none mt-3">
+                  <label class="form-label nsaa-muted small" for="otp-code">Verification code</label>
+                  <div class="d-flex gap-2">
+                    <input id="otp-code" class="form-control form-control-nsaa" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="123456" />
+                    <button id="otp-submit-btn" class="btn btn-nsaa" type="button">Verify</button>
+                  </div>
+                  <p class="nsaa-faint small mt-2 mb-0">Moolre sent a verification code to your phone via SMS. Enter it above to continue.</p>
+                </div>
               </div>
-              <div class="d-flex justify-content-between py-2">
-                <span class="nsaa-muted">Quantity</span>
-                <span id="summary-quantity">${quantity}</span>
+
+              <div class="nsaa-checkout-assurance">
+                <div>
+                  <i class="ph ph-lock-key" aria-hidden="true"></i>
+                  <span>Secure payment</span>
+                </div>
+                <div>
+                  <i class="ph ph-qr-code" aria-hidden="true"></i>
+                  <span>One-time QR</span>
+                </div>
+                <div>
+                  <i class="ph ph-envelope-simple" aria-hidden="true"></i>
+                  <span>Email receipt</span>
+                </div>
               </div>
-              <div class="d-flex justify-content-between py-2 nsaa-divider-dashed">
-                <span class="nsaa-muted">Ticket subtotal</span>
-                <span id="summary-subtotal"></span>
+            </section>
+
+            <aside class="nsaa-checkout-aside">
+              <div class="nsaa-panel nsaa-checkout-summary">
+                <p class="nsaa-eyebrow mb-2">Order summary</p>
+                <div class="nsaa-summary-event">
+                  <div class="nsaa-summary-event-media" style="background-image: url('${NSAA.escapeAttr(eventImage)}');"></div>
+                  <div>
+                    <h2 class="h5 mb-1">${NSAA.escapeHtml(eventRecord.title)}</h2>
+                    <p class="nsaa-muted small mb-1">${NSAA.escapeHtml(ticketType.name)}</p>
+                    <p class="nsaa-faint small mb-0">${NSAA.escapeHtml(eventDate)} &middot; ${NSAA.escapeHtml(placeLine || eventRecord.venue)}</p>
+                  </div>
+                </div>
+                <div class="nsaa-summary-lines mt-3">
+                  <div class="d-flex justify-content-between py-2">
+                    <span class="nsaa-muted">Ticket price</span>
+                    <span id="summary-ticket-price">${NSAA.money(ticketType.priceGHS)}</span>
+                  </div>
+                  <div class="d-flex justify-content-between py-2">
+                    <span class="nsaa-muted">Quantity</span>
+                    <span id="summary-quantity">${quantity}</span>
+                  </div>
+                  <div class="d-flex justify-content-between py-2 nsaa-divider-dashed">
+                    <span class="nsaa-muted">Ticket subtotal</span>
+                    <span id="summary-subtotal"></span>
+                  </div>
+                  <div class="d-flex justify-content-between py-2">
+                    <span class="nsaa-muted">Service fee</span>
+                    <span id="summary-fee"></span>
+                  </div>
+                  <div class="d-flex justify-content-between py-3 fs-5 fw-semibold nsaa-divider-dashed">
+                    <span>Total due</span>
+                    <span id="summary-total" style="color: var(--nsaa-gold);"></span>
+                  </div>
+                </div>
+                <p class="nsaa-faint small mb-0">${available <= 0 ? "This ticket type is sold out." : `${available} currently available. Availability updates live.`}</p>
+                <div class="nsaa-soft-panel p-3 mt-3">
+                  <p class="fw-semibold mb-1"><i class="ph ph-shield-check me-1"></i>Duplicate QR protection</p>
+                  <p class="nsaa-muted small mb-0">Each paid ticket receives a signed one-time QR code. A screenshot can still only scan once at the door.</p>
+                </div>
               </div>
-              <div class="d-flex justify-content-between py-2">
-                <span class="nsaa-muted">Service fee</span>
-                <span id="summary-fee"></span>
-              </div>
-              <div class="d-flex justify-content-between py-3 fs-5 fw-semibold nsaa-divider-dashed">
-                <span>Total due</span>
-                <span id="summary-total" style="color: var(--nsaa-gold);"></span>
-              </div>
-              <p class="nsaa-faint small mb-0">${available <= 0 ? "This ticket type is sold out." : `${available} currently available. Availability updates live.`}</p>
-              <div class="nsaa-soft-panel p-3 mt-3">
-                <p class="fw-semibold mb-1"><i class="ph ph-shield-check me-1"></i>Duplicate QR protection</p>
-                <p class="nsaa-muted small mb-0">Each paid ticket receives a signed one-time QR code. A screenshot can still only scan once at the door.</p>
-              </div>
-            </div>
-          </aside>
+            </aside>
+          </div>
         </div>
       `;
 
@@ -224,6 +324,32 @@
         reservationTimer = window.setInterval(tick, 1000);
       }
 
+      function setSelectedPaymentMethod(method) {
+        selectedPaymentMethod = method === "card" ? "card" : "momo";
+        document.querySelectorAll("[data-payment-method]").forEach((button) => {
+          const isActive = button.getAttribute("data-payment-method") === selectedPaymentMethod;
+          button.classList.toggle("active", isActive);
+          button.setAttribute("aria-checked", isActive ? "true" : "false");
+        });
+
+        const payBtn = document.getElementById("pay-btn");
+        const cardBtn = document.getElementById("pay-card-btn");
+        const otpStep = document.getElementById("otp-step");
+        if (payBtn) payBtn.classList.toggle("d-none", selectedPaymentMethod !== "momo");
+        if (cardBtn) cardBtn.classList.toggle("d-none", selectedPaymentMethod !== "card");
+        if (otpStep && selectedPaymentMethod === "card") {
+          otpStep.classList.add("d-none");
+        }
+
+        setPaymentState(
+          "waiting",
+          selectedPaymentMethod === "card" ? "Card checkout selected" : "Mobile Money selected",
+          selectedPaymentMethod === "card"
+            ? "Continue to Moolre's secure hosted card page. Your reservation stays held while you complete payment."
+            : "Send a payment prompt to the Mobile Money number you entered.",
+        );
+      }
+
       function bindCheckout() {
         document
           .getElementById("buyer-quantity")
@@ -240,6 +366,12 @@
               el.classList.remove("is-invalid");
             });
           }
+        });
+
+        document.querySelectorAll("[data-payment-method]").forEach((button) => {
+          button.addEventListener("click", () => {
+            setSelectedPaymentMethod(button.getAttribute("data-payment-method"));
+          });
         });
       }
 
@@ -326,16 +458,20 @@
             err.message || "Please try again.",
           );
           reserveBtn.disabled = false;
-          reserveBtn.textContent = "Reserve and continue";
+          reserveBtn.textContent = "Reserve tickets";
         }
       }
 
       function showPaymentStep() {
         document.getElementById("details-step").classList.add("d-none");
         document.getElementById("payment-step").classList.remove("d-none");
+        document.getElementById("checkout-progress-details")?.classList.remove("active");
+        document.getElementById("checkout-progress-details")?.classList.add("complete");
+        document.getElementById("checkout-progress-payment")?.classList.add("active");
         startReservationCountdown(reservedUntil);
         document.getElementById("status-link").href =
           `/order-status?orderId=${encodeURIComponent(currentOrderId)}`;
+        setSelectedPaymentMethod(selectedPaymentMethod);
 
         client.onUpdate(
           "orders:getOrderSummary",
@@ -366,10 +502,11 @@
             if (order.status === "failed") {
               setPaymentState(
                 "failed",
-                "Payment failed",
-                "No ticket was issued. You can start a fresh checkout from the event page.",
+                "Payment did not start",
+                "No charge was made and no ticket was issued. Start a fresh checkout from the event page or contact support if this keeps happening.",
               );
               document.getElementById("pay-btn").disabled = true;
+              document.getElementById("pay-card-btn").disabled = true;
             }
           },
         );
@@ -423,7 +560,7 @@
             "Waiting for confirmation",
             "Approve the prompt on your phone. Nsaa will move you to your tickets as soon as payment is confirmed.",
           );
-          payBtn.textContent = "Payment request sent";
+          payBtn.innerHTML = `<i class="ph ph-check" aria-hidden="true"></i> Payment request sent`;
         } catch (err) {
           setPaymentState(
             "failed",
@@ -436,18 +573,20 @@
       }
 
       document.addEventListener("click", async (event) => {
-        if (event.target?.id === "pay-btn") {
+        const target = event.target instanceof Element ? event.target : null;
+        if (target?.closest("#pay-btn")) {
           await submitMoolrePayment();
         }
-        if (event.target?.id === "otp-submit-btn") {
+        if (target?.closest("#otp-submit-btn")) {
           const code = document.getElementById("otp-code").value.trim();
           if (!code) return;
           await submitMoolrePayment(code);
         }
-        if (event.target?.id === "pay-card-btn") {
-          const cardBtn = event.target;
+        const cardButton = target?.closest("#pay-card-btn");
+        if (cardButton) {
+          const cardBtn = cardButton;
           cardBtn.disabled = true;
-          cardBtn.textContent = "Redirecting to card checkout...";
+          cardBtn.innerHTML = `<i class="ph ph-spinner-gap" aria-hidden="true"></i> Redirecting to card checkout...`;
           setPaymentState(
             "waiting",
             "Opening card checkout",
@@ -465,7 +604,7 @@
               err.message || "Please try again.",
             );
             cardBtn.disabled = false;
-            cardBtn.textContent = "Pay with card instead";
+            cardBtn.innerHTML = `<i class="ph ph-credit-card" aria-hidden="true"></i> Continue to card checkout`;
           }
         }
       });
@@ -480,7 +619,7 @@
         root.innerHTML = NSAA.setupNotice("Checkout");
       } else {
         client = new ConvexClient(NSAA.CONVEX_URL);
-        await NSAA.attachConvexAuth(client);
+        NSAA.attachConvexAuth(client, { wait: false });
         document.getElementById("checkout-loading").innerHTML =
           NSAA.loading("Preparing checkout");
 

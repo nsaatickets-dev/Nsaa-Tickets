@@ -5,6 +5,10 @@ import { issueTickets } from "./tickets";
 import { escapeHtml, sendBrevoEmail, SENDERS, renderEmailLayout, paragraph, ticketBlock } from "./email";
 import { alertCritical } from "./alerts";
 
+function isMoolreSuccess(value: unknown): boolean {
+  return Number(value) === 1 || String(value ?? "").trim() === "1";
+}
+
 // Called from convex/http.ts when Moolre POSTs to our webhook, after it
 // has already parsed the `order:<id>` prefix off data.externalref.
 //
@@ -52,7 +56,7 @@ export const verifyAndProcessPayment = internalAction({
 
     await ctx.runMutation(internal.moolre.applyVerifiedStatus, {
       orderId,
-      isSuccess: txstatus === 1,
+      isSuccess: isMoolreSuccess(txstatus),
       transactionId,
     });
   },
@@ -156,6 +160,28 @@ export const sendConfirmation = internalAction({
           }),
         )
         .join("");
+      const attachment: { name: string; content: string }[] = [];
+
+      try {
+        const ticketPdfBase64: string = await ctx.runAction(internal.qrImage.ticketsToPdfBase64, {
+          eventTitle: detailed.event?.title ?? "Nsaa Tickets event",
+          venue: detailed.event?.venue ?? "Venue TBA",
+          startsAt: detailed.event?.startsAt,
+          ticketTypeName,
+          tickets: detailed.tickets.map((ticket, index) => ({
+            qrToken: ticket.qrToken,
+            ownerName: ticket.ownerName,
+            ticketId: ticket._id,
+            index,
+          })),
+        });
+        attachment.push({
+          name: `nsaa-tickets-${order._id}.pdf`,
+          content: ticketPdfBase64,
+        });
+      } catch (err) {
+        console.error("Ticket PDF generation failed", err);
+      }
 
       await sendBrevoEmail({
         sender: SENDERS.tickets,
@@ -166,11 +192,12 @@ export const sendConfirmation = internalAction({
           bodyHtml:
             paragraph(`Hi ${escapeHtml(order.buyerName)},`) +
             paragraph(
-              `Your order is confirmed. <strong>GHS ${order.totalGHS}</strong> was charged. Your ticket${detailed.tickets.length > 1 ? "s are" : " is"} below - each code can only be scanned once, so keep this email or a screenshot handy at the door.`,
+              `Your order is confirmed. <strong>GHS ${order.totalGHS}</strong> was charged. A printable PDF ticket file is attached, and your ticket${detailed.tickets.length > 1 ? "s are" : " is"} also below - each code can only be scanned once, so keep this email or a screenshot handy at the door.`,
             ) +
             ticketsHtml,
           footerNote: "This email confirms a ticket purchase on Nsaa Tickets.",
         }),
+        attachment: attachment.length > 0 ? attachment : undefined,
       });
     }
   },
