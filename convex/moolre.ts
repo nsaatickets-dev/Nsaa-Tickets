@@ -4,35 +4,10 @@ import { v } from "convex/values";
 import { issueTickets } from "./tickets";
 import { escapeHtml, sendBrevoEmail, SENDERS, renderEmailLayout, paragraph, ticketBlock } from "./email";
 import { alertCritical } from "./alerts";
+import { requireMoolreEnv } from "./moolreConfig";
 
 function isMoolreSuccess(value: unknown): boolean {
   return Number(value) === 1 || String(value ?? "").trim() === "1";
-}
-
-function requireMoolreStatusEnv() {
-  const required = [
-    "MOOLRE_API_BASE",
-    "MOOLRE_API_USER",
-    "MOOLRE_API_PUBKEY",
-    "MOOLRE_ACCOUNT_NUMBER",
-  ];
-  const values: Record<string, string> = {};
-  const missing = required.filter((name) => {
-    const value = process.env[name]?.trim();
-    if (value) values[name] = value;
-    return !value;
-  });
-
-  if (missing.length > 0) {
-    throw new Error(`Missing Moolre status configuration: ${missing.join(", ")}`);
-  }
-
-  if (/sandbox/i.test(values.MOOLRE_API_BASE) && process.env.MOOLRE_ALLOW_SANDBOX !== "1") {
-    throw new Error("Moolre status check is pointing at sandbox, not live API.");
-  }
-
-  values.MOOLRE_API_BASE = values.MOOLRE_API_BASE.replace(/\/+$/, "");
-  return values;
 }
 
 // Called from convex/http.ts when Moolre POSTs to our webhook, after it
@@ -52,7 +27,12 @@ export const verifyAndProcessPayment = internalAction({
     let transactionId: string | undefined;
 
     try {
-      const config = requireMoolreStatusEnv();
+      const config = requireMoolreEnv([
+        "MOOLRE_API_BASE",
+        "MOOLRE_API_USER",
+        "MOOLRE_API_PUBKEY",
+        "MOOLRE_ACCOUNT_NUMBER",
+      ]);
       const response = await fetch(`${config.MOOLRE_API_BASE}/open/transact/status`, {
         method: "POST",
         headers: {
@@ -151,11 +131,12 @@ export const sendConfirmation = internalAction({
     // be registered and approved in the Moolre dashboard before sends
     // will succeed (code ASMS07 = unapproved sender).
     try {
-      await fetch(`${process.env.MOOLRE_API_BASE}/open/sms/send`, {
+      const config = requireMoolreEnv(["MOOLRE_API_BASE", "MOOLRE_VASKEY"]);
+      await fetch(`${config.MOOLRE_API_BASE}/open/sms/send`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-API-VASKEY": process.env.MOOLRE_VASKEY ?? "",
+          "X-API-VASKEY": config.MOOLRE_VASKEY,
         },
         body: JSON.stringify({
           type: 1,

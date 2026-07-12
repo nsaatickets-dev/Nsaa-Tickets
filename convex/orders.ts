@@ -4,6 +4,7 @@ import { v } from "convex/values";
 import { feePercentForTier } from "./events";
 import { optionalTrimmed, requireNonEmpty, requireValidEmail, requireValidGhanaPhone } from "./validation";
 import { rateLimiter } from "./rateLimit";
+import { requireMoolreEnv } from "./moolreConfig";
 
 // How long a reservation holds inventory before it's released back to
 // availability. Long enough to comfortably approve a MoMo prompt,
@@ -61,39 +62,6 @@ function resolveMoolreChannel(phone: string, explicitChannel?: string): string {
     return explicitChannel;
   }
   return detectMoolreChannel(phone);
-}
-
-function requireMoolreEnv(required: string[]): Record<string, string> {
-  const values: Record<string, string> = {};
-  const missing: string[] = [];
-
-  for (const name of required) {
-    const value = process.env[name]?.trim();
-    if (!value) {
-      missing.push(name);
-    } else {
-      values[name] = value;
-    }
-  }
-
-  if (missing.length > 0) {
-    throw new Error(
-      `Moolre live API is not fully configured. Missing: ${missing.join(", ")}.`,
-    );
-  }
-
-  const apiBase = values.MOOLRE_API_BASE;
-  if (apiBase && /sandbox/i.test(apiBase) && process.env.MOOLRE_ALLOW_SANDBOX !== "1") {
-    throw new Error(
-      "Moolre is pointing at the sandbox API. Set MOOLRE_API_BASE to https://api.moolre.com for live checkout.",
-    );
-  }
-
-  if (apiBase) {
-    values.MOOLRE_API_BASE = apiBase.replace(/\/+$/, "");
-  }
-
-  return values;
 }
 
 function moolreAccepted(data: any): boolean {

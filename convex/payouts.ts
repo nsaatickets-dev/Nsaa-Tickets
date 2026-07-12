@@ -3,6 +3,7 @@ import { internal, api } from "./_generated/api";
 import { v } from "convex/values";
 import { requireAdminSecret } from "./admin";
 import { alertCritical } from "./alerts";
+import { requireMoolreEnv } from "./moolreConfig";
 
 // Moolre's TRANSFER channel codes are different from their COLLECTION
 // channel codes (verified against docs.moolre.com) - MTN is 1 here vs 13
@@ -112,13 +113,19 @@ export const initiateOrganizerPayout = action({
     // payout apart from a customer payment.
     const externalref = `payout:${payoutId}`;
     const channel = detectMoolreTransferChannel(event.organizerPayoutPhone);
+    const config = requireMoolreEnv([
+      "MOOLRE_API_BASE",
+      "MOOLRE_API_USER",
+      "MOOLRE_API_KEY",
+      "MOOLRE_ACCOUNT_NUMBER",
+    ]);
 
-    const response = await fetch(`${process.env.MOOLRE_API_BASE}/open/transact/transfer`, {
+    const response = await fetch(`${config.MOOLRE_API_BASE}/open/transact/transfer`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-API-USER": process.env.MOOLRE_API_USER ?? "",
-        "X-API-KEY": process.env.MOOLRE_API_KEY ?? "",
+        "X-API-USER": config.MOOLRE_API_USER,
+        "X-API-KEY": config.MOOLRE_API_KEY,
       },
       body: JSON.stringify({
         type: 1,
@@ -127,7 +134,7 @@ export const initiateOrganizerPayout = action({
         amount: String(amountGHS),
         receiver: event.organizerPayoutPhone,
         externalref,
-        accountnumber: process.env.MOOLRE_ACCOUNT_NUMBER ?? "",
+        accountnumber: config.MOOLRE_ACCOUNT_NUMBER,
       }),
     });
 
@@ -176,18 +183,24 @@ export const verifyAndProcessPayout = internalAction({
     let transactionId: string | undefined;
 
     try {
-      const response = await fetch(`${process.env.MOOLRE_API_BASE}/open/transact/status`, {
+      const config = requireMoolreEnv([
+        "MOOLRE_API_BASE",
+        "MOOLRE_API_USER",
+        "MOOLRE_API_PUBKEY",
+        "MOOLRE_ACCOUNT_NUMBER",
+      ]);
+      const response = await fetch(`${config.MOOLRE_API_BASE}/open/transact/status`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-API-USER": process.env.MOOLRE_API_USER ?? "",
-          "X-API-PUBKEY": process.env.MOOLRE_API_PUBKEY ?? "",
+          "X-API-USER": config.MOOLRE_API_USER,
+          "X-API-PUBKEY": config.MOOLRE_API_PUBKEY,
         },
         body: JSON.stringify({
           type: 1,
           idtype: "1",
           id: externalref,
-          accountnumber: process.env.MOOLRE_ACCOUNT_NUMBER ?? "",
+          accountnumber: config.MOOLRE_ACCOUNT_NUMBER,
         }),
       });
       const payload = await response.json();
