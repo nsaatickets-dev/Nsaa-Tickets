@@ -109,7 +109,7 @@
       </defs>
       <rect width="800" height="500" fill="url(#g)"/>
       <rect width="800" height="500" fill="url(#p)"/>
-      <text x="52" y="392" font-family="Arial, Helvetica, sans-serif" font-weight="800" font-size="240" letter-spacing="-8" fill="${hex}" fill-opacity="0.17" transform="rotate(-6 400 250)">${code}</text>
+      <text x="52" y="392" font-family="Arial, Helvetica, sans-serif" font-weight="800" font-size="240" letter-spacing="0" fill="${hex}" fill-opacity="0.17" transform="rotate(-6 400 250)">${code}</text>
       <circle cx="26" cy="250" r="15" fill="#221d18" stroke="#f7f1e6" stroke-opacity="0.09"/>
       <circle cx="774" cy="250" r="15" fill="#221d18" stroke="#f7f1e6" stroke-opacity="0.09"/>
     </svg>`;
@@ -642,7 +642,7 @@
       banner.id = "nsaa-global-error-banner";
       banner.setAttribute("role", "alert");
       banner.style.cssText =
-        "position:fixed; left:0; right:0; bottom:0; z-index:2000; background:#c43d3d; color:#fff; padding:0.85rem 1rem; text-align:center; font-family:'Instrument Sans',sans-serif; font-size:0.92rem;";
+        "position:fixed; left:0; right:0; bottom:0; z-index:2000; background:#c43d3d; color:#fff; padding:0.85rem 1rem; text-align:center; font-family:'IBM Plex Sans',sans-serif; font-size:0.92rem;";
       banner.innerHTML =
         'Something went wrong loading part of this page. <button type="button" style="margin-left:0.75rem; background:#fff; color:#c43d3d; border:none; border-radius:4px; padding:0.3rem 0.75rem; font-weight:700; cursor:pointer;">Refresh</button>';
       banner.querySelector("button").addEventListener("click", () => window.location.reload());

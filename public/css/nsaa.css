@@ -1,6 +1,9 @@
-@import url('https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,300..900;1,300..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
 
 :root {
+  --nsaa-font-body: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --nsaa-font-display: "Archivo", var(--nsaa-font-body);
+
   /* Ticket paper - warm off-white, main background and card surfaces.
      Never stark white; keeps the page feeling like tactile paper stock
      rather than a screen. */
@@ -81,41 +84,23 @@ html {
 
 body {
   min-height: 100vh;
-  background-color: var(--nsaa-paper);
+  background-color: #f6efe3;
   background-image:
-    radial-gradient(circle at 50% 0%, rgba(244, 78, 37, 0.05) 0%, rgba(244, 78, 37, 0) 65%),
-    linear-gradient(rgba(36, 31, 26, 0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(36, 31, 26, 0.025) 1px, transparent 1px);
-  background-size: 100% 100%, 64px 64px, 64px 64px;
-  background-position: center top;
+    linear-gradient(180deg, #fbf6ed 0%, #f3eadc 42%, #f7f1e6 100%);
   color: var(--nsaa-ink);
-  font-family:
-    'Instrument Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--nsaa-font-body);
   -webkit-font-smoothing: antialiased;
 }
 
 body.checkout-body,
 body.scanner-body {
-  background-color: var(--nsaa-paper);
+  background-color: #f7f1e6;
   background-image:
-    linear-gradient(rgba(36, 31, 26, 0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(36, 31, 26, 0.025) 1px, transparent 1px);
-  background-size: 64px 64px;
+    linear-gradient(180deg, #fffaf2 0%, #f2e8da 100%);
 }
 
-/* Ledger paper grain - a tactile texture, not a light source. Fixed,
-   pointer-events: none, and above everything so it never gets clipped
-   by a scrolling container; multiply blend keeps it inert on the white
-   QR shell and near-invisible until you look for it. */
 body::after {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: 2147483647;
-  pointer-events: none;
-  opacity: 0.025;
-  mix-blend-mode: multiply;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  content: none;
 }
 
 a {
@@ -202,20 +187,20 @@ a:hover {
 
 .nsaa-wordmark {
   color: var(--nsaa-on-charcoal);
-  font-family: 'Instrument Sans', sans-serif;
+  font-family: var(--nsaa-font-display);
   font-weight: 800;
   font-size: 1.45rem;
-  letter-spacing: -0.04em;
+  letter-spacing: 0;
   text-transform: uppercase;
   line-height: 1;
 }
 
 .nsaa-brand-tickets {
   color: var(--nsaa-coral);
-  font-family: 'Instrument Sans', sans-serif;
+  font-family: var(--nsaa-font-body);
   font-size: 0.65rem;
   font-weight: 600;
-  letter-spacing: 0.2em;
+  letter-spacing: 0;
   line-height: 1;
   text-transform: uppercase;
 }
@@ -569,24 +554,24 @@ a:hover {
   color: var(--nsaa-coral);
   font-size: 0.72rem;
   font-weight: 600;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .nsaa-page-title {
-  font-family: 'Instrument Sans', sans-serif;
+  font-family: var(--nsaa-font-display);
   font-weight: 850;
   font-size: clamp(2.3rem, 6.5vw, 4.2rem);
   line-height: 0.95;
-  letter-spacing: -0.04em;
+  letter-spacing: 0;
 }
 
 .nsaa-section-title {
-  font-family: 'Instrument Sans', sans-serif;
+  font-family: var(--nsaa-font-display);
   font-weight: 800;
   font-size: clamp(1.65rem, 4vw, 2.4rem);
   line-height: 1.05;
-  letter-spacing: -0.03em;
+  letter-spacing: 0;
 }
 
 .nsaa-card,
@@ -634,11 +619,11 @@ a:hover {
 }
 
 .nsaa-stat-figure {
-  font-family: "Instrument Sans", sans-serif;
+  font-family: var(--nsaa-font-display);
   font-weight: 850;
   font-size: clamp(2.75rem, 6vw, 4.25rem);
   line-height: 0.9;
-  letter-spacing: -0.04em;
+  letter-spacing: 0;
   color: var(--nsaa-coral);
 }
 
@@ -664,7 +649,7 @@ a:hover {
     border-color 0.2s var(--nsaa-ease-out),
     box-shadow 0.2s var(--nsaa-ease-out),
     transform 0.12s var(--nsaa-ease-out);
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
 }
 
 .btn-nsaa:hover,
@@ -823,10 +808,45 @@ a:hover {
   overflow: hidden;
 }
 
+.nsaa-home-hero {
+  position: relative;
+  overflow: hidden;
+  padding: clamp(5.75rem, 9vw, 8.25rem) 0 clamp(3.75rem, 6vw, 5.75rem);
+  background:
+    linear-gradient(135deg, #fff7eb 0%, #f6eddf 48%, #efe0cb 100%);
+  border-bottom: 1px solid rgba(36, 31, 26, 0.14);
+}
+
+.nsaa-home-hero::before {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 0.55rem;
+  background: linear-gradient(
+    90deg,
+    var(--nsaa-coral) 0 22%,
+    var(--nsaa-gold) 22% 42%,
+    var(--nsaa-teal) 42% 64%,
+    var(--nsaa-plum) 64% 82%,
+    var(--nsaa-ink) 82% 100%
+  );
+}
+
 .nsaa-hero-inner {
   width: 100%;
   position: relative;
   z-index: 2;
+}
+
+.nsaa-home-hero-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(22rem, 0.84fr);
+  gap: clamp(2.25rem, 5vw, 5.5rem);
+  align-items: center;
+}
+
+.nsaa-home-hero-copy {
+  max-width: 42rem;
 }
 
 .nsaa-search-shell {
@@ -840,6 +860,12 @@ a:hover {
 .nsaa-search-shell:focus-within {
   border-color: var(--nsaa-coral);
   box-shadow: 0 0 0 3px rgba(244, 78, 37, 0.12);
+}
+
+.nsaa-home-search {
+  max-width: 42rem;
+  border-color: rgba(36, 31, 26, 0.2);
+  box-shadow: 0 20px 45px rgba(36, 31, 26, 0.08);
 }
 
 .nsaa-hero-facts {
@@ -865,6 +891,149 @@ a:hover {
   margin: 0;
 }
 
+.nsaa-hero-proof {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+  max-width: 42rem;
+}
+
+.nsaa-hero-proof > div {
+  min-height: 5.25rem;
+  padding: 0.85rem 0.95rem;
+  border-top: 1px solid rgba(36, 31, 26, 0.2);
+}
+
+.nsaa-hero-proof span {
+  display: block;
+  color: var(--nsaa-ink-muted);
+  font-size: 0.78rem;
+  margin-bottom: 0.35rem;
+}
+
+.nsaa-hero-proof strong {
+  display: block;
+  color: var(--nsaa-ink);
+  font-family: var(--nsaa-font-display);
+  font-size: clamp(1rem, 2vw, 1.25rem);
+  line-height: 1.05;
+}
+
+.nsaa-hero-stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
+  grid-auto-rows: minmax(10rem, auto);
+  gap: 0.85rem;
+  align-items: stretch;
+}
+
+.nsaa-stage-card {
+  position: relative;
+  min-height: 13rem;
+  display: flex;
+  align-items: end;
+  overflow: hidden;
+  padding: 1rem;
+  background: var(--nsaa-charcoal);
+  border: 1px solid rgba(36, 31, 26, 0.18);
+  border-radius: 6px;
+  color: var(--nsaa-on-charcoal);
+  text-decoration: none;
+  isolation: isolate;
+  transition:
+    border-color 0.24s var(--nsaa-ease-out),
+    transform 0.24s var(--nsaa-ease-out);
+}
+
+.nsaa-stage-card::before,
+.nsaa-stage-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+}
+
+.nsaa-stage-card::before {
+  background-image: var(--stage-image);
+  background-position: center;
+  background-size: cover;
+  opacity: 0.86;
+  transition: transform 0.42s var(--nsaa-ease-out);
+}
+
+.nsaa-stage-card::after {
+  background:
+    linear-gradient(180deg, rgba(34, 29, 24, 0.05) 0%, rgba(34, 29, 24, 0.84) 100%),
+    linear-gradient(90deg, rgba(34, 29, 24, 0.58), rgba(34, 29, 24, 0.12));
+}
+
+.nsaa-stage-card:hover {
+  border-color: rgba(255, 106, 0, 0.65);
+  color: var(--nsaa-on-charcoal);
+  transform: translateY(-2px);
+}
+
+.nsaa-stage-card:hover::before {
+  transform: scale(1.035);
+}
+
+.nsaa-stage-card-large {
+  grid-row: span 2;
+  min-height: 27rem;
+}
+
+.nsaa-stage-card-copy {
+  display: grid;
+  gap: 0.28rem;
+  width: 100%;
+}
+
+.nsaa-stage-card-kicker,
+.nsaa-stage-card-meta {
+  color: var(--nsaa-on-charcoal-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.nsaa-stage-card-title {
+  color: var(--nsaa-on-charcoal);
+  font-family: var(--nsaa-font-display);
+  font-size: clamp(1.05rem, 2.25vw, 1.65rem);
+  font-weight: 800;
+  line-height: 1.05;
+}
+
+.nsaa-stage-ticket {
+  display: grid;
+  align-content: space-between;
+  min-height: 13rem;
+  padding: 1rem;
+  background: #fffaf1;
+  border: 1px solid rgba(36, 31, 26, 0.16);
+  border-radius: 6px;
+}
+
+.nsaa-stage-ticket strong {
+  display: block;
+  font-family: var(--nsaa-font-display);
+  font-size: 1.2rem;
+  line-height: 1.08;
+}
+
+.nsaa-stage-ticket-code {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  border-top: 1px dashed rgba(36, 31, 26, 0.28);
+  padding-top: 1rem;
+}
+
+.nsaa-stage-ticket-code i {
+  font-size: 2.1rem;
+}
+
 .nsaa-hero-stub {
   width: 100%;
   max-width: 280px;
@@ -886,24 +1055,24 @@ a:hover {
 .nsaa-hero-stub-label {
   font-weight: 800;
   font-size: 0.78rem;
-  letter-spacing: 0.08em;
+  letter-spacing: 0;
   text-transform: uppercase;
 }
 
 .nsaa-hero-stub-cat {
   font-size: 0.66rem;
   font-weight: 600;
-  letter-spacing: 0.1em;
+  letter-spacing: 0;
   text-transform: uppercase;
   color: var(--nsaa-on-charcoal-muted);
 }
 
 .nsaa-hero-stub-title {
-  font-family: "Instrument Sans", sans-serif;
+  font-family: var(--nsaa-font-display);
   font-weight: 800;
   font-size: 1.3rem;
   line-height: 1.15;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
   margin-bottom: 0.35rem;
 }
 
@@ -1064,10 +1233,10 @@ a:hover {
   border-radius: 4px;
   font-size: 0.68rem;
   font-weight: 600;
-  letter-spacing: 0.05em;
+  letter-spacing: 0;
   min-height: 24px;
   padding: 0.15rem 0.55rem;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .nsaa-badge-gold {
@@ -1164,7 +1333,7 @@ a:hover {
   background-color: var(--nsaa-paper-soft);
   background-position: center;
   background-size: cover;
-  border-radius: 4px;
+  border-radius: 6px;
   overflow: hidden;
   position: relative;
   border: 1px solid var(--nsaa-border);
@@ -1185,8 +1354,100 @@ a:hover {
   transition: color 0.2s ease;
 }
 
+.nsaa-event-body h3 {
+  font-family: var(--nsaa-font-display);
+  line-height: 1.1;
+}
+
 .nsaa-event-card:hover .nsaa-event-body h3 {
   color: var(--nsaa-coral) !important;
+}
+
+.col-xl-6 .nsaa-event-card .nsaa-event-media {
+  aspect-ratio: 16 / 9;
+}
+
+.nsaa-browse-section {
+  padding-top: 4.5rem !important;
+  padding-bottom: 4.5rem !important;
+}
+
+.nsaa-browse-header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.nsaa-browse-header-copy {
+  max-width: 44rem;
+}
+
+.nsaa-filter-rail {
+  background: transparent !important;
+  border: 0 !important;
+  border-left: 2px solid rgba(36, 31, 26, 0.16) !important;
+  border-radius: 0 !important;
+  padding: 0 0 0 1.25rem !important;
+}
+
+.nsaa-filter-rail h2 {
+  font-family: var(--nsaa-font-display);
+}
+
+.nsaa-proof-band {
+  padding-bottom: 5rem;
+}
+
+.nsaa-proof-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) repeat(2, minmax(0, 0.95fr));
+  gap: clamp(1.5rem, 4vw, 3rem);
+  align-items: stretch;
+  padding: clamp(1.5rem, 4vw, 3rem);
+  background: var(--nsaa-charcoal);
+  border: 1px solid var(--nsaa-on-charcoal-border);
+  border-radius: 6px;
+  color: var(--nsaa-on-charcoal);
+}
+
+.nsaa-proof-grid .nsaa-muted {
+  color: var(--nsaa-on-charcoal-muted);
+}
+
+.nsaa-proof-stat {
+  display: grid;
+  align-content: space-between;
+  gap: 1.25rem;
+}
+
+.nsaa-proof-stat strong {
+  display: block;
+  color: var(--nsaa-coral);
+  font-family: var(--nsaa-font-display);
+  font-size: clamp(4rem, 11vw, 8rem);
+  font-weight: 900;
+  line-height: 0.82;
+}
+
+.nsaa-proof-item {
+  display: grid;
+  align-content: start;
+  gap: 0.85rem;
+  border-left: 1px solid var(--nsaa-on-charcoal-border);
+  padding-left: clamp(1rem, 3vw, 2rem);
+}
+
+.nsaa-proof-item i {
+  color: var(--nsaa-coral);
+  font-size: 1.6rem;
+}
+
+.nsaa-proof-item h3 {
+  color: var(--nsaa-on-charcoal);
+  font-family: var(--nsaa-font-display);
+  margin: 0;
 }
 
 .nsaa-meta-grid {
@@ -1301,7 +1562,7 @@ a:hover {
   color: var(--nsaa-warning);
   font-size: 1.65rem;
   line-height: 1;
-  letter-spacing: -0.03em;
+  letter-spacing: 0;
 }
 
 .nsaa-checkout-shell {
@@ -1314,9 +1575,9 @@ a:hover {
   grid-template-columns: minmax(14rem, 0.52fr) minmax(0, 1fr);
   min-height: 15rem;
   overflow: hidden;
-  background: var(--nsaa-paper-soft);
-  border: 1px solid var(--nsaa-border);
-  border-radius: 4px;
+  background: #fffaf1;
+  border: 1px solid rgba(36, 31, 26, 0.14);
+  border-radius: 6px;
 }
 
 .nsaa-checkout-hero-media {
@@ -1344,7 +1605,7 @@ a:hover {
   gap: 0.7rem;
   min-height: 4rem;
   padding: 0.75rem;
-  background: rgba(36, 31, 26, 0.035);
+  background: rgba(36, 31, 26, 0.025);
   border: 1px solid var(--nsaa-border);
   border-radius: 4px;
   color: var(--nsaa-ink-muted);
@@ -1369,8 +1630,8 @@ a:hover {
 
 .nsaa-checkout-progress-item.active,
 .nsaa-checkout-progress-item.complete {
-  background: rgba(244, 78, 37, 0.08);
-  border-color: rgba(244, 78, 37, 0.28);
+  background: rgba(255, 106, 0, 0.09);
+  border-color: rgba(255, 106, 0, 0.32);
   color: var(--nsaa-ink);
 }
 
@@ -1457,7 +1718,7 @@ a:hover {
   min-height: 5.75rem;
   width: 100%;
   padding: 0.9rem;
-  background: rgba(36, 31, 26, 0.025);
+  background: #fffaf1;
   border: 1px solid var(--nsaa-border);
   border-radius: 6px;
   color: var(--nsaa-ink);
@@ -1470,8 +1731,8 @@ a:hover {
 }
 
 .nsaa-payment-method:hover {
-  background: rgba(244, 78, 37, 0.045);
-  border-color: rgba(244, 78, 37, 0.24);
+  background: #fff6e8;
+  border-color: rgba(255, 106, 0, 0.26);
   transform: translateY(-1px);
 }
 
@@ -1481,9 +1742,10 @@ a:hover {
 }
 
 .nsaa-payment-method.active {
-  background: rgba(244, 78, 37, 0.08);
-  border-color: rgba(244, 78, 37, 0.42);
-  box-shadow: 0 12px 28px rgba(36, 31, 26, 0.08);
+  background: var(--nsaa-charcoal);
+  border-color: rgba(255, 106, 0, 0.5);
+  color: var(--nsaa-on-charcoal);
+  box-shadow: 0 16px 34px rgba(36, 31, 26, 0.14);
 }
 
 .nsaa-payment-method-icon,
@@ -1500,6 +1762,12 @@ a:hover {
   border: 1px solid var(--nsaa-border);
   color: var(--nsaa-coral);
   font-size: 1.2rem;
+}
+
+.nsaa-payment-method.active .nsaa-payment-method-icon {
+  background: rgba(255, 106, 0, 0.14);
+  border-color: rgba(255, 106, 0, 0.36);
+  color: var(--nsaa-coral);
 }
 
 .nsaa-payment-method-check {
@@ -1530,6 +1798,10 @@ a:hover {
 .nsaa-payment-method-copy small {
   color: var(--nsaa-ink-muted);
   line-height: 1.35;
+}
+
+.nsaa-payment-method.active .nsaa-payment-method-copy small {
+  color: var(--nsaa-on-charcoal-muted);
 }
 
 .nsaa-payment-actions .btn {
@@ -1797,7 +2069,66 @@ a:hover {
   }
 }
 
+@media (max-width: 991.98px) {
+  .nsaa-home-hero-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .nsaa-home-hero-copy {
+    max-width: none;
+  }
+
+  .nsaa-hero-stage {
+    max-width: 44rem;
+  }
+
+  .nsaa-browse-header {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .nsaa-filter-rail {
+    border-left: 0 !important;
+    border-top: 2px solid rgba(36, 31, 26, 0.16) !important;
+    padding: 1.25rem 0 0 !important;
+  }
+
+  .nsaa-proof-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .nsaa-proof-item {
+    border-left: 0;
+    border-top: 1px solid var(--nsaa-on-charcoal-border);
+    padding-left: 0;
+    padding-top: 1.25rem;
+  }
+}
+
 @media (max-width: 575.98px) {
+  .nsaa-home-hero {
+    padding-top: 4.75rem;
+  }
+
+  .nsaa-hero-proof {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .nsaa-hero-stage {
+    grid-template-columns: 1fr;
+  }
+
+  .nsaa-stage-card,
+  .nsaa-stage-card-large,
+  .nsaa-stage-ticket {
+    min-height: 14.5rem;
+  }
+
+  .nsaa-stage-card-large {
+    grid-row: auto;
+  }
+
   .nsaa-hero-band {
     min-height: auto;
     padding: 4.5rem 0 3.5rem;
@@ -1923,11 +2254,7 @@ a:hover {
 }
 
 .nsaa-hero-band::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(circle at top left, rgba(244, 78, 37, 0.09), transparent 48%);
-  pointer-events: none;
+  content: none;
 }
 
 .nsaa-page-title {

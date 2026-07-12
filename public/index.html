@@ -23,22 +23,22 @@
     <script src="js/clerk-config.js"></script>
     <script src="js/clerk-loader.js"></script>
 
-<header class="nsaa-hero-band">
+    <header class="nsaa-home-hero">
       <div class="container nsaa-hero-inner">
-        <div class="row align-items-center gy-5">
-          <div class="col-lg-7">
-            <p class="nsaa-eyebrow mb-3">Ghana's event marketplace</p>
+        <div class="nsaa-home-hero-grid">
+          <div class="nsaa-home-hero-copy">
+            <p class="nsaa-eyebrow mb-3">Nsaa Tickets</p>
             <h1 class="nsaa-page-title mb-4">
-              Tickets for every kind of gathering.
+              Find the room before it fills.
             </h1>
-            <p class="lead nsaa-muted mb-4" style="max-width: 520px;">
-              Concerts, conferences, sports, weddings, comedy, theatre, worship
-              nights, workshops, and curated nightlife across Ghana.
+            <p class="lead nsaa-muted mb-4">
+              Discover Ghana's concerts, conferences, worship nights, sports,
+              comedy, theatre, weddings, workshops, and nightlife with the full
+              ticket cost shown up front.
             </p>
             <form
               id="home-search-form"
-              class="nsaa-search-shell d-flex flex-column flex-md-row align-items-center gap-2"
-              style="max-width: 560px;"
+              class="nsaa-search-shell nsaa-home-search d-flex flex-column flex-md-row align-items-center gap-2"
             >
               <div class="flex-grow-1 w-100 position-relative">
                 <i class="ph ph-magnifying-glass position-absolute top-50 translate-middle-y text-muted" style="left: 1.25rem; z-index: 5;"></i>
@@ -47,7 +47,7 @@
                   name="q"
                   class="form-control form-control-nsaa border-0 bg-transparent"
                   type="search"
-                  placeholder="Search by artist, venue, city, or event"
+                  placeholder="Search artist, venue, city, or event"
                   style="padding-left: 2.75rem; box-shadow: none;"
                 />
               </div>
@@ -64,36 +64,31 @@
                 Search
               </button>
             </form>
-            <dl class="nsaa-hero-facts">
+            <div class="nsaa-hero-proof">
               <div>
-                <dt>Fees</dt>
-                <dd>Shown before you pay</dd>
+                <span>Platform fee</span>
+                <strong>3.5% on paid tickets</strong>
               </div>
               <div>
-                <dt>Payment</dt>
-                <dd>Mobile Money</dd>
+                <span>Payment</span>
+                <strong>Mobile Money and card checkout</strong>
               </div>
               <div>
-                <dt>Entry</dt>
-                <dd>Signed, one-time QR</dd>
+                <span>Entry</span>
+                <strong>Signed QR, valid once</strong>
               </div>
-            </dl>
+            </div>
           </div>
-          <div class="col-lg-5 d-none d-lg-flex justify-content-center">
-            <div class="nsaa-hero-stub" aria-hidden="true">
-              <div class="nsaa-hero-stub-top">
-                <span class="nsaa-hero-stub-label">Admit One</span>
-                <span class="nsaa-hero-stub-cat">Concert</span>
+
+          <div class="nsaa-hero-stage" id="home-spotlight-grid" aria-label="Featured events">
+            <div class="nsaa-stage-ticket" aria-hidden="true">
+              <div>
+                <p class="nsaa-eyebrow mb-2">At the gate</p>
+                <strong>Every ticket carries a signed one-time QR.</strong>
               </div>
-              <div class="nsaa-hero-stub-title">Afrochella Homecoming</div>
-              <div class="nsaa-hero-stub-meta">Accra &middot; Sat, Dec 14</div>
-              <div class="nsaa-hero-stub-perf"></div>
-              <div class="nsaa-hero-stub-bottom">
-                <span class="nsaa-hero-stub-stamp">
-                  <span class="nsaa-hero-stub-stamp-icon"><i class="ph-bold ph-check"></i></span>
-                  Signed &amp; verified
-                </span>
-                <span class="nsaa-hero-stub-qr"><i class="ph ph-qr-code"></i></span>
+              <div class="nsaa-stage-ticket-code">
+                <span class="nsaa-muted small">Scan once. Then it is closed.</span>
+                <i class="ph ph-qr-code"></i>
               </div>
             </div>
           </div>
@@ -102,11 +97,24 @@
     </header>
 
     <main>
-      <section class="container py-5" id="browse">
+      <section class="container py-5 nsaa-browse-section" id="browse">
+        <div class="nsaa-browse-header">
+          <div class="nsaa-browse-header-copy">
+            <p class="nsaa-eyebrow mb-2">Browse</p>
+            <h2 class="nsaa-section-title mb-2">Built for the whole calendar.</h2>
+            <p class="nsaa-muted mb-0">
+              Filter by city, date, category, age rating, or ticket price.
+            </p>
+          </div>
+          <a
+            class="btn btn-nsaa"
+            href="/organizer-inquiry#organizer-inquiry-form"
+            >List your event</a
+          >
+        </div>
         <div class="row g-4">
           <aside class="col-lg-4 col-xl-3">
-            <div class="nsaa-panel position-sticky" style="top: 88px">
-              <p class="nsaa-eyebrow mb-2">Browse</p>
+            <div class="nsaa-panel nsaa-filter-rail position-sticky" style="top: 88px">
               <h2 class="h4 mb-3">Find events</h2>
               <div id="category-chip-row" class="d-flex flex-wrap gap-2 mb-4"></div>
               <div id="quick-filter-row" class="nsaa-quick-filter-row mb-4">
@@ -184,14 +192,9 @@
             >
               <div>
                 <h2 id="results-heading" class="nsaa-section-title mb-0">
-                  Built for the whole calendar.
+                  Latest listings
                 </h2>
               </div>
-              <a
-                class="btn btn-nsaa align-self-md-end"
-                href="/organizer-inquiry#organizer-inquiry-form"
-                >List your event</a
-              >
             </div>
             <div id="results-grid" class="row g-4"></div>
             <div id="results-pagination" class="d-flex justify-content-between align-items-center gap-3 mt-4"></div>
@@ -199,42 +202,33 @@
         </div>
       </section>
 
-      <section class="container pb-5">
-        <div class="nsaa-panel nsaa-panel-dark p-4 p-lg-5">
-          <div class="row g-4 g-lg-5 align-items-center">
-            <div class="col-lg-5">
-              <p class="nsaa-eyebrow mb-2">Why buyers stick around</p>
-              <p class="nsaa-stat-figure mb-1">3.5%</p>
-              <p class="nsaa-muted mb-0" style="max-width: 26rem;">
-                is the entire platform fee on a paid ticket - itemized next to
-                the ticket price before the Mobile Money prompt goes out, not
-                sprung on you at the last screen.
-              </p>
+      <section class="container nsaa-proof-band">
+        <div class="nsaa-proof-grid">
+          <div class="nsaa-proof-stat">
+            <div>
+              <p class="nsaa-eyebrow mb-2">Buyer trust</p>
+              <strong>3.5%</strong>
             </div>
-            <div class="col-lg-7">
-              <div class="d-flex align-items-start gap-3 py-3 nsaa-stat-row">
-                <span class="nsaa-icon-badge flex-shrink-0"><i class="ph ph-user-minus nsaa-trust-icon"></i></span>
-                <div>
-                  <h3 class="h6 mb-1">Buy without opening an account</h3>
-                  <p class="nsaa-muted small mb-0">
-                    A name and a phone number reserve and pay. Signing in is
-                    something you can add later for convenience, never a wall
-                    you hit before checkout.
-                  </p>
-                </div>
-              </div>
-              <div class="d-flex align-items-start gap-3 py-3 nsaa-stat-row">
-                <span class="nsaa-icon-badge flex-shrink-0"><i class="ph ph-qr-code nsaa-trust-icon"></i></span>
-                <div>
-                  <h3 class="h6 mb-1">Scanned once, then it's dead</h3>
-                  <p class="nsaa-muted small mb-0">
-                    Every ticket is a signed QR code checked at the door. A
-                    saved screenshot of one already used won't get a second
-                    person in.
-                  </p>
-                </div>
-              </div>
-            </div>
+            <p class="nsaa-muted mb-0">
+              The platform fee is itemized next to the ticket price before the
+              Mobile Money prompt or card checkout starts.
+            </p>
+          </div>
+          <div class="nsaa-proof-item">
+            <i class="ph ph-user-minus" aria-hidden="true"></i>
+            <h3 class="h5">Guest checkout stays open</h3>
+            <p class="nsaa-muted mb-0">
+              A name, phone number, and email can reserve and pay. Signing in
+              can happen later for convenience.
+            </p>
+          </div>
+          <div class="nsaa-proof-item">
+            <i class="ph ph-qr-code" aria-hidden="true"></i>
+            <h3 class="h5">QR entry closes the duplicate door</h3>
+            <p class="nsaa-muted mb-0">
+              Each paid ticket receives a signed code that validates once at
+              the scanner.
+            </p>
           </div>
         </div>
       </section>
@@ -252,6 +246,7 @@
       const headingEl = document.getElementById("results-heading");
       const chipRowEl = document.getElementById("category-chip-row");
       const quickFilterRowEl = document.getElementById("quick-filter-row");
+      const heroSpotlightEl = document.getElementById("home-spotlight-grid");
       const homeCategorySelect = document.getElementById("home-category");
       const filterForm = document.getElementById("filter-form");
       const homeSearchForm = document.getElementById("home-search-form");
@@ -272,6 +267,76 @@
       }
 
       let state = readParams();
+
+      const fallbackSpotlights = [
+        {
+          title: "Live music nights",
+          meta: "Concerts and listening rooms",
+          category: "Concert",
+          href: "#browse",
+          image: "https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=1200&q=80",
+        },
+        {
+          title: "Work rooms and summits",
+          meta: "Conferences, expos, and workshops",
+          category: "Conference",
+          href: "#browse",
+          image: "https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=1200&q=80",
+        },
+        {
+          title: "Weekend tables",
+          meta: "Nightlife, comedy, and sports",
+          category: "Nightlife",
+          href: "#browse",
+          image: "https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?auto=format&fit=crop&w=1200&q=80",
+        },
+      ];
+
+      function spotlightFromEvent(event) {
+        const meta = NSAA.categoryMeta(event.category);
+        return {
+          title: event.title,
+          meta: [event.venue, event.city].filter(Boolean).join(", ") || NSAA.formatDate(event.startsAt),
+          category: meta.shortLabel,
+          href: NSAA.eventHref(event),
+          image: NSAA.eventImage(event),
+        };
+      }
+
+      function renderHeroSpotlights(events = []) {
+        const spotlights = (events.length ? events.slice(0, 2).map(spotlightFromEvent) : fallbackSpotlights.slice(0, 2));
+        const cards = spotlights
+          .map(
+            (item, index) => `
+              <a
+                class="nsaa-stage-card ${index === 0 ? "nsaa-stage-card-large" : ""}"
+                href="${NSAA.escapeAttr(item.href)}"
+                style="--stage-image: url('${NSAA.escapeAttr(item.image)}');"
+              >
+                <span class="nsaa-stage-card-copy">
+                  <span class="nsaa-stage-card-kicker">${NSAA.escapeHtml(item.category)}</span>
+                  <span class="nsaa-stage-card-title">${NSAA.escapeHtml(item.title)}</span>
+                  <span class="nsaa-stage-card-meta">${NSAA.escapeHtml(item.meta)}</span>
+                </span>
+              </a>
+            `,
+          )
+          .join("");
+
+        heroSpotlightEl.innerHTML = `
+          ${cards}
+          <div class="nsaa-stage-ticket" aria-hidden="true">
+            <div>
+              <p class="nsaa-eyebrow mb-2">At the gate</p>
+              <strong>Every ticket carries a signed one-time QR.</strong>
+            </div>
+            <div class="nsaa-stage-ticket-code">
+              <span class="nsaa-muted small">Scan once. Then it is closed.</span>
+              <i class="ph ph-qr-code"></i>
+            </div>
+          </div>
+        `;
+      }
 
       homeCategorySelect.innerHTML = [
         '<option value="">All categories</option>',
@@ -420,18 +485,36 @@
 
       function renderResults(result) {
         const list = result?.items || [];
-        headingEl.textContent = state.q || state.category || state.city || state.from || state.to || state.price !== "all" || state.availability !== "any"
+        renderHeroSpotlights(list);
+        const hasActiveFilters = Boolean(
+          state.q ||
+            state.category ||
+            state.city ||
+            state.from ||
+            state.to ||
+            state.price !== "all" ||
+            state.availability !== "any" ||
+            state.ageRating,
+        );
+        headingEl.textContent = hasActiveFilters
           ? `${result?.total ?? list.length} ${(result?.total ?? list.length) === 1 ? "event" : "events"}`
-          : "Built for the whole calendar.";
+          : "Latest listings";
 
         if (list.length === 0) {
-          resultsEl.innerHTML = `<div class="col-12">${NSAA.emptyState("No matching events", "Try a different category, city, keyword, or date range.", '<a class="btn btn-nsaa" href="/organizer-inquiry#organizer-inquiry-form">Bring an event to Nsaa</a>')}</div>`;
+          const emptyTitle = hasActiveFilters ? "No matching events" : "No published events yet";
+          const emptyCopy = hasActiveFilters
+            ? "Try a different category, city, keyword, or date range."
+            : "Published events will appear here as soon as organizers go live.";
+          resultsEl.innerHTML = `<div class="col-12">${NSAA.emptyState(emptyTitle, emptyCopy, '<a class="btn btn-nsaa" href="/organizer-inquiry#organizer-inquiry-form">Bring an event to Nsaa</a>')}</div>`;
           paginationEl.innerHTML = "";
           return;
         }
 
         resultsEl.innerHTML = list
-          .map((event, index) => NSAA.eventCard(event, { colClass: "col-md-6 col-xl-4", index }))
+          .map((event, index) => {
+            const colClass = !hasActiveFilters && index === 0 ? "col-md-12 col-xl-6" : "col-md-6 col-xl-3";
+            return NSAA.eventCard(event, { colClass, index });
+          })
           .join("");
         renderPagination(result);
       }
@@ -494,6 +577,7 @@
       });
 
       renderChips();
+      renderHeroSpotlights();
       resultsEl.innerHTML = NSAA.skeletonCards(3);
       syncFormsFromState();
 
