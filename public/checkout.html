@@ -32,7 +32,7 @@
     <script src="js/clerk-config.js"></script>
     <script src="js/clerk-loader.js"></script>
 
-<main class="container py-5" style="max-width: 1120px">
+    <main class="container py-5" style="max-width: 1120px">
       <div id="checkout-root">
         <div id="checkout-loading"></div>
       </div>
@@ -92,22 +92,22 @@
           <header class="nsaa-checkout-hero">
             <div class="nsaa-checkout-hero-media" style="background-image: linear-gradient(180deg, rgba(34,29,24,0.04), rgba(34,29,24,0.3)), url('${NSAA.escapeAttr(eventImage)}');"></div>
             <div class="nsaa-checkout-hero-copy">
-              <p class="nsaa-eyebrow mb-2">Secure checkout</p>
-              <h1 class="h3 mb-2">Complete your ticket order</h1>
-              <p class="nsaa-muted mb-3">Reserve your ticket first, then approve Mobile Money or card payment. No account required.</p>
+              <p class="nsaa-eyebrow mb-2">Checkout</p>
+              <h1 class="h3 mb-2">Your ticket is almost ready</h1>
+              <p class="nsaa-muted mb-3">Add your details, choose Mobile Money or card, and Nsaa sends the QR ticket straight to your email.</p>
               <div class="nsaa-checkout-progress" aria-label="Checkout progress">
                 <div id="checkout-progress-details" class="nsaa-checkout-progress-item active">
                   <span>1</span>
                   <div>
                     <p class="mb-0 fw-semibold">Details</p>
-                    <small>Contact and quantity</small>
+                    <small>Ticket delivery</small>
                   </div>
                 </div>
                 <div id="checkout-progress-payment" class="nsaa-checkout-progress-item">
                   <span>2</span>
                   <div>
                     <p class="mb-0 fw-semibold">Payment</p>
-                    <small>Approve prompt</small>
+                    <small>MoMo or card</small>
                   </div>
                 </div>
               </div>
@@ -119,12 +119,12 @@
               <div id="details-step" class="nsaa-panel nsaa-checkout-card">
                 <div class="d-flex align-items-start justify-content-between gap-3 mb-3">
                   <div>
-                    <p class="nsaa-eyebrow mb-2">Guest details</p>
-                    <h2 class="h4 mb-1">Who should receive the tickets?</h2>
+                    <p class="nsaa-eyebrow mb-2">Ticket delivery</p>
+                    <h2 class="h4 mb-1">Where should we send the ticket?</h2>
                   </div>
                   <span class="nsaa-chip">Step 1 of 2</span>
                 </div>
-                <p class="nsaa-muted mb-4">Your phone number receives the Mobile Money prompt. Your receipt and scannable QR ticket are emailed to you.</p>
+                <p class="nsaa-muted mb-4">Use the phone that will approve Mobile Money and the email that should receive the receipt and QR ticket.</p>
 
                 <form id="details-form" novalidate>
                   <div class="row g-3">
@@ -149,7 +149,7 @@
                   </div>
 
                   <div id="details-error" class="mt-3"></div>
-                  <button id="reserve-btn" class="btn btn-nsaa w-100 mt-4" type="submit" ${available <= 0 ? "disabled" : ""}>Reserve tickets</button>
+                  <button id="reserve-btn" class="btn btn-nsaa w-100 mt-4" type="submit" ${available <= 0 ? "disabled" : ""}>Continue to payment</button>
                 </form>
               </div>
 
@@ -157,11 +157,11 @@
                 <div class="d-flex align-items-start justify-content-between gap-3 mb-3">
                   <div>
                     <p class="nsaa-eyebrow mb-2">Payment</p>
-                    <h2 class="h4 mb-1">Approve payment on your phone</h2>
+                    <h2 class="h4 mb-1">Choose how you want to pay</h2>
                   </div>
                   <span class="nsaa-chip">Step 2 of 2</span>
                 </div>
-                <p class="nsaa-muted mb-4">Your tickets are held while you approve payment. Keep this page open until Nsaa confirms your order.</p>
+                <p class="nsaa-muted mb-4">Your ticket is held for this order while payment completes. Keep this page open until Nsaa confirms it.</p>
 
                 <div class="nsaa-checkout-payment-grid mb-3">
                   <div class="nsaa-hold-countdown">
@@ -170,8 +170,8 @@
                     <span class="nsaa-muted small">Inventory is locked for your order.</span>
                   </div>
                   <div id="payment-status" class="nsaa-status-box waiting">
-                    <p class="fw-semibold mb-1">Waiting to send request</p>
-                    <p class="mb-0">Your ticket reservation is held while you start payment.</p>
+                    <p class="fw-semibold mb-1">Ready for payment</p>
+                    <p class="mb-0">Choose Mobile Money or card to continue.</p>
                   </div>
                 </div>
 
@@ -180,47 +180,64 @@
                     <span class="nsaa-payment-method-icon"><i class="ph ph-device-mobile" aria-hidden="true"></i></span>
                     <span class="nsaa-payment-method-copy">
                       <strong>Mobile Money</strong>
-                      <small>MTN, Telecel, and AirtelTigo approval prompt</small>
+                      <small>Get a wallet prompt on MTN, Telecel, or AirtelTigo</small>
                     </span>
                     <span class="nsaa-payment-method-check"><i class="ph ph-check" aria-hidden="true"></i></span>
                   </button>
                   <button class="nsaa-payment-method" type="button" data-payment-method="card" role="radio" aria-checked="false">
                     <span class="nsaa-payment-method-icon"><i class="ph ph-credit-card" aria-hidden="true"></i></span>
                     <span class="nsaa-payment-method-copy">
-                      <strong>Card checkout</strong>
-                      <small>Secure hosted Moolre card page</small>
+                      <strong>Card</strong>
+                      <small>Open a secure card page and return to your ticket</small>
                     </span>
                     <span class="nsaa-payment-method-check"><i class="ph ph-check" aria-hidden="true"></i></span>
                   </button>
                 </div>
 
-                <div id="momo-network-panel" class="nsaa-soft-panel p-3 mb-3">
-                  <label class="form-label nsaa-muted small" for="momo-channel">Mobile Money network</label>
-                  <select id="momo-channel" class="form-select form-select-nsaa">
-                    <option value="13">MTN Mobile Money</option>
-                    <option value="6">Telecel Cash</option>
-                    <option value="7">AirtelTigo Money</option>
-                  </select>
-                  <p class="nsaa-faint small mt-2 mb-0">Choose the network that owns the number receiving the prompt.</p>
+                <div id="momo-network-panel" class="nsaa-wallet-panel mb-3">
+                  <div class="nsaa-wallet-panel-head">
+                    <div>
+                      <p class="fw-semibold mb-1">Choose wallet</p>
+                      <p class="nsaa-muted small mb-0">Select the network for the Mobile Money number above.</p>
+                    </div>
+                    <span class="nsaa-chip">Mobile Money</span>
+                  </div>
+                  <div class="nsaa-wallet-options" role="radiogroup" aria-label="Mobile Money network">
+                    <button class="nsaa-wallet-option active" type="button" data-momo-channel="13" role="radio" aria-checked="true">
+                      <span class="nsaa-wallet-mark"><i class="ph ph-check" aria-hidden="true"></i></span>
+                      <strong>MTN</strong>
+                      <small>Mobile Money</small>
+                    </button>
+                    <button class="nsaa-wallet-option" type="button" data-momo-channel="6" role="radio" aria-checked="false">
+                      <span class="nsaa-wallet-mark"><i class="ph ph-check" aria-hidden="true"></i></span>
+                      <strong>Telecel</strong>
+                      <small>Cash</small>
+                    </button>
+                    <button class="nsaa-wallet-option" type="button" data-momo-channel="7" role="radio" aria-checked="false">
+                      <span class="nsaa-wallet-mark"><i class="ph ph-check" aria-hidden="true"></i></span>
+                      <strong>AirtelTigo</strong>
+                      <small>Money</small>
+                    </button>
+                  </div>
                 </div>
 
                 <div class="nsaa-payment-actions">
                   <button id="pay-btn" class="btn btn-nsaa" type="button">
                     <i class="ph ph-device-mobile" aria-hidden="true"></i>
-                    Send Mobile Money prompt
+                    Pay with Mobile Money
                   </button>
                   <button id="pay-card-btn" class="btn btn-nsaa d-none" type="button">
                     <i class="ph ph-credit-card" aria-hidden="true"></i>
-                    Continue to card checkout
+                    Open secure card checkout
                   </button>
                   <a id="status-link" class="btn btn-outline-nsaa" href="/order-status">
                     <i class="ph ph-receipt" aria-hidden="true"></i>
-                    Open order status
+                    Track order
                   </a>
                 </div>
 
                 <div id="otp-step" class="d-none mt-3">
-                  <label class="form-label nsaa-muted small" for="otp-code">Verification code</label>
+                  <label class="form-label nsaa-muted small" for="otp-code">Enter verification code</label>
                   <div class="d-flex gap-2">
                     <input id="otp-code" class="form-control form-control-nsaa" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="123456" />
                     <button id="otp-submit-btn" class="btn btn-nsaa" type="button">Verify</button>
@@ -229,7 +246,7 @@
                     <button id="otp-resend-btn" class="btn btn-outline-nsaa btn-sm" type="button">
                       Resend code
                     </button>
-                    <p class="nsaa-faint small mb-0">No SMS yet? Confirm the network above, then resend the code.</p>
+                    <p class="nsaa-faint small mb-0">No SMS yet? Check the wallet network, then resend the code.</p>
                   </div>
                 </div>
               </div>
@@ -361,10 +378,10 @@
 
         setPaymentState(
           "waiting",
-          selectedPaymentMethod === "card" ? "Card checkout selected" : "Mobile Money selected",
+          selectedPaymentMethod === "card" ? "Card selected" : "Mobile Money selected",
           selectedPaymentMethod === "card"
-            ? "Continue to Moolre's secure hosted card page. Your reservation stays held while you complete payment."
-            : "Send a payment prompt to the Mobile Money number you entered.",
+            ? "Open the secure card page. Your reservation stays held while you complete payment."
+            : "Choose the wallet network, then request the payment prompt.",
         );
       }
 
@@ -392,8 +409,11 @@
           });
         });
 
-        document.getElementById("momo-channel")?.addEventListener("change", (event) => {
-          selectedMomoChannel = event.target.value;
+        document.querySelectorAll("[data-momo-channel]").forEach((button) => {
+          button.addEventListener("click", () => {
+            selectedMomoChannel = button.getAttribute("data-momo-channel") || "13";
+            syncMomoChannelButtons();
+          });
         });
       }
 
@@ -405,6 +425,14 @@
         if (["020", "030", "050"].includes(prefix)) return "6";
         if (["026", "027", "028", "056", "057"].includes(prefix)) return "7";
         return "13";
+      }
+
+      function syncMomoChannelButtons() {
+        document.querySelectorAll("[data-momo-channel]").forEach((button) => {
+          const isActive = button.getAttribute("data-momo-channel") === selectedMomoChannel;
+          button.classList.toggle("active", isActive);
+          button.setAttribute("aria-checked", isActive ? "true" : "false");
+        });
       }
 
       async function reserveOrder(event) {
@@ -461,13 +489,13 @@
         if (hasError) {
           errorEl.innerHTML = NSAA.errorState(
             "Check details",
-            "Please check the highlighted fields. Provide a valid name, active Ghanaian MoMo number, and quantity."
+            "Please check the highlighted fields. Provide a valid name, active Ghanaian Mobile Money number, and quantity."
           );
           return;
         }
 
         reserveBtn.disabled = true;
-        reserveBtn.textContent = "Reserving tickets...";
+        reserveBtn.textContent = "Holding your tickets...";
 
         try {
           const result = await client.mutation("orders:createReservation", {
@@ -491,7 +519,7 @@
             err.message || "Please try again.",
           );
           reserveBtn.disabled = false;
-          reserveBtn.textContent = "Reserve tickets";
+          reserveBtn.textContent = "Continue to payment";
         }
       }
 
@@ -502,8 +530,7 @@
         document.getElementById("checkout-progress-details")?.classList.add("complete");
         document.getElementById("checkout-progress-payment")?.classList.add("active");
         startReservationCountdown(reservedUntil);
-        const momoChannelEl = document.getElementById("momo-channel");
-        if (momoChannelEl) momoChannelEl.value = selectedMomoChannel;
+        syncMomoChannelButtons();
         document.getElementById("status-link").href =
           `/order-status?orderId=${encodeURIComponent(currentOrderId)}`;
         setSelectedPaymentMethod(selectedPaymentMethod);
@@ -537,10 +564,10 @@
             if (order.status === "failed") {
               setPaymentState(
                 "failed",
-                "Payment did not start",
+                "Payment could not be confirmed",
                 order.moolreFailureReason
-                  ? `${order.moolreFailureReason} No charge was made and no ticket was issued.`
-                  : "No charge was made and no ticket was issued. Start a fresh checkout from the event page or contact support if this keeps happening.",
+                  ? `${order.moolreFailureReason} No ticket was issued. Try another payment method or start a fresh checkout.`
+                  : "No ticket was issued. Try another payment method or start a fresh checkout from the event page.",
               );
               document.getElementById("pay-btn").disabled = true;
               document.getElementById("pay-card-btn").disabled = true;
@@ -568,9 +595,9 @@
 
         setPaymentState(
           "waiting",
-          otpcode ? "Verifying code" : "Sending payment prompt",
+          otpcode ? "Checking code" : "Sending Mobile Money request",
           otpcode
-            ? "Confirming your verification code with Moolre."
+            ? "Confirming the verification code for this wallet."
             : "Keep this page open. Your phone may ask you to approve the Mobile Money payment.",
         );
 
@@ -589,7 +616,7 @@
             setPaymentState(
               "waiting",
               result.status === "otp_invalid" ? "Incorrect code" : "Enter verification code",
-              "Moolre requires a phone verification code before sending the payment prompt. Enter the SMS code, or resend it if nothing arrives.",
+              "This wallet needs a verification code before the payment prompt can be sent. Enter the SMS code, or resend it if nothing arrives.",
             );
             return;
           }
@@ -623,7 +650,7 @@
         setPaymentState(
           "waiting",
           "Resending verification code",
-          "Asking Moolre to send the verification SMS again. Keep this page open.",
+          "Requesting a new verification SMS for this wallet. Keep this page open.",
         );
 
         try {
@@ -638,7 +665,7 @@
             setPaymentState(
               "waiting",
               "Verification code required",
-              "If the SMS still does not arrive, confirm the number and network, then try card checkout or start a fresh checkout.",
+              "If the SMS still does not arrive, confirm the number and wallet network, then try card checkout or start a fresh checkout.",
             );
             return;
           }
@@ -676,11 +703,11 @@
         if (cardButton) {
           const cardBtn = cardButton;
           cardBtn.disabled = true;
-          cardBtn.innerHTML = `<i class="ph ph-spinner-gap" aria-hidden="true"></i> Redirecting to card checkout...`;
+          cardBtn.innerHTML = `<i class="ph ph-spinner-gap" aria-hidden="true"></i> Opening card checkout...`;
           setPaymentState(
             "waiting",
-            "Opening card checkout",
-            "You'll be redirected to a secure Moolre checkout page to enter your card details.",
+            "Opening secure card page",
+            "You will return to Nsaa after you complete card payment.",
           );
           try {
             const result = await client.action("orders:initiateCardPayment", {
@@ -695,7 +722,7 @@
               err.message || "Please try again.",
             );
             cardBtn.disabled = false;
-            cardBtn.innerHTML = `<i class="ph ph-credit-card" aria-hidden="true"></i> Continue to card checkout`;
+            cardBtn.innerHTML = `<i class="ph ph-credit-card" aria-hidden="true"></i> Open secure card checkout`;
           }
         }
       });
