@@ -14,8 +14,7 @@
       shortLabel: "Concert",
       tone: "teal",
       description: "Live music, festivals, listening rooms",
-      image:
-        "https://images.unsplash.com/photo-1506157786151-b8491531f063?auto=format&fit=crop&w=1200&q=80",
+      code: "CN",
     },
     {
       value: "nightlife",
@@ -23,8 +22,7 @@
       shortLabel: "Nightlife",
       tone: "rose",
       description: "Curated parties, rooftops, club nights",
-      image:
-        "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=1200&q=80",
+      code: "NL",
     },
     {
       value: "conference",
@@ -32,8 +30,7 @@
       shortLabel: "Conference",
       tone: "blue",
       description: "Summits, expos, professional forums",
-      image:
-        "https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=1200&q=80",
+      code: "CF",
     },
     {
       value: "sports",
@@ -41,8 +38,7 @@
       shortLabel: "Sports",
       tone: "green",
       description: "Matches, screenings, tournaments",
-      image:
-        "https://images.unsplash.com/photo-1505842465776-3d90f6163103?auto=format&fit=crop&w=1200&q=80",
+      code: "SP",
     },
     {
       value: "wedding",
@@ -50,8 +46,7 @@
       shortLabel: "Wedding",
       tone: "rose",
       description: "Showcases, ceremonies, vendor fairs",
-      image:
-        "https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=1200&q=80",
+      code: "WD",
     },
     {
       value: "comedy",
@@ -59,8 +54,7 @@
       shortLabel: "Comedy",
       tone: "teal",
       description: "Stand-up, improv, live specials",
-      image:
-        "https://images.unsplash.com/photo-1527224857830-43a7acc85260?auto=format&fit=crop&w=1200&q=80",
+      code: "CM",
     },
     {
       value: "theatre",
@@ -68,8 +62,7 @@
       shortLabel: "Theatre",
       tone: "blue",
       description: "Drama, dance, spoken word, stage",
-      image:
-        "https://images.unsplash.com/photo-1503095396549-807759245b35?auto=format&fit=crop&w=1200&q=80",
+      code: "TH",
     },
     {
       value: "religious",
@@ -77,8 +70,7 @@
       shortLabel: "Religious",
       tone: "green",
       description: "Worship, conferences, gatherings",
-      image:
-        "https://images.unsplash.com/photo-1438232992991-995b7058bbb3?auto=format&fit=crop&w=1200&q=80",
+      code: "RG",
     },
     {
       value: "workshop",
@@ -86,10 +78,43 @@
       shortLabel: "Workshop",
       tone: "blue",
       description: "Classes, practical training, clinics",
-      image:
-        "https://images.unsplash.com/photo-1517048676732-d65bc937f952?auto=format&fit=crop&w=1200&q=80",
+      code: "WK",
     },
   ];
+
+  // No event photo on file (no organizer upload yet) gets a generated
+  // ticket-stub art tile instead of stock photography - a gate-code-style
+  // monogram in the category's tone over the same charcoal/perforation
+  // language used elsewhere on the site, so a bare event still looks like
+  // it belongs to Nsaa rather than a generic Unsplash search result.
+  const TONE_HEX = {
+    teal: "#279485",
+    rose: "#d9578a",
+    blue: "#8a5178",
+    green: "#7c8c4a",
+  };
+
+  function categoryArtDataUri(tone, code) {
+    const hex = TONE_HEX[tone] || TONE_HEX.teal;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500">
+      <rect width="800" height="500" fill="#221d18"/>
+      <defs>
+        <radialGradient id="g" cx="80%" cy="16%" r="70%">
+          <stop offset="0%" stop-color="${hex}" stop-opacity="0.38"/>
+          <stop offset="100%" stop-color="${hex}" stop-opacity="0"/>
+        </radialGradient>
+        <pattern id="p" width="16" height="16" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+          <line x1="0" y1="0" x2="0" y2="16" stroke="#f7f1e6" stroke-opacity="0.05" stroke-width="1"/>
+        </pattern>
+      </defs>
+      <rect width="800" height="500" fill="url(#g)"/>
+      <rect width="800" height="500" fill="url(#p)"/>
+      <text x="52" y="392" font-family="Arial, Helvetica, sans-serif" font-weight="800" font-size="240" letter-spacing="-8" fill="${hex}" fill-opacity="0.17" transform="rotate(-6 400 250)">${code}</text>
+      <circle cx="26" cy="250" r="15" fill="#221d18" stroke="#f7f1e6" stroke-opacity="0.09"/>
+      <circle cx="774" cy="250" r="15" fill="#221d18" stroke="#f7f1e6" stroke-opacity="0.09"/>
+    </svg>`;
+    return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+  }
 
   const categoryByValue = new Map(categories.map((item) => [item.value, item]));
 
@@ -205,7 +230,7 @@
         shortLabel: titleCase(value || "Event"),
         tone: "teal",
         description: "Event experience",
-        image: categories[0].image,
+        code: "EV",
       }
     );
   }
@@ -219,7 +244,9 @@
   }
 
   function eventImage(event) {
-    return event?.heroImageUrl || categoryMeta(event?.category).image;
+    if (event?.heroImageUrl) return event.heroImageUrl;
+    const meta = categoryMeta(event?.category);
+    return categoryArtDataUri(meta.tone, meta.code);
   }
 
   function eventHref(event, extraParams = {}) {

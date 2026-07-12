@@ -26,9 +26,10 @@
   --nsaa-on-charcoal-border-strong: rgba(247, 241, 230, 0.24);
 
   /* Ignite coral - the one primary-action color: buy tickets, get in,
-     checkout CTAs. */
-  --nsaa-coral: #f44e25;
-  --nsaa-coral-hover: #f66946;
+     checkout CTAs. Vivid, saturated orange (not a muted red-coral) so it
+     reads as energetic against the warm paper background. */
+  --nsaa-coral: #ff6a00;
+  --nsaa-coral-hover: #ff8534;
   --nsaa-coral-ink: #241f1a;
 
   /* Gold rush - highlights, "selling fast" badges, price tags,
@@ -603,6 +604,42 @@ a:hover {
   background: rgba(36, 31, 26, 0.03);
   border: 1px solid rgba(36, 31, 26, 0.08);
   border-radius: 4px;
+}
+
+/* Charcoal-surface variant of .nsaa-panel - an occasional dark island for
+   the single most important claim on a page, so trust/feature content
+   doesn't default to a uniform row of paper cards everywhere. */
+.nsaa-panel-dark {
+  --nsaa-border: var(--nsaa-on-charcoal-border);
+  --nsaa-border-strong: var(--nsaa-on-charcoal-border-strong);
+  background-color: var(--nsaa-charcoal);
+  border-color: var(--nsaa-on-charcoal-border);
+  color: var(--nsaa-on-charcoal);
+}
+
+.nsaa-panel-dark .nsaa-muted {
+  color: var(--nsaa-on-charcoal-muted);
+}
+
+.nsaa-panel-dark .nsaa-icon-badge {
+  background: rgba(247, 241, 230, 0.05);
+  border-color: var(--nsaa-on-charcoal-border);
+}
+
+/* A vertical list of icon + heading + copy rows, used instead of a uniform
+   equal-width card grid whenever the items are really one continuous list
+   (About, checkout assurance copy) rather than independent feature tiles. */
+.nsaa-stat-row + .nsaa-stat-row {
+  border-top: 1px solid var(--nsaa-border);
+}
+
+.nsaa-stat-figure {
+  font-family: "Instrument Sans", sans-serif;
+  font-weight: 850;
+  font-size: clamp(2.75rem, 6vw, 4.25rem);
+  line-height: 0.9;
+  letter-spacing: -0.04em;
+  color: var(--nsaa-coral);
 }
 
 .btn-nsaa {

@@ -36,13 +36,21 @@ export function requireValidEmail(value: string): string {
 // Mirrors NSAA.isValidGhanaPhone in public/js/nsaa.js - kept as a
 // separate server-side copy on purpose, since the client-side version is
 // UX-only and must not be trusted as the real check.
+//
+// Returns the number normalized to local "0XXXXXXXXX" format, not the
+// raw input - the raw string (which the checkout field's own placeholder
+// encourages typing with spaces, e.g. "024 000 0000") used to be stored
+// and passed straight to Moolre as `payer` and as the SMS `recipient`.
+// Moolre's collection API expects a clean MSISDN, so an unnormalized
+// number with spaces/dashes/a "+" could silently break OTP/SMS delivery
+// even though the API call itself still "succeeded".
 export function requireValidGhanaPhone(value: string): string {
   const clean = value.replace(/[\s\-+()]/g, "");
-  const isValid = /^233\d{9}$/.test(clean) || /^0\d{9}$/.test(clean);
-  if (!isValid) {
+  const local = clean.startsWith("233") ? `0${clean.slice(3)}` : clean;
+  if (!/^0\d{9}$/.test(local)) {
     throw new Error("A valid Ghanaian phone number is required.");
   }
-  return value.trim();
+  return local;
 }
 
 export function requirePositiveNumber(value: number, field: string, max = 1_000_000): number {
