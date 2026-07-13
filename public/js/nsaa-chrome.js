@@ -237,11 +237,25 @@ async function applyRoleGating() {
   }
 }
 
+// Spins the brand mark like a loading indicator while the page is still
+// loading (fonts, images, scripts), then settles once window "load" fires.
+// A 500ms floor keeps it from flashing on fast/cached loads.
+function initBrandSpinner() {
+  const mark = document.querySelector(".nsaa-navbar .nsaa-brand-mark");
+  if (!mark || document.readyState === "complete") return;
+
+  mark.classList.add("is-loading");
+  const minVisible = new Promise((resolve) => window.setTimeout(resolve, 500));
+  const loaded = new Promise((resolve) => window.addEventListener("load", resolve, { once: true }));
+  Promise.all([minVisible, loaded]).then(() => mark.classList.remove("is-loading"));
+}
+
 function render() {
   const navMount = document.getElementById("nsaa-chrome-nav");
   if (navMount) {
     navMount.outerHTML = navShellHtml();
     setNavContext("attendee", false);
+    initBrandSpinner();
   }
 
   const footerMount = document.getElementById("nsaa-chrome-footer");

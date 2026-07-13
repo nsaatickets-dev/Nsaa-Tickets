@@ -181,7 +181,6 @@ a:hover {
 
 .nsaa-brand-lockup:hover .nsaa-brand-mark {
   border-color: var(--nsaa-coral);
-  transform: translateY(-1px);
 }
 
 .nsaa-brand-name {
@@ -444,6 +443,15 @@ a:hover {
 .nsaa-organizer-avatar small {
   color: var(--nsaa-ink-muted);
   font-size: 0.72rem;
+}
+
+@keyframes nsaaLogoSpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes nsaaAuthPulse {
@@ -2625,6 +2633,10 @@ a:hover {
 
 .nsaa-navbar .nsaa-brand-mark {
   border-color: rgba(36, 31, 26, 0.16);
+}
+
+.nsaa-navbar .nsaa-brand-mark.is-loading {
+  animation: nsaaLogoSpin 0.8s linear infinite;
 }
 
 .nsaa-navbar .nsaa-wordmark {
