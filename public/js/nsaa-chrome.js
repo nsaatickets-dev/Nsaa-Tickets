@@ -20,18 +20,11 @@ function currentPage() {
 
 function activePageForNav() {
   const page = currentPage();
-  const hash = window.location.hash || "";
   // /category and /search-results are redirect stubs into /, and /event
   // is reached from the same unified browse view - all three should
   // light up "Events" as the active nav link.
   if (page === "/category" || page === "/search-results" || page === "/event") {
     return "/";
-  }
-  if (page === "/" && hash === "#how-it-works") {
-    return `${page}${hash}`;
-  }
-  if (page === "/faq" && hash === "#fees") {
-    return `${page}${hash}`;
   }
   return page;
 }
@@ -44,7 +37,10 @@ function footerHtml() {
           <div class="col-lg-4">
             <a class="nsaa-brand-lockup d-inline-flex mb-3" href="/">
               <img class="nsaa-brand-mark" src="/logo.jpeg" alt="" width="38" height="38" />
-              <span class="visually-hidden">Nsaa Tickets</span>
+              <span class="nsaa-brand-name">
+                <span class="nsaa-wordmark">Nsaa</span>
+                <span class="nsaa-brand-tickets">Tickets</span>
+              </span>
             </a>
             <p class="nsaa-muted small mb-3" style="max-width: 320px;">
               Ghana-first ticketing with clear fees and fraud-resistant entry.
@@ -59,8 +55,8 @@ function footerHtml() {
             <p class="nsaa-faint small text-uppercase mb-3">Use Nsaa</p>
             <ul class="list-unstyled d-grid gap-2 mb-0">
               <li><a href="/" class="nsaa-muted text-decoration-none">Events</a></li>
-              <li><a href="/#how-it-works" class="nsaa-muted text-decoration-none">How it works</a></li>
-              <li><a href="/faq#fees" class="nsaa-muted text-decoration-none">Fees</a></li>
+              <li><a href="/venues" class="nsaa-muted text-decoration-none">Venues</a></li>
+              <li><a href="/organizers" class="nsaa-muted text-decoration-none">Organizers</a></li>
               <li><a href="/faq" class="nsaa-muted text-decoration-none">Help center</a></li>
             </ul>
           </div>
@@ -105,8 +101,8 @@ function footerHtml() {
 function navLinksHtml(context, showSwitcher) {
   const primaryLinks = [
     `<a href="/" class="nsaa-nav-link"><i class="ph ph-compass" aria-hidden="true"></i><span>Events</span></a>`,
-    `<a href="/#how-it-works" class="nsaa-nav-link"><i class="ph ph-list-checks" aria-hidden="true"></i><span>How it works</span></a>`,
-    `<a href="/faq#fees" class="nsaa-nav-link"><i class="ph ph-receipt" aria-hidden="true"></i><span>Fees</span></a>`,
+    `<a href="/venues" class="nsaa-nav-link"><i class="ph ph-map-pin" aria-hidden="true"></i><span>Venues</span></a>`,
+    `<a href="/organizers" class="nsaa-nav-link"><i class="ph ph-users-three" aria-hidden="true"></i><span>Organizers</span></a>`,
     `<a href="/faq" class="nsaa-nav-link"><i class="ph ph-lifebuoy" aria-hidden="true"></i><span>Help</span></a>`,
   ];
 
@@ -140,7 +136,10 @@ function navShellHtml() {
       <div class="container">
         <a class="nsaa-brand-lockup" href="/" aria-label="Nsaa Tickets home">
           <img class="nsaa-brand-mark" src="/logo.jpeg" alt="" width="38" height="38" />
-          <span class="visually-hidden">Nsaa Tickets</span>
+          <span class="nsaa-brand-name">
+            <span class="nsaa-wordmark">Nsaa</span>
+            <span class="nsaa-brand-tickets">Tickets</span>
+          </span>
         </a>
         <div class="ms-auto d-flex align-items-center gap-2">
           <button
@@ -253,8 +252,3 @@ function render() {
 
 render();
 applyRoleGating();
-
-window.addEventListener("hashchange", () => {
-  const linksRoot = document.getElementById("nsaa-nav-links");
-  if (linksRoot) highlightActiveLink(linksRoot);
-});

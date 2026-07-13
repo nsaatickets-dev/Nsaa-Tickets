@@ -135,8 +135,8 @@
 
         root.innerHTML = `
         <section class="nsaa-panel">
-          <p class="nsaa-eyebrow mb-2">Order ${NSAA.escapeHtml(order._id.slice(-6).toUpperCase())}</p>
-          <h1 class="h2 mb-3">${NSAA.escapeHtml(copy.title)}</h1>
+          <h1 class="h2 mb-1">${NSAA.escapeHtml(copy.title)}</h1>
+          <p class="nsaa-faint small mb-3">Order ${NSAA.escapeHtml(order._id.slice(-6).toUpperCase())}</p>
           <div class="nsaa-status-box ${NSAA.escapeAttr(copy.kind)} mb-4">
             <p class="fw-semibold mb-1">${NSAA.escapeHtml(copy.title)} ${copy.kind === "waiting" ? '<span class="nsaa-progress-dots" aria-hidden="true"><span></span><span></span><span></span></span>' : ""}</p>
             <p class="mb-0">${NSAA.escapeHtml(copy.body)}</p>

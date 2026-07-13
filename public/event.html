@@ -121,7 +121,6 @@
               <p class="nsaa-muted fs-5 mb-4">${NSAA.escapeHtml(event.description)}</p>
 
               <div class="nsaa-panel">
-                <p class="nsaa-eyebrow mb-2">Venue</p>
                 <h3 class="h5 mb-2">${NSAA.escapeHtml(event.venue)}</h3>
                 <p class="nsaa-muted mb-3">${NSAA.escapeHtml(event.address)}, ${NSAA.escapeHtml(event.city)}</p>
                 <div class="d-flex flex-wrap gap-2">
@@ -133,7 +132,6 @@
 
             <aside class="col-lg-5">
               <div class="nsaa-panel position-sticky" style="top: 88px;">
-                <p class="nsaa-eyebrow mb-2">Tickets</p>
                 <h2 class="h4 mb-3">Choose a ticket type</h2>
                 <div id="ticket-types">${NSAA.skeletonTickets(2)}</div>
               </div>

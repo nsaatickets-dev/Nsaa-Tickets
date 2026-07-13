@@ -304,7 +304,6 @@
     return `
       <div class="nsaa-card nsaa-empty p-4">
         <div>
-          <p class="nsaa-eyebrow mb-2">Setup needed</p>
           <h2 class="h4 mb-2">${escapeHtml(pageName)} is ready for Convex.</h2>
           <p class="nsaa-muted mb-0">Replace <code>CONVEX_URL</code> in <code>public/js/nsaa.js</code> with your Convex deployment URL from <code>npx convex dev</code>.</p>
         </div>

@@ -184,23 +184,29 @@ a:hover {
   transform: translateY(-1px);
 }
 
+.nsaa-brand-name {
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+}
+
 .nsaa-wordmark {
   color: var(--nsaa-on-charcoal);
   font-family: var(--nsaa-font-display);
   font-weight: 800;
-  font-size: 1.45rem;
-  letter-spacing: 0;
-  text-transform: uppercase;
-  line-height: 1;
+  font-size: 1.1rem;
+  letter-spacing: -0.01em;
+  text-transform: none;
+  line-height: 1.1;
 }
 
 .nsaa-brand-tickets {
   color: var(--nsaa-coral);
   font-family: var(--nsaa-font-body);
-  font-size: 0.65rem;
+  font-size: 0.62rem;
   font-weight: 600;
-  letter-spacing: 0;
-  line-height: 1;
+  letter-spacing: 0.06em;
+  line-height: 1.1;
   text-transform: uppercase;
 }
 
@@ -562,14 +568,6 @@ a:hover {
 
 .nsaa-faint {
   color: var(--nsaa-ink-faint);
-}
-
-.nsaa-eyebrow {
-  color: var(--nsaa-coral);
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0;
-  text-transform: none;
 }
 
 .nsaa-page-title {
