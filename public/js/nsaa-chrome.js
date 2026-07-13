@@ -96,22 +96,23 @@ function footerHtml() {
 }
 
 function navLinksHtml(context, showSwitcher) {
-  const parts = [
-    `<a href="/" class="nsaa-nav-link">Browse</a>`,
-    `<a href="/venues" class="nsaa-nav-link">Venues</a>`,
-    `<a href="/organizers" class="nsaa-nav-link">Organizers</a>`,
-    `<a href="/organizer-signup" class="nsaa-nav-link nsaa-nav-link--cta">Sell tickets</a>`,
+  const primaryLinks = [
+    `<a href="/" class="nsaa-nav-link"><i class="ph ph-compass" aria-hidden="true"></i><span>Browse</span></a>`,
+    `<a href="/venues" class="nsaa-nav-link"><i class="ph ph-map-pin" aria-hidden="true"></i><span>Venues</span></a>`,
+    `<a href="/organizers" class="nsaa-nav-link"><i class="ph ph-users-three" aria-hidden="true"></i><span>Organizers</span></a>`,
   ];
 
+  const actionLinks = [];
   if (context === "organizer") {
-    parts.push(`<a href="/organizer-dashboard" class="nsaa-nav-link">Dashboard</a>`);
+    actionLinks.push(`<a href="/organizer-dashboard" class="nsaa-nav-link nsaa-nav-link--utility"><i class="ph ph-squares-four" aria-hidden="true"></i><span>Dashboard</span></a>`);
+    actionLinks.push(`<a href="/organizer-dashboard?new=1" class="nsaa-nav-link nsaa-nav-link--cta"><i class="ph ph-plus-circle" aria-hidden="true"></i><span>Create event</span></a>`);
   } else {
-    parts.push(`<a href="/wallet" class="nsaa-nav-link">My tickets</a>`);
+    actionLinks.push(`<a href="/wallet" class="nsaa-nav-link nsaa-nav-link--utility"><i class="ph ph-ticket" aria-hidden="true"></i><span>My tickets</span></a>`);
+    actionLinks.push(`<a href="/organizer-signup" class="nsaa-nav-link nsaa-nav-link--cta"><i class="ph ph-megaphone" aria-hidden="true"></i><span>Sell tickets</span></a>`);
   }
 
   if (showSwitcher) {
-    parts.push(`<span class="nsaa-nav-sep" aria-hidden="true"></span>`);
-    parts.push(`
+    actionLinks.push(`
       <div class="nsaa-nav-context" role="group" aria-label="Browsing context">
         <button type="button" class="nsaa-nav-link nsaa-nav-link--quiet" data-nav-context="attendee">Attending</button>
         <button type="button" class="nsaa-nav-link nsaa-nav-link--quiet" data-nav-context="organizer">Organizing</button>
@@ -119,8 +120,11 @@ function navLinksHtml(context, showSwitcher) {
     `);
   }
 
-  parts.push(`<div id="clerk-auth-slot"></div>`);
-  return parts.join("");
+  actionLinks.push(`<div id="clerk-auth-slot"></div>`);
+  return `
+    <div class="nsaa-nav-primary">${primaryLinks.join("")}</div>
+    <div class="nsaa-nav-actions">${actionLinks.join("")}</div>
+  `;
 }
 
 function navShellHtml() {
