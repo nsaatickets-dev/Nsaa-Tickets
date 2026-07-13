@@ -181,6 +181,7 @@ a:hover {
 
 .nsaa-brand-lockup:hover .nsaa-brand-mark {
   border-color: var(--nsaa-coral);
+  transform: translateY(-1px);
 }
 
 .nsaa-brand-name {
@@ -452,6 +453,38 @@ a:hover {
   to {
     transform: rotate(360deg);
   }
+}
+
+/* Full-page preloader splash - shown by nsaa-chrome.js while the page is
+   still loading, removed once window "load" fires. The only place the
+   brand mark spins; it never spins as part of the persistent navbar. */
+.nsaa-preloader {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--nsaa-paper);
+  opacity: 1;
+  visibility: visible;
+  transition:
+    opacity 0.3s var(--nsaa-ease-out),
+    visibility 0.3s var(--nsaa-ease-out);
+}
+
+.nsaa-preloader.is-hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.nsaa-preloader-mark {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 6px;
+  object-fit: cover;
+  animation: nsaaLogoSpin 0.8s linear infinite;
 }
 
 @keyframes nsaaAuthPulse {
@@ -2599,7 +2632,7 @@ a:hover {
 /* Light navigation redesign: the navbar should feel like product chrome on
    the paper surface, while the footer keeps the charcoal treatment. */
 .nsaa-navbar {
-  min-height: 68px;
+  min-height: 76px;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(247, 241, 230, 0.92)),
     var(--nsaa-paper);
@@ -2633,10 +2666,6 @@ a:hover {
 
 .nsaa-navbar .nsaa-brand-mark {
   border-color: rgba(36, 31, 26, 0.16);
-}
-
-.nsaa-navbar .nsaa-brand-mark.is-loading {
-  animation: nsaaLogoSpin 0.8s linear infinite;
 }
 
 .nsaa-navbar .nsaa-wordmark {
@@ -2701,10 +2730,40 @@ a:hover {
   border-color: rgba(36, 31, 26, 0.11);
 }
 
+/* Desktop-only: let the plain destination links (Events, Venues, Organizers,
+   Search, Help) sit as clean text with a sliding coral underline instead of
+   the boxed pill group, closer to how spacious, unfussy nav bars read.
+   Mobile keeps the boxed/full-width row treatment from the media query
+   below since that's the right affordance for a tap list. */
+@media (min-width: 992px) {
+  .nsaa-navbar .nsaa-nav-primary {
+    min-height: auto;
+    gap: 1.65rem;
+    padding: 0;
+    background: none;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .nsaa-navbar .nsaa-nav-primary .nsaa-nav-link {
+    padding: 0.4rem 0;
+  }
+
+  .nsaa-navbar .nsaa-nav-primary .nsaa-nav-link::after {
+    content: "";
+  }
+
+  .nsaa-navbar .nsaa-nav-primary .nsaa-nav-link:hover,
+  .nsaa-navbar .nsaa-nav-primary .nsaa-nav-link.active {
+    background: none;
+    border-color: transparent;
+  }
+}
+
 .nsaa-navbar .nsaa-nav-link--cta,
 .nsaa-navbar .nsaa-nav-link--cta.active {
   min-height: 2.42rem;
-  padding: 0.62rem 0.82rem;
+  padding: 0.68rem 1.1rem;
   background-color: var(--nsaa-coral);
   border-color: rgba(36, 31, 26, 0.22);
   color: var(--nsaa-coral-ink);

@@ -101,6 +101,7 @@ function footerHtml() {
 function navLinksHtml(context, showSwitcher) {
   const primaryLinks = [
     `<a href="/" class="nsaa-nav-link"><i class="ph ph-compass" aria-hidden="true"></i><span>Events</span></a>`,
+    `<a href="/#home-search" class="nsaa-nav-link"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><span>Search</span></a>`,
     `<a href="/venues" class="nsaa-nav-link"><i class="ph ph-map-pin" aria-hidden="true"></i><span>Venues</span></a>`,
     `<a href="/organizers" class="nsaa-nav-link"><i class="ph ph-users-three" aria-hidden="true"></i><span>Organizers</span></a>`,
     `<a href="/faq" class="nsaa-nav-link"><i class="ph ph-lifebuoy" aria-hidden="true"></i><span>Help</span></a>`,
@@ -237,17 +238,25 @@ async function applyRoleGating() {
   }
 }
 
-// Spins the brand mark like a loading indicator while the page is still
-// loading (fonts, images, scripts), then settles once window "load" fires.
-// A 500ms floor keeps it from flashing on fast/cached loads.
-function initBrandSpinner() {
-  const mark = document.querySelector(".nsaa-navbar .nsaa-brand-mark");
-  if (!mark || document.readyState === "complete") return;
+// Full-page preloader: a branded splash that covers the viewport while the
+// page is still loading (fonts, images, scripts), then fades out once
+// window "load" fires. A 500ms floor keeps it from flashing on fast/cached
+// loads. This is the only place the logo spins - it never spins as part of
+// the persistent navbar.
+function showPreloader() {
+  if (document.readyState === "complete") return;
 
-  mark.classList.add("is-loading");
+  const preloader = document.createElement("div");
+  preloader.className = "nsaa-preloader";
+  preloader.innerHTML = `<img class="nsaa-preloader-mark" src="/logo.jpeg" alt="" width="48" height="48" />`;
+  document.body.prepend(preloader);
+
   const minVisible = new Promise((resolve) => window.setTimeout(resolve, 500));
   const loaded = new Promise((resolve) => window.addEventListener("load", resolve, { once: true }));
-  Promise.all([minVisible, loaded]).then(() => mark.classList.remove("is-loading"));
+  Promise.all([minVisible, loaded]).then(() => {
+    preloader.classList.add("is-hidden");
+    window.setTimeout(() => preloader.remove(), 350);
+  });
 }
 
 function render() {
@@ -255,7 +264,6 @@ function render() {
   if (navMount) {
     navMount.outerHTML = navShellHtml();
     setNavContext("attendee", false);
-    initBrandSpinner();
   }
 
   const footerMount = document.getElementById("nsaa-chrome-footer");
@@ -264,5 +272,6 @@ function render() {
   }
 }
 
+showPreloader();
 render();
 applyRoleGating();
