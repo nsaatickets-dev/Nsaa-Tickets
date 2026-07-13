@@ -163,7 +163,7 @@
             : '<a class="btn btn-nsaa" href="/">Find events</a>';
           root.innerHTML = NSAA.emptyState(
             "No tickets in this wallet",
-            "Paid tickets linked to your signed-in account will appear here.",
+            "Tickets only appear here when checkout is completed while signed in. Guest checkout still works, but your wallet will not remember current or previous tickets without an account.",
             action,
           );
           return;
@@ -196,13 +196,18 @@
             renderCurrentUser,
           );
         } else {
-          const action = lastOrderId
-            ? `<a class="btn btn-nsaa" href="/wallet?orderId=${NSAA.escapeAttr(lastOrderId)}">Open last order</a>`
-            : '<a class="btn btn-nsaa" href="/">Find events</a>';
+          const here = window.location.pathname + window.location.search;
+          const historyActions = `
+            <div class="d-grid d-sm-flex gap-2 justify-content-center">
+              <a class="btn btn-nsaa" href="/signup?redirect_url=${encodeURIComponent(here)}">Sign up</a>
+              <a class="btn btn-outline-nsaa" href="/signin?redirect_url=${encodeURIComponent(here)}">Sign in</a>
+              ${lastOrderId ? `<a class="btn btn-outline-nsaa" href="/wallet?orderId=${NSAA.escapeAttr(lastOrderId)}">Open last order</a>` : ""}
+            </div>
+          `;
           root.innerHTML = NSAA.emptyState(
-            "Open a ticket order",
-            "Use the order link from checkout, SMS, or email. Sign in to see account-linked tickets once Clerk is configured.",
-            action,
+            "Sign up to keep your tickets",
+            "Attendee accounts are optional, but your wallet only shows current and previous tickets that are linked to a signed-in account. Guest buyers must use the ticket link from checkout or email.",
+            historyActions,
           );
         }
       }

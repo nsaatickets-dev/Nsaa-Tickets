@@ -1,10 +1,10 @@
 // Mounts Clerk's sign-in button or user avatar into the #clerk-auth-slot
 // element present in every page's navbar. Clerk is loaded by clerk-loader.js.
 //
-// This intentionally does NOT gate any page or action behind auth - per
-// the product decision that guest checkout is the default. Signing in
-// only unlocks "see all your past tickets in one place" convenience,
-// nothing else currently depends on it.
+// This intentionally does NOT gate attendee checkout behind auth - guest
+// checkout stays available. The tradeoff is explicit in the UI: an account
+// is what links current and previous tickets into the wallet. Organizers
+// still use the separate mandatory /organizer-signup flow.
 
 async function resolveClerk() {
   if (window.NSAA?.getClerk) {
@@ -42,12 +42,20 @@ async function mountClerkNav() {
     if (clerk.user || clerk.isSignedIn) {
       clerk.mountUserButton(slot);
     } else {
-      const signInLink = document.createElement("a");
-      signInLink.className = "btn btn-sm btn-nsaa";
-      signInLink.textContent = "Sign in";
       const here = window.location.pathname + window.location.search;
+
+      const signInLink = document.createElement("a");
+      signInLink.className = "btn btn-sm btn-outline-nsaa";
+      signInLink.textContent = "Sign in";
       signInLink.href = `/signin?redirect_url=${encodeURIComponent(here)}`;
+
+      const signUpLink = document.createElement("a");
+      signUpLink.className = "btn btn-sm btn-nsaa";
+      signUpLink.textContent = "Sign up";
+      signUpLink.href = `/signup?redirect_url=${encodeURIComponent(here)}`;
+
       slot.appendChild(signInLink);
+      slot.appendChild(signUpLink);
     }
   } catch (err) {
     console.error("Clerk failed to load", err);

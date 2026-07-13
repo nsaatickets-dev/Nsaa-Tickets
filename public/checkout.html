@@ -26,7 +26,10 @@
             >T I C K E T S</span
           >
         </a>
-        <span class="ms-auto nsaa-muted small">Secure checkout</span>
+        <div class="ms-auto d-flex align-items-center gap-2">
+          <a id="checkout-signin-link" class="btn btn-outline-nsaa btn-sm" href="/signin">Sign in</a>
+          <a id="checkout-signup-link" class="btn btn-nsaa btn-sm" href="/signup">Sign up</a>
+        </div>
       </div>
     </nav>
 
@@ -49,6 +52,11 @@
       const ticketTypeId = params.get("ticketTypeId");
       const referralCode = params.get("ref") || "";
       const root = document.getElementById("checkout-root");
+      const checkoutRedirectUrl = `${window.location.pathname}${window.location.search}`;
+      document.getElementById("checkout-signin-link").href =
+        `/signin?redirect_url=${encodeURIComponent(checkoutRedirectUrl)}`;
+      document.getElementById("checkout-signup-link").href =
+        `/signup?redirect_url=${encodeURIComponent(checkoutRedirectUrl)}`;
 
       let client = null;
       let eventRecord = null;
@@ -127,6 +135,10 @@
                   <span class="nsaa-chip">Step 1 of 2</span>
                 </div>
                 <p class="nsaa-muted mb-4">Use the phone that will approve Mobile Money and the email that should receive the receipt and QR ticket.</p>
+                <div class="nsaa-soft-panel p-3 mb-4">
+                  <p class="fw-semibold mb-1">Want this ticket saved in your wallet?</p>
+                  <p class="nsaa-muted small mb-0">Sign up or sign in before checkout. Guest checkout still sends the ticket link by email, but ticket history is only saved to an account.</p>
+                </div>
 
                 <form id="details-form" novalidate>
                   <div class="row g-3">
