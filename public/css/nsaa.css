@@ -773,7 +773,9 @@ a:hover {
   border-radius: 4px;
   color: var(--nsaa-ink);
   min-height: 44px;
-  font-size: 0.95rem;
+  /* iOS Safari auto-zooms the viewport on focus for any input under 16px;
+     16px is the floor across every text/search/select field sitewide. */
+  font-size: 16px;
   transition:
     background-color 0.15s ease,
     border-color 0.15s ease,

@@ -44,9 +44,15 @@
       const secretInput = document.getElementById("admin-secret");
       const secretForm = document.getElementById("admin-secret-form");
       const STORAGE_KEY = "nsaa:adminSecret";
+      const MOOLRE_RATE_KEY = "nsaa:moolreRatePercent";
       let client = null;
       let adminSecret = window.localStorage.getItem(STORAGE_KEY) || "";
+      let moolreRatePercent = Number(window.localStorage.getItem(MOOLRE_RATE_KEY)) || 0;
       secretInput.value = adminSecret;
+
+      function round2(value) {
+        return Math.round(value * 100) / 100;
+      }
 
       function statusSelect(current, kind, id) {
         return `
@@ -85,9 +91,79 @@
         `;
       }
 
-      function render(data) {
+      const REVENUE_WINDOWS = [
+        ["Today", "today"],
+        ["Last 7 days", "last7Days"],
+        ["Last 30 days", "last30Days"],
+        ["All time", "allTime"],
+      ];
+
+      function renderRevenue(revenue) {
+        return `
+          <section class="col-12">
+            <div class="nsaa-panel">
+              <div class="d-flex flex-column flex-md-row justify-content-between gap-3 mb-3">
+                <h2 class="h5 mb-0">Revenue</h2>
+                <div class="d-flex align-items-center gap-2">
+                  <label class="nsaa-muted small mb-0" for="moolre-rate">Moolre's fee (% of amount collected)</label>
+                  <input
+                    id="moolre-rate"
+                    class="form-control form-control-nsaa form-control-sm"
+                    style="width: 90px"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value="${moolreRatePercent}"
+                  />
+                </div>
+              </div>
+              <div class="table-responsive">
+                <table class="table align-middle mb-0">
+                  <thead>
+                    <tr>
+                      <th>Window</th>
+                      <th class="text-end">Paid orders</th>
+                      <th class="text-end">Ticket subtotal (organizer)</th>
+                      <th class="text-end">Service fees (gross)</th>
+                      <th class="text-end">Total collected</th>
+                      <th class="text-end">Est. Moolre cut</th>
+                      <th class="text-end">Est. net to Nsaa</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${REVENUE_WINDOWS.map(([label, key]) => {
+                      const w = revenue[key];
+                      const moolreCut = round2(w.totalGHS * (moolreRatePercent / 100));
+                      const net = round2(w.serviceFeeGHS - moolreCut);
+                      return `
+                        <tr>
+                          <td>${label}</td>
+                          <td class="text-end">${w.orders}</td>
+                          <td class="text-end">${NSAA.money(w.ticketSubtotalGHS)}</td>
+                          <td class="text-end">${NSAA.money(w.serviceFeeGHS)}</td>
+                          <td class="text-end">${NSAA.money(w.totalGHS)}</td>
+                          <td class="text-end moolre-cut-cell" data-total="${w.totalGHS}">${NSAA.money(moolreCut)}</td>
+                          <td class="text-end fw-semibold net-cell" data-total="${w.totalGHS}" data-fee="${w.serviceFeeGHS}">${NSAA.money(net)}</td>
+                        </tr>
+                      `;
+                    }).join("")}
+                  </tbody>
+                </table>
+              </div>
+              <p class="nsaa-faint small mt-3 mb-0">
+                Ticket subtotal, service fees, and totals above are exact (from paid orders). Moolre's cut and the net
+                figure are estimates - Moolre's actual billing isn't in this codebase, so set the real rate from your
+                Moolre merchant agreement above.
+              </p>
+            </div>
+          </section>
+        `;
+      }
+
+      function render(data, revenue) {
         root.innerHTML = `
           <div class="row g-4">
+            ${renderRevenue(revenue)}
             <section class="col-xl-6">
               <div class="nsaa-panel h-100">
                 <h2 class="h5 mb-3">Organizer signups</h2>
@@ -182,8 +258,11 @@
         client ||= new ConvexClient(NSAA.CONVEX_URL);
         root.innerHTML = NSAA.loading("Loading operations");
         try {
-          const data = await client.query("ops:overview", { adminSecret });
-          render(data);
+          const [data, revenue] = await Promise.all([
+            client.query("ops:overview", { adminSecret }),
+            client.query("ops:revenueSummary", { adminSecret }),
+          ]);
+          render(data, revenue);
           resultEl.innerHTML = "";
         } catch (err) {
           root.innerHTML = "";
@@ -196,6 +275,21 @@
         adminSecret = secretInput.value.trim();
         window.localStorage.setItem(STORAGE_KEY, adminSecret);
         await loadOverview();
+      });
+
+      root.addEventListener("input", (event) => {
+        const rateInput = event.target.closest("#moolre-rate");
+        if (!rateInput) return;
+        moolreRatePercent = Number(rateInput.value) || 0;
+        window.localStorage.setItem(MOOLRE_RATE_KEY, String(moolreRatePercent));
+
+        root.querySelectorAll(".moolre-cut-cell").forEach((cell) => {
+          cell.textContent = NSAA.money(round2(Number(cell.dataset.total) * (moolreRatePercent / 100)));
+        });
+        root.querySelectorAll(".net-cell").forEach((cell) => {
+          const moolreCut = round2(Number(cell.dataset.total) * (moolreRatePercent / 100));
+          cell.textContent = NSAA.money(round2(Number(cell.dataset.fee) - moolreCut));
+        });
       });
 
       root.addEventListener("change", async (event) => {

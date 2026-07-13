@@ -2,6 +2,47 @@ import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { requireAdminSecret } from "./admin";
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function round2(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+// Platform revenue by time window. Only orders with paidAt set represent
+// money that actually moved through Moolre - the service fee is
+// non-refundable (schema.ts) and stays with the platform even if the
+// order later flips to "refunded" after an event cancellation, so paidAt
+// (not current status) is what determines whether an order counts here.
+export const revenueSummary = query({
+  args: { adminSecret: v.string() },
+  handler: async (ctx, { adminSecret }) => {
+    requireAdminSecret(adminSecret);
+
+    const paidOrders = (await ctx.db.query("orders").collect()).filter(
+      (order) => order.paidAt !== undefined,
+    );
+
+    function sumSince(cutoff: number | null) {
+      const relevant =
+        cutoff === null ? paidOrders : paidOrders.filter((o) => (o.paidAt ?? 0) >= cutoff);
+      return {
+        orders: relevant.length,
+        ticketSubtotalGHS: round2(relevant.reduce((sum, o) => sum + o.ticketSubtotalGHS, 0)),
+        serviceFeeGHS: round2(relevant.reduce((sum, o) => sum + o.serviceFeeGHS, 0)),
+        totalGHS: round2(relevant.reduce((sum, o) => sum + o.totalGHS, 0)),
+      };
+    }
+
+    const now = Date.now();
+    return {
+      today: sumSince(now - DAY_MS),
+      last7Days: sumSince(now - 7 * DAY_MS),
+      last30Days: sumSince(now - 30 * DAY_MS),
+      allTime: sumSince(null),
+    };
+  },
+});
+
 export const overview = query({
   args: { adminSecret: v.string() },
   handler: async (ctx, { adminSecret }) => {
