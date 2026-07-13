@@ -207,6 +207,16 @@ export default defineSchema({
       v.literal("pro"),
       v.literal("custom"), // admin-assigned only, not self-serve
     ),
+    displayName: v.optional(v.string()),
+    contactName: v.optional(v.string()),
+    contactEmail: v.optional(v.string()),
+    contactPhone: v.optional(v.string()),
+    city: v.optional(v.string()),
+    payoutPhone: v.optional(v.string()),
+    websiteUrl: v.optional(v.string()),
+    primaryEventType: v.optional(v.string()),
+    onboardingCompletedAt: v.optional(v.number()),
+    createdAt: v.optional(v.number()),
     customFeePercent: v.optional(v.number()), // only meaningful for "custom"
     updatedAt: v.number(),
   }).index("by_organizer", ["organizerClerkUserId"]),

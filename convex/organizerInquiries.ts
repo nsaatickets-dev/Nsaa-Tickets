@@ -75,16 +75,16 @@ export const sendAcknowledgement = internalAction({
     await sendBrevoEmail({
       sender: SENDERS.events,
       to: [{ email, name: contactName }],
-      subject: "We've received your organizer signup",
+      subject: "We've received your organizer request",
       htmlContent: renderEmailLayout({
-        heading: "We've received your organizer signup",
+        heading: "We've received your organizer request",
         bodyHtml:
           paragraph(`Hi ${escapeHtml(contactName)},`) +
           paragraph(
-            `Thanks for telling us about ${escapeHtml(organizerName)}. Our events team has received your signup and will follow up shortly to get you set up on Nsaa Tickets.`,
+            `Thanks for telling us about ${escapeHtml(organizerName)}. Our events team has received your request and will follow up shortly to get you set up on Nsaa Tickets.`,
           ) +
           paragraph("&mdash; Nsaa Tickets Events"),
-        footerNote: "You're receiving this because you submitted an organizer signup on Nsaa Tickets.",
+        footerNote: "You're receiving this because you submitted an organizer setup request on Nsaa Tickets.",
       }),
     });
   },

@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en" data-bs-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="color-scheme" content="only light" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script type="module" src="js/nsaa-chrome.js"></script>
+    <title>Organizer onboarding | Nsaa Tickets</title>
+    <meta name="robots" content="noindex" />
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link href="css/nsaa.css" rel="stylesheet" />
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  </head>
+  <body>
+    <div id="nsaa-chrome-nav"></div>
+
+    <script src="js/clerk-config.js"></script>
+    <script src="js/clerk-loader.js"></script>
+
+    <main class="container py-5" style="max-width: 980px">
+      <div class="nsaa-onboarding-header mb-4">
+        <div>
+          <p class="nsaa-eyebrow mb-2">Organizer onboarding</p>
+          <h1 class="nsaa-section-title mb-2">Set up your seller profile</h1>
+          <p class="nsaa-muted mb-0">
+            These details prepare your dashboard, payouts, and event drafts. Event title, tickets, and images come after this step.
+          </p>
+        </div>
+        <div class="nsaa-onboarding-steps" aria-label="Organizer setup progress">
+          <span class="complete"><i class="ph ph-check" aria-hidden="true"></i> Account</span>
+          <span class="active"><i class="ph ph-user-circle" aria-hidden="true"></i> Profile</span>
+          <span><i class="ph ph-layout" aria-hidden="true"></i> Dashboard</span>
+        </div>
+      </div>
+
+      <div id="onboarding-root"></div>
+    </main>
+
+    <div id="nsaa-chrome-footer"></div>
+
+    <script src="js/convex-config.js"></script>
+    <script src="js/nsaa.js"></script>
+    <script type="module">
+      import { ConvexClient } from "https://esm.sh/convex/browser";
+
+      const root = document.getElementById("onboarding-root");
+      const params = new URLSearchParams(window.location.search);
+      const redirectUrl = params.get("redirect_url") || "/organizer-dashboard";
+      const isEditMode = params.has("edit");
+
+      const PLAN_OPTIONS = [
+        { tier: "essential", label: "Standard", fee: "4.5%", blurb: "Best default for paid events." },
+        { tier: "pro", label: "Priority", fee: "4.9%", blurb: "More support, still below 5%." },
+        { tier: "free", label: "Free", fee: "0%", blurb: "For free or invite-only events." },
+      ];
+
+      function planOptionsHtml(currentTier) {
+        const selected = currentTier || "essential";
+        return PLAN_OPTIONS.map(
+          (opt) => `
+            <label class="nsaa-plan-option ${opt.tier === selected ? "active" : ""}">
+              <input type="radio" name="organizer-tier" value="${NSAA.escapeAttr(opt.tier)}" ${opt.tier === selected ? "checked" : ""} />
+              <span>
+                <strong>${NSAA.escapeHtml(opt.label)}</strong>
+                <small>${NSAA.escapeHtml(opt.fee)} per paid ticket</small>
+              </span>
+              <em>${NSAA.escapeHtml(opt.blurb)}</em>
+            </label>
+          `,
+        ).join("");
+      }
+
+      function categoryOptionsHtml(selected) {
+        return `<option value="">Select one</option>${NSAA.categories.map(
+          (category) =>
+            `<option value="${NSAA.escapeAttr(category.value)}" ${category.value === selected ? "selected" : ""}>${NSAA.escapeHtml(category.label)}</option>`,
+        ).join("")}`;
+      }
+
+      function renderForm(profile, user) {
+        const fullName = user?.fullName || [user?.firstName, user?.lastName].filter(Boolean).join(" ");
+        root.innerHTML = `
+          <div class="row g-4 align-items-start">
+            <div class="col-lg-7">
+              <form id="organizer-onboarding-form" class="nsaa-panel">
+                <section class="nsaa-form-section">
+                  <div class="d-flex align-items-center gap-2 mb-3">
+                    <span class="nsaa-form-step">1</span>
+                    <h2 class="h5 mb-0">Organizer details</h2>
+                  </div>
+                  <div class="row g-3">
+                    <div class="col-12">
+                      <label class="form-label nsaa-muted small" for="ob-display-name">Organization or brand name</label>
+                      <input id="ob-display-name" class="form-control form-control-nsaa" type="text" autocomplete="organization" value="${NSAA.escapeAttr(profile?.displayName || "")}" placeholder="Kwesi Quasimodo Live" required />
+                    </div>
+                    <div class="col-md-6">
+                      <label class="form-label nsaa-muted small" for="ob-contact-name">Contact person</label>
+                      <input id="ob-contact-name" class="form-control form-control-nsaa" type="text" autocomplete="name" value="${NSAA.escapeAttr(profile?.contactName || fullName || "")}" placeholder="Kwesi Quasimodo" />
+                    </div>
+                    <div class="col-md-6">
+                      <label class="form-label nsaa-muted small" for="ob-phone">Contact phone</label>
+                      <input id="ob-phone" class="form-control form-control-nsaa" type="tel" autocomplete="tel" value="${NSAA.escapeAttr(profile?.contactPhone || "")}" placeholder="024 000 0000" required />
+                    </div>
+                    <div class="col-md-6">
+                      <label class="form-label nsaa-muted small" for="ob-city">Base city</label>
+                      <select id="ob-city" class="form-select form-select-nsaa" required>
+                        <option value="">Select a city</option>
+                        ${NSAA.cityOptionsHtml(profile?.city)}
+                      </select>
+                    </div>
+                    <div class="col-md-6">
+                      <label class="form-label nsaa-muted small" for="ob-event-type">Main event type</label>
+                      <select id="ob-event-type" class="form-select form-select-nsaa">
+                        ${categoryOptionsHtml(profile?.primaryEventType)}
+                      </select>
+                    </div>
+                    <div class="col-md-6">
+                      <label class="form-label nsaa-muted small" for="ob-payout-phone">Payout Mobile Money number optional</label>
+                      <input id="ob-payout-phone" class="form-control form-control-nsaa" type="tel" value="${NSAA.escapeAttr(profile?.payoutPhone || "")}" placeholder="024 000 0000" />
+                    </div>
+                    <div class="col-md-6">
+                      <label class="form-label nsaa-muted small" for="ob-website">Website or social link optional</label>
+                      <input id="ob-website" class="form-control form-control-nsaa" type="url" value="${NSAA.escapeAttr(profile?.websiteUrl || "")}" placeholder="https://instagram.com/yourbrand" />
+                    </div>
+                  </div>
+                </section>
+
+                <section class="nsaa-form-section">
+                  <div class="d-flex align-items-center gap-2 mb-3">
+                    <span class="nsaa-form-step">2</span>
+                    <h2 class="h5 mb-0">Platform rate</h2>
+                  </div>
+                  <p class="nsaa-muted small mb-3">Choose the rate for paid tickets on this account. All listed paid rates stay below 5%.</p>
+                  <div class="nsaa-plan-grid">
+                    ${planOptionsHtml(profile?.tier)}
+                  </div>
+                </section>
+
+                <div id="onboarding-result" class="mt-3"></div>
+                <button id="onboarding-submit" class="btn btn-nsaa mt-4" type="submit">
+                  ${profile?.onboardingCompletedAt ? "Save profile" : "Finish setup"}
+                </button>
+              </form>
+            </div>
+            <aside class="col-lg-5">
+              <div class="nsaa-panel nsaa-onboarding-aside">
+                <p class="fw-semibold mb-2">Next step</p>
+                <p class="nsaa-muted small mb-3">After setup, your dashboard opens with create event ready for event details, ticket tiers, thumbnail upload, scanner links, and publishing.</p>
+                <div class="nsaa-onboarding-next">
+                  <span><i class="ph ph-ticket" aria-hidden="true"></i> Create ticket tiers</span>
+                  <span><i class="ph ph-image-square" aria-hidden="true"></i> Upload event thumbnail</span>
+                  <span><i class="ph ph-qr-code" aria-hidden="true"></i> Share and scan QR tickets</span>
+                </div>
+              </div>
+            </aside>
+          </div>
+        `;
+
+        document.querySelectorAll(".nsaa-plan-option input").forEach((input) => {
+          input.addEventListener("change", () => {
+            document.querySelectorAll(".nsaa-plan-option").forEach((option) => {
+              option.classList.toggle("active", option.querySelector("input")?.checked);
+            });
+          });
+        });
+      }
+
+      function readPayload() {
+        return {
+          displayName: document.getElementById("ob-display-name").value.trim(),
+          contactName: document.getElementById("ob-contact-name").value.trim() || undefined,
+          contactPhone: document.getElementById("ob-phone").value.trim(),
+          city: document.getElementById("ob-city").value,
+          payoutPhone: document.getElementById("ob-payout-phone").value.trim() || undefined,
+          websiteUrl: document.getElementById("ob-website").value.trim() || undefined,
+          primaryEventType: document.getElementById("ob-event-type").value || undefined,
+          tier: document.querySelector('input[name="organizer-tier"]:checked')?.value || "essential",
+        };
+      }
+
+      function validatePayload(payload) {
+        if (!payload.displayName || !payload.contactPhone || !payload.city) {
+          return "Organizer name, phone number, and base city are required.";
+        }
+        if (!NSAA.isValidGhanaPhone(payload.contactPhone)) {
+          return "Enter a valid Ghanaian contact phone number.";
+        }
+        if (payload.payoutPhone && !NSAA.isValidGhanaPhone(payload.payoutPhone)) {
+          return "Enter a valid Ghanaian payout Mobile Money number.";
+        }
+        if (payload.websiteUrl && !/^https?:\/\//i.test(payload.websiteUrl)) {
+          return "Website or social link must start with http:// or https://.";
+        }
+        return "";
+      }
+
+      async function boot() {
+        if (!NSAA.isConvexConfigured()) {
+          root.innerHTML = NSAA.setupNotice("Organizer onboarding");
+          return;
+        }
+
+        root.innerHTML = NSAA.loading("Loading organizer setup");
+        const client = new ConvexClient(NSAA.CONVEX_URL);
+        await NSAA.attachConvexAuth(client);
+        const clerk = await NSAA.getClerk();
+
+        if (!clerk) {
+          root.innerHTML = NSAA.emptyState(
+            "Clerk setup needed",
+            "Add your Clerk publishable key and Frontend API URL before organizer onboarding can run.",
+          );
+          return;
+        }
+
+        if (!clerk.user && !clerk.isSignedIn) {
+          const here = `${window.location.pathname}${window.location.search}`;
+          window.location.href = `/organizer-signup?redirect_url=${encodeURIComponent(here)}`;
+          return;
+        }
+
+        const profile = await client.query("events:myOrganizerProfile", {});
+        if (profile?.onboardingCompletedAt && !isEditMode) {
+          window.location.href = redirectUrl;
+          return;
+        }
+
+        renderForm(profile, clerk.user);
+
+        const form = document.getElementById("organizer-onboarding-form");
+        const resultEl = document.getElementById("onboarding-result");
+        const submitBtn = document.getElementById("onboarding-submit");
+
+        form.addEventListener("submit", async (event) => {
+          event.preventDefault();
+          resultEl.innerHTML = "";
+          const payload = readPayload();
+          const validationMessage = validatePayload(payload);
+          if (validationMessage) {
+            resultEl.innerHTML = NSAA.errorState("Check organizer details", validationMessage);
+            return;
+          }
+
+          submitBtn.disabled = true;
+          submitBtn.textContent = "Saving...";
+
+          try {
+            await client.mutation("events:completeOrganizerOnboarding", payload);
+            window.localStorage.setItem("nsaa:navContext", "organizer");
+            window.location.href = redirectUrl;
+          } catch (err) {
+            resultEl.innerHTML = NSAA.errorState(
+              "Could not save organizer profile",
+              err.message || "Please try again.",
+            );
+          } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = profile?.onboardingCompletedAt ? "Save profile" : "Finish setup";
+          }
+        });
+      }
+
+      boot();
+    </script>
+    <script src="js/clerk-nav.js"></script>
+  </body>
+</html>

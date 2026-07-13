@@ -33,7 +33,7 @@
             id="new-event-btn"
             class="btn btn-nsaa"
             href="/organizer-dashboard?new=1"
-            >New event</a
+            >Create event</a
           >
         </div>
       </div>
@@ -54,6 +54,7 @@
       const eventId = params.get("eventId");
       const isNew = params.has("new");
       let clerk = null;
+      let currentOrganizerProfile = null;
 
       function renderOrganizerAvatar() {
         const slot = document.getElementById("organizer-avatar-slot");
@@ -86,15 +87,21 @@
 
       function signInGate() {
         const redirectUrl = isNew ? "/organizer-dashboard" : `/organizer-dashboard${window.location.search}`;
+        const onboardingUrl = `/organizer-onboarding?redirect_url=${encodeURIComponent(redirectUrl)}`;
         root.innerHTML = NSAA.emptyState(
           "Create an organizer account",
           "The organizer dashboard is tied to your Nsaa account so only you can edit or publish your own events.",
           `<div class="d-grid d-sm-flex gap-2 justify-content-center">
-            <a class="btn btn-nsaa" href="/signup?redirect_url=${encodeURIComponent(redirectUrl)}">Create account</a>
-            <a id="dashboard-sign-in" class="btn btn-nsaa" href="/signin?redirect_url=${encodeURIComponent(redirectUrl)}">Sign in</a>
+            <a class="btn btn-nsaa" href="/organizer-signup?redirect_url=${encodeURIComponent(onboardingUrl)}">Create organizer account</a>
+            <a id="dashboard-sign-in" class="btn btn-outline-nsaa" href="/signin?redirect_url=${encodeURIComponent(onboardingUrl)}">Sign in</a>
           </div>`,
         );
         newEventBtn.classList.add("d-none");
+      }
+
+      function redirectToOnboarding() {
+        const here = `${window.location.pathname}${window.location.search}`;
+        window.location.href = `/organizer-onboarding?redirect_url=${encodeURIComponent(here)}`;
       }
 
       // ---- List view ----
@@ -103,7 +110,7 @@
           root.innerHTML = NSAA.emptyState(
             "No events yet",
             "Create your first event to start selling tickets.",
-            '<a class="btn btn-nsaa" href="/organizer-dashboard?new=1">New event</a>',
+            '<a class="btn btn-nsaa" href="/organizer-dashboard?new=1">Create event</a>',
           );
           return;
         }
@@ -172,10 +179,16 @@
         `;
       }
 
-      function eventFormHtml(event) {
+      function eventFormHtml(event, organizerProfile) {
         const startsAtValue = event?.startsAt
           ? new Date(event.startsAt).toISOString().slice(0, 16)
           : "";
+        const organizerName = event?.organizerName || organizerProfile?.displayName || "";
+        const payoutPhone =
+          event?.organizerPayoutPhone ||
+          organizerProfile?.payoutPhone ||
+          organizerProfile?.contactPhone ||
+          "";
         return `
         <form id="event-form">
           <section class="nsaa-form-section">
@@ -240,11 +253,11 @@
             </div>
             <div class="col-md-6">
               <label class="form-label nsaa-muted small" for="ef-organizer-name">Organizer display name</label>
-              <input id="ef-organizer-name" class="form-control form-control-nsaa" type="text" value="${NSAA.escapeAttr(event?.organizerName || "")}" required />
+              <input id="ef-organizer-name" class="form-control form-control-nsaa" type="text" value="${NSAA.escapeAttr(organizerName)}" required />
             </div>
             <div class="col-md-6">
               <label class="form-label nsaa-muted small" for="ef-payout-phone">Payout Mobile Money number optional</label>
-              <input id="ef-payout-phone" class="form-control form-control-nsaa" type="tel" value="${NSAA.escapeAttr(event?.organizerPayoutPhone || "")}" placeholder="024 000 0000" />
+              <input id="ef-payout-phone" class="form-control form-control-nsaa" type="tel" value="${NSAA.escapeAttr(payoutPhone)}" placeholder="024 000 0000" />
             </div>
           </div>
           </section>
@@ -722,35 +735,24 @@
         { tier: "pro", label: "Priority", fee: "4.9%", blurb: "More support, still strictly below 5%." },
       ];
 
-      function planPickerHtml(currentTier) {
-        const selected = currentTier || "essential";
+      function organizerPlanSummaryHtml(organizerProfile) {
+        const selected = organizerProfile?.tier || "essential";
+        const plan = PLAN_OPTIONS.find((option) => option.tier === selected) || PLAN_OPTIONS[1];
         return `
-        <section class="nsaa-form-section mb-4">
-          <h2 class="h5 mb-1">Your plan</h2>
-          <p class="nsaa-muted small mb-3">Applies to every event on your account. Nsaa's standard paid rate is 4.5% per ticket - designed to cover payment gateway cost plus Nsaa's margin while staying below the 5% local benchmark, and never charged on free tickets. Need a hybrid or custom rate for a premium event? <a href="/contact">Contact us</a>.</p>
-          <div class="row g-2" id="plan-picker">
-            ${PLAN_OPTIONS.map(
-              (opt) => `
-              <div class="col-sm-4">
-                <label class="nsaa-meta-item d-block mb-0" style="cursor: pointer; ${opt.tier === selected ? "border-color: var(--nsaa-gold);" : ""}">
-                  <input type="radio" name="plan-tier" value="${opt.tier}" class="form-check-input me-2" ${opt.tier === selected ? "checked" : ""} />
-                  <span class="fw-semibold">${opt.label}</span>
-                  <span class="nsaa-faint small d-block mt-1">${opt.fee} per paid ticket</span>
-                  <span class="nsaa-faint small d-block">${opt.blurb}</span>
-                </label>
-              </div>
-            `,
-            ).join("")}
+        <section class="nsaa-soft-panel p-3 mb-4">
+          <div class="d-flex flex-column flex-md-row justify-content-between gap-2">
+            <div>
+              <p class="fw-semibold mb-1">${NSAA.escapeHtml(plan.label)} plan</p>
+              <p class="nsaa-muted small mb-0">${NSAA.escapeHtml(plan.fee)} per paid ticket. ${NSAA.escapeHtml(plan.blurb)}</p>
+            </div>
+            <a class="btn btn-outline-nsaa btn-sm align-self-md-start" href="/organizer-onboarding?edit=1">Edit profile</a>
           </div>
         </section>
       `;
       }
 
-      async function renderEditor(client, existingEvent) {
+      async function renderEditor(client, existingEvent, organizerProfile) {
         const isEditing = Boolean(existingEvent);
-        const organizerProfile = isEditing
-          ? null
-          : await client.query("events:myOrganizerTier", {});
 
         root.innerHTML = `
         <a class="nsaa-nav-link d-inline-flex align-items-center gap-1 mb-4" href="/organizer-dashboard">
@@ -763,8 +765,8 @@
             <h2 class="h4 mb-0">${isEditing ? "Edit event" : "Create event"}</h2>
             ${isEditing ? `<span id="status-slot">${statusChip(existingEvent.status)}</span>` : ""}
           </div>
-          ${isEditing ? "" : planPickerHtml(organizerProfile?.tier)}
-          ${eventFormHtml(existingEvent)}
+          ${isEditing ? "" : organizerPlanSummaryHtml(organizerProfile)}
+          ${eventFormHtml(existingEvent, organizerProfile)}
         </div>
         <div id="ticket-types-slot"></div>
         <div id="scanner-staff-slot"></div>
@@ -816,9 +818,6 @@
               });
               resultEl.innerHTML = `<div class="nsaa-status-box success"><p class="fw-semibold mb-1">Saved</p><p class="mb-0">Your event details were updated.</p></div>`;
             } else {
-              const selectedTier =
-                document.querySelector('input[name="plan-tier"]:checked')?.value || "essential";
-              await client.mutation("events:setOrganizerTier", { tier: selectedTier });
               const newId = await client.mutation("events:createEventWithTicketTypes", {
                 ...eventFields,
                 ticketTypes,
@@ -986,25 +985,40 @@
         } else if (!clerk.user && !clerk.isSignedIn) {
           signInGate();
         } else if (isNew) {
-          renderOrganizerAvatar();
-          newEventBtn.classList.add("d-none");
-          renderEditor(client, null);
-        } else if (eventId) {
-          renderOrganizerAvatar();
-          newEventBtn.classList.add("d-none");
-          const event = await client.query("events:getById", { eventId });
-          if (!event) {
-            root.innerHTML = NSAA.emptyState(
-              "Event not found",
-              "It may have been removed, or the link is incorrect.",
-              '<a class="btn btn-nsaa" href="/organizer-dashboard">Back to my events</a>',
-            );
+          currentOrganizerProfile = await client.query("events:myOrganizerProfile", {});
+          if (!currentOrganizerProfile?.onboardingCompletedAt) {
+            redirectToOnboarding();
           } else {
-            renderEditor(client, event);
+            renderOrganizerAvatar();
+            newEventBtn.classList.add("d-none");
+            renderEditor(client, null, currentOrganizerProfile);
+          }
+        } else if (eventId) {
+          currentOrganizerProfile = await client.query("events:myOrganizerProfile", {});
+          if (!currentOrganizerProfile?.onboardingCompletedAt) {
+            redirectToOnboarding();
+          } else {
+            renderOrganizerAvatar();
+            newEventBtn.classList.add("d-none");
+            const event = await client.query("events:getById", { eventId });
+            if (!event) {
+              root.innerHTML = NSAA.emptyState(
+                "Event not found",
+                "It may have been removed, or the link is incorrect.",
+                '<a class="btn btn-nsaa" href="/organizer-dashboard">Back to my events</a>',
+              );
+            } else {
+              renderEditor(client, event, currentOrganizerProfile);
+            }
           }
         } else {
-          renderOrganizerAvatar();
-          client.onUpdate("events:eventsForCurrentOrganizer", {}, renderList);
+          currentOrganizerProfile = await client.query("events:myOrganizerProfile", {});
+          if (!currentOrganizerProfile?.onboardingCompletedAt) {
+            redirectToOnboarding();
+          } else {
+            renderOrganizerAvatar();
+            client.onUpdate("events:eventsForCurrentOrganizer", {}, renderList);
+          }
         }
       }
     </script>

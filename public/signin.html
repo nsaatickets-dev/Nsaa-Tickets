@@ -90,8 +90,11 @@
     <script type="module">
       const params = new URLSearchParams(window.location.search);
       const redirectUrl = params.get("redirect_url") || "/";
+      const signupBase = redirectUrl.includes("/organizer-")
+        ? "/organizer-signup"
+        : "/signup";
       document.getElementById("signup-link").href =
-        `/signup?redirect_url=${encodeURIComponent(redirectUrl)}`;
+        `${signupBase}?redirect_url=${encodeURIComponent(redirectUrl)}`;
 
       const form = document.getElementById("signin-form");
       const submitBtn = document.getElementById("signin-submit");

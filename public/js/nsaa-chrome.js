@@ -54,7 +54,7 @@ function footerHtml() {
               <li><a href="/" class="nsaa-muted text-decoration-none">Browse events</a></li>
               <li><a href="/venues" class="nsaa-muted text-decoration-none">Venues</a></li>
               <li><a href="/organizers" class="nsaa-muted text-decoration-none">Organizers</a></li>
-              <li><a href="/organizer-inquiry#organizer-inquiry-form" class="nsaa-muted text-decoration-none">List an event</a></li>
+              <li><a href="/organizer-signup" class="nsaa-muted text-decoration-none">List an event</a></li>
             </ul>
           </div>
           <div class="col-6 col-lg-2">
@@ -100,7 +100,7 @@ function navLinksHtml(context, showSwitcher) {
     `<a href="/" class="nsaa-nav-link">Browse</a>`,
     `<a href="/venues" class="nsaa-nav-link">Venues</a>`,
     `<a href="/organizers" class="nsaa-nav-link">Organizers</a>`,
-    `<a href="/organizer-inquiry#organizer-inquiry-form" class="nsaa-nav-link nsaa-nav-link--cta">Sell tickets</a>`,
+    `<a href="/organizer-signup" class="nsaa-nav-link nsaa-nav-link--cta">Sell tickets</a>`,
   ];
 
   if (context === "organizer") {
@@ -184,9 +184,9 @@ function setNavContext(context, showSwitcher) {
         const next = button.getAttribute("data-nav-context");
         localStorage.setItem(NAV_CONTEXT_KEY, next);
         setNavContext(next, true);
-        if (next === "organizer" && currentPage() !== "/organizer-dashboard") {
+        if (next === "organizer" && !currentPage().startsWith("/organizer-")) {
           window.location.href = "/organizer-dashboard";
-        } else if (next === "attendee" && currentPage() === "/organizer-dashboard") {
+        } else if (next === "attendee" && currentPage().startsWith("/organizer-")) {
           window.location.href = "/";
         }
       });
@@ -214,7 +214,7 @@ async function resolveClerkForChrome() {
 
 async function applyRoleGating() {
   const savedContext = localStorage.getItem(NAV_CONTEXT_KEY);
-  const defaultContext = currentPage() === "/organizer-dashboard" ? "organizer" : "attendee";
+  const defaultContext = currentPage().startsWith("/organizer-") ? "organizer" : "attendee";
 
   try {
     const clerk = await resolveClerkForChrome();

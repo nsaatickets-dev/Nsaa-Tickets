@@ -764,6 +764,117 @@ a:hover {
   border-top: 1px solid var(--nsaa-border);
 }
 
+.nsaa-onboarding-header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.nsaa-onboarding-header .nsaa-muted {
+  max-width: 58ch;
+}
+
+.nsaa-onboarding-steps {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.45rem;
+}
+
+.nsaa-onboarding-steps span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  min-height: 2.15rem;
+  padding: 0.4rem 0.65rem;
+  background: rgba(36, 31, 26, 0.04);
+  border: 1px solid var(--nsaa-border);
+  border-radius: 4px;
+  color: var(--nsaa-ink-muted);
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+.nsaa-onboarding-steps .active,
+.nsaa-onboarding-steps .complete {
+  background: rgba(255, 106, 0, 0.11);
+  border-color: rgba(255, 106, 0, 0.34);
+  color: var(--nsaa-ink);
+}
+
+.nsaa-plan-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.65rem;
+}
+
+.nsaa-plan-option {
+  display: grid;
+  gap: 0.55rem;
+  min-height: 9.5rem;
+  padding: 0.85rem;
+  background: rgba(36, 31, 26, 0.03);
+  border: 1px solid var(--nsaa-border);
+  border-radius: 4px;
+  cursor: pointer;
+  transition:
+    background-color 0.16s var(--nsaa-ease-out),
+    border-color 0.16s var(--nsaa-ease-out);
+}
+
+.nsaa-plan-option:hover,
+.nsaa-plan-option.active {
+  background: rgba(255, 106, 0, 0.08);
+  border-color: rgba(255, 106, 0, 0.42);
+}
+
+.nsaa-plan-option input {
+  align-self: start;
+}
+
+.nsaa-plan-option strong,
+.nsaa-plan-option small,
+.nsaa-plan-option em {
+  display: block;
+}
+
+.nsaa-plan-option small,
+.nsaa-plan-option em {
+  color: var(--nsaa-ink-muted);
+  font-size: 0.82rem;
+  font-style: normal;
+  line-height: 1.35;
+}
+
+.nsaa-onboarding-aside {
+  position: sticky;
+  top: 96px;
+}
+
+.nsaa-onboarding-next {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.nsaa-onboarding-next span {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.75rem;
+  background: rgba(36, 31, 26, 0.03);
+  border: 1px solid var(--nsaa-border);
+  border-radius: 4px;
+  color: var(--nsaa-ink);
+  font-size: 0.9rem;
+  font-weight: 650;
+}
+
+.nsaa-onboarding-next i {
+  color: var(--nsaa-coral);
+  font-size: 1.15rem;
+}
+
 .nsaa-checkbox-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -2190,6 +2301,19 @@ a:hover {
     flex-direction: column;
   }
 
+  .nsaa-onboarding-header {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .nsaa-onboarding-steps {
+    justify-content: flex-start;
+  }
+
+  .nsaa-onboarding-aside {
+    position: static;
+  }
+
   .nsaa-filter-rail {
     border-left: 0 !important;
     border-top: 2px solid rgba(36, 31, 26, 0.16) !important;
@@ -2239,6 +2363,12 @@ a:hover {
 
   .nsaa-nav-links .nsaa-nav-link {
     font-size: 0.86rem;
+  }
+
+  .nsaa-onboarding-steps {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 100%;
   }
 
   .nsaa-wordmark {

@@ -101,6 +101,19 @@ export const myOrganizerTier = query({
   },
 });
 
+export const myOrganizerProfile = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+
+    return await ctx.db
+      .query("organizerProfiles")
+      .withIndex("by_organizer", (q) => q.eq("organizerClerkUserId", identity.subject))
+      .unique();
+  },
+});
+
 // Self-serve - organizers can pick their own plan when creating an event.
 // "custom" is deliberately excluded here (admin-only, see
 // setOrganizerTierAdmin) so nobody can self-assign an arbitrary rate.
@@ -120,12 +133,64 @@ export const setOrganizerTier = mutation({
     if (existing) {
       await ctx.db.patch(existing._id, { tier, updatedAt: Date.now() });
     } else {
+      const now = Date.now();
       await ctx.db.insert("organizerProfiles", {
         organizerClerkUserId: identity.subject,
         tier,
-        updatedAt: Date.now(),
+        createdAt: now,
+        updatedAt: now,
       });
     }
+  },
+});
+
+export const completeOrganizerOnboarding = mutation({
+  args: {
+    displayName: v.string(),
+    contactName: v.optional(v.string()),
+    contactPhone: v.string(),
+    city: v.string(),
+    payoutPhone: v.optional(v.string()),
+    websiteUrl: v.optional(v.string()),
+    primaryEventType: v.optional(v.string()),
+    tier: v.union(v.literal("free"), v.literal("essential"), v.literal("pro")),
+  },
+  handler: async (ctx, { tier, ...fields }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Sign in required.");
+
+    const profileFields = sanitizeOrganizerProfileFields(fields);
+    const now = Date.now();
+    const contactEmail =
+      typeof identity.email === "string" && identity.email.trim()
+        ? identity.email.trim().toLowerCase()
+        : undefined;
+
+    const existing = await ctx.db
+      .query("organizerProfiles")
+      .withIndex("by_organizer", (q) => q.eq("organizerClerkUserId", identity.subject))
+      .unique();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        ...profileFields,
+        contactEmail,
+        tier,
+        onboardingCompletedAt: existing.onboardingCompletedAt ?? now,
+        updatedAt: now,
+      });
+      return existing._id;
+    }
+
+    return await ctx.db.insert("organizerProfiles", {
+      organizerClerkUserId: identity.subject,
+      ...profileFields,
+      contactEmail,
+      tier,
+      onboardingCompletedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    });
   },
 });
 
@@ -664,14 +729,15 @@ export const organizerStatus = query({
       )
       .first();
 
-    if (ownedEvent) return { isOrganizer: true };
-
     const profile = await ctx.db
       .query("organizerProfiles")
       .withIndex("by_organizer", (q) => q.eq("organizerClerkUserId", identity.subject))
       .unique();
 
-    return { isOrganizer: Boolean(profile) };
+    return {
+      isOrganizer: Boolean(ownedEvent || profile),
+      onboardingComplete: Boolean(ownedEvent || profile?.onboardingCompletedAt),
+    };
   },
 });
 
@@ -778,6 +844,35 @@ interface RawTicketTypeFields {
   name: string;
   priceGHS: number;
   quantityTotal: number;
+}
+
+interface RawOrganizerProfileFields {
+  displayName: string;
+  contactName?: string;
+  contactPhone: string;
+  city: string;
+  payoutPhone?: string;
+  websiteUrl?: string;
+  primaryEventType?: string;
+}
+
+function sanitizeOrganizerProfileFields(fields: RawOrganizerProfileFields) {
+  const websiteUrl = optionalTrimmed(fields.websiteUrl, 2000);
+  if (websiteUrl && !/^https?:\/\//i.test(websiteUrl)) {
+    throw new Error("Website must start with http:// or https://.");
+  }
+
+  return {
+    displayName: requireNonEmpty(fields.displayName, "Organizer display name", 140),
+    contactName: optionalTrimmed(fields.contactName, 140),
+    contactPhone: requireValidGhanaPhone(fields.contactPhone),
+    city: requireNonEmpty(fields.city, "City", 80),
+    payoutPhone: fields.payoutPhone
+      ? requireValidGhanaPhone(fields.payoutPhone)
+      : undefined,
+    websiteUrl,
+    primaryEventType: optionalTrimmed(fields.primaryEventType, 40),
+  };
 }
 
 // Shared by createEvent/updateEvent - trims and length-bounds every

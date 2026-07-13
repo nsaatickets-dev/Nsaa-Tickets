@@ -108,7 +108,7 @@
           </div>
           <a
             class="btn btn-nsaa"
-            href="/organizer-inquiry#organizer-inquiry-form"
+            href="/organizer-signup"
             >List your event</a
           >
         </div>
@@ -505,7 +505,7 @@
           const emptyCopy = hasActiveFilters
             ? "Try a different category, city, keyword, or date range."
             : "Published events will appear here as soon as organizers go live.";
-          resultsEl.innerHTML = `<div class="col-12">${NSAA.emptyState(emptyTitle, emptyCopy, '<a class="btn btn-nsaa" href="/organizer-inquiry#organizer-inquiry-form">Bring an event to Nsaa</a>')}</div>`;
+          resultsEl.innerHTML = `<div class="col-12">${NSAA.emptyState(emptyTitle, emptyCopy, '<a class="btn btn-nsaa" href="/organizer-signup">Bring an event to Nsaa</a>')}</div>`;
           paginationEl.innerHTML = "";
           return;
         }
