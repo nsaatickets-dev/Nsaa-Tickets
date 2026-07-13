@@ -205,8 +205,8 @@
           return;
         }
 
+        // Apple is hidden for now (temporarily disabled).
         oauthSlot.appendChild(oauthButton("oauth_google", "Google", "ph-google-logo"));
-        oauthSlot.appendChild(oauthButton("oauth_apple", "Apple", "ph-apple-logo"));
         oauthDivider.classList.remove("d-none");
 
         form.addEventListener("submit", async (event) => {
