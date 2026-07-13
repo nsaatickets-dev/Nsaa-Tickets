@@ -1,5 +1,6 @@
-import { mutation, query, internalMutation, internalQuery, action } from "./_generated/server";
+import { mutation, query, internalMutation, internalQuery, action, ActionCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
+import { Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { computePlatformFee, feePercentForTier } from "./events";
 import { optionalTrimmed, requireNonEmpty, requireValidEmail, requireValidGhanaPhone } from "./validation";
@@ -373,18 +374,18 @@ export const initiateMoolrePayment = action({
   },
 });
 
-// Card payment alternative to the direct MoMo collection above. Moolre
-// has no direct card-charge endpoint - this generates a one-time hosted
-// checkout link (POST /embed/link) that the buyer is redirected to;
-// Moolre handles card entry/PCI compliance on their own page, not us.
-// Confirmation still flows through the same webhook + status-check path
-// as MoMo (convex/moolre.ts:verifyAndProcessPayment) since it's the same
-// underlying externalref/order:<id> convention - this is untested against
-// a real card yet, confirm the confirmation path fires before
-// relying on it for real payments.
-export const initiateCardPayment = action({
-  args: { orderId: v.id("orders"), returnUrl: v.optional(v.string()) },
-  handler: async (ctx, { orderId, returnUrl }): Promise<{ authorizationUrl: string }> => {
+async function createHostedCheckoutLink(
+  ctx: ActionCtx,
+  {
+    orderId,
+    returnUrl,
+    method,
+  }: {
+    orderId: Id<"orders">;
+    returnUrl?: string;
+    method: "momo" | "card";
+  },
+): Promise<{ authorizationUrl: string }> {
     const order = await ctx.runQuery(internal.orders.getOrderInternal, {
       orderId,
     });
@@ -400,7 +401,7 @@ export const initiateCardPayment = action({
       "MOOLRE_ACCOUNT_NUMBER",
     ]);
 
-    const externalref = `order:${order._id}:card:${Date.now()}`;
+    const externalref = `order:${order._id}:${method}:${Date.now()}`;
     const siteUrl = process.env.CONVEX_SITE_URL ?? "";
     const callback = siteUrl ? `${siteUrl.replace(/\/+$/, "")}/moolre/webhook` : undefined;
 
@@ -431,7 +432,7 @@ export const initiateCardPayment = action({
     const accepted = response.ok && moolreAccepted(data);
     const failureReason = accepted
       ? undefined
-      : moolreMessage(data, "Card payment could not be started. Please try again.");
+      : moolreMessage(data, "Moolre checkout could not be started. Please try again.");
 
     await ctx.runMutation(internal.orders.recordMoolreReference, {
       orderId,
@@ -459,6 +460,33 @@ export const initiateCardPayment = action({
     }
 
     return { authorizationUrl };
+}
+
+// Hosted Moolre checkout link (POST /embed/link). This is now used for
+// both MoMo and card because Moolre's hosted page is the reliable buyer
+// experience; the direct MoMo prompt path can silently fail to appear on
+// some accounts/networks.
+export const initiateHostedCheckout = action({
+  args: {
+    orderId: v.id("orders"),
+    method: v.union(v.literal("momo"), v.literal("card")),
+    returnUrl: v.optional(v.string()),
+  },
+  handler: async (ctx, args): Promise<{ authorizationUrl: string }> => {
+    return await createHostedCheckoutLink(ctx, args);
+  },
+});
+
+// Backward-compatible alias for older deployed checkout pages while
+// Vercel rolls forward. New code calls initiateHostedCheckout directly.
+export const initiateCardPayment = action({
+  args: { orderId: v.id("orders"), returnUrl: v.optional(v.string()) },
+  handler: async (ctx, { orderId, returnUrl }): Promise<{ authorizationUrl: string }> => {
+    return await createHostedCheckoutLink(ctx, {
+      orderId,
+      returnUrl,
+      method: "card",
+    });
   },
 });
 

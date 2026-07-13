@@ -60,7 +60,6 @@
       let paymentPollTimer = null;
       let paymentCheckInFlight = false;
       let selectedPaymentMethod = "momo";
-      let selectedMomoChannel = "13";
 
       function serviceFee(subtotal) {
         return Math.floor(subtotal * 0.045 * 100) / 100;
@@ -182,7 +181,7 @@
                     <span class="nsaa-payment-method-icon"><i class="ph ph-device-mobile" aria-hidden="true"></i></span>
                     <span class="nsaa-payment-method-copy">
                       <strong>Mobile Money</strong>
-                      <small>Get a wallet prompt on MTN, Telecel, or AirtelTigo</small>
+                      <small>Open Moolre checkout and choose your wallet</small>
                     </span>
                     <span class="nsaa-payment-method-check"><i class="ph ph-check" aria-hidden="true"></i></span>
                   </button>
@@ -190,43 +189,16 @@
                     <span class="nsaa-payment-method-icon"><i class="ph ph-credit-card" aria-hidden="true"></i></span>
                     <span class="nsaa-payment-method-copy">
                       <strong>Card</strong>
-                      <small>Open a secure card page and return to your ticket</small>
+                      <small>Pay by card on the same secure Moolre page</small>
                     </span>
                     <span class="nsaa-payment-method-check"><i class="ph ph-check" aria-hidden="true"></i></span>
                   </button>
                 </div>
 
-                <div id="momo-network-panel" class="nsaa-wallet-panel mb-3">
-                  <div class="nsaa-wallet-panel-head">
-                    <div>
-                      <p class="fw-semibold mb-1">Choose wallet</p>
-                      <p class="nsaa-muted small mb-0">Select the network for the Mobile Money number above.</p>
-                    </div>
-                    <span class="nsaa-chip">Mobile Money</span>
-                  </div>
-                  <div class="nsaa-wallet-options" role="radiogroup" aria-label="Mobile Money network">
-                    <button class="nsaa-wallet-option active" type="button" data-momo-channel="13" role="radio" aria-checked="true">
-                      <span class="nsaa-wallet-mark"><i class="ph ph-check" aria-hidden="true"></i></span>
-                      <strong>MTN</strong>
-                      <small>Mobile Money</small>
-                    </button>
-                    <button class="nsaa-wallet-option" type="button" data-momo-channel="6" role="radio" aria-checked="false">
-                      <span class="nsaa-wallet-mark"><i class="ph ph-check" aria-hidden="true"></i></span>
-                      <strong>Telecel</strong>
-                      <small>Cash</small>
-                    </button>
-                    <button class="nsaa-wallet-option" type="button" data-momo-channel="7" role="radio" aria-checked="false">
-                      <span class="nsaa-wallet-mark"><i class="ph ph-check" aria-hidden="true"></i></span>
-                      <strong>AirtelTigo</strong>
-                      <small>Money</small>
-                    </button>
-                  </div>
-                </div>
-
                 <div class="nsaa-payment-actions">
                   <button id="pay-btn" class="btn btn-nsaa" type="button">
                     <i class="ph ph-device-mobile" aria-hidden="true"></i>
-                    Pay with Mobile Money
+                    Open Mobile Money checkout
                   </button>
                   <button id="pay-card-btn" class="btn btn-nsaa d-none" type="button">
                     <i class="ph ph-credit-card" aria-hidden="true"></i>
@@ -248,20 +220,6 @@
                     <p id="payment-followup-copy" class="nsaa-muted small mb-0">Nsaa can check Moolre again if confirmation is slow.</p>
                   </div>
                   <span class="nsaa-chip">Live check</span>
-                </div>
-
-                <div id="otp-step" class="d-none mt-3">
-                  <label class="form-label nsaa-muted small" for="otp-code">Enter verification code</label>
-                  <div class="d-flex gap-2">
-                    <input id="otp-code" class="form-control form-control-nsaa" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="123456" />
-                    <button id="otp-submit-btn" class="btn btn-nsaa" type="button">Verify</button>
-                  </div>
-                  <div class="d-flex flex-column flex-sm-row align-items-sm-center gap-2 mt-3">
-                    <button id="otp-resend-btn" class="btn btn-outline-nsaa btn-sm" type="button">
-                      Resend code
-                    </button>
-                    <p class="nsaa-faint small mb-0">No SMS yet? Check the wallet network, then resend the code.</p>
-                  </div>
                 </div>
               </div>
 
@@ -381,21 +339,15 @@
 
         const payBtn = document.getElementById("pay-btn");
         const cardBtn = document.getElementById("pay-card-btn");
-        const otpStep = document.getElementById("otp-step");
-        const momoNetworkPanel = document.getElementById("momo-network-panel");
         if (payBtn) payBtn.classList.toggle("d-none", selectedPaymentMethod !== "momo");
         if (cardBtn) cardBtn.classList.toggle("d-none", selectedPaymentMethod !== "card");
-        if (momoNetworkPanel) momoNetworkPanel.classList.toggle("d-none", selectedPaymentMethod !== "momo");
-        if (otpStep && selectedPaymentMethod === "card") {
-          otpStep.classList.add("d-none");
-        }
 
         setPaymentState(
           "waiting",
           selectedPaymentMethod === "card" ? "Card selected" : "Mobile Money selected",
           selectedPaymentMethod === "card"
-            ? "Open the secure card page. Your reservation stays held while you complete payment."
-            : "Choose the wallet network, then request the payment prompt.",
+            ? "Open Moolre's secure checkout page and choose card."
+            : "Open Moolre's secure checkout page and choose Mobile Money.",
         );
       }
 
@@ -423,30 +375,6 @@
           });
         });
 
-        document.querySelectorAll("[data-momo-channel]").forEach((button) => {
-          button.addEventListener("click", () => {
-            selectedMomoChannel = button.getAttribute("data-momo-channel") || "13";
-            syncMomoChannelButtons();
-          });
-        });
-      }
-
-      function inferMomoChannel(phone) {
-        const clean = String(phone || "").replace(/[\s\-\+\(\)]/g, "");
-        const local = clean.startsWith("233") ? `0${clean.slice(3)}` : clean;
-        const prefix = local.slice(0, 3);
-        if (["024", "025", "053", "054", "055", "059"].includes(prefix)) return "13";
-        if (["020", "030", "050"].includes(prefix)) return "6";
-        if (["026", "027", "028", "056", "057"].includes(prefix)) return "7";
-        return "13";
-      }
-
-      function syncMomoChannelButtons() {
-        document.querySelectorAll("[data-momo-channel]").forEach((button) => {
-          const isActive = button.getAttribute("data-momo-channel") === selectedMomoChannel;
-          button.classList.toggle("active", isActive);
-          button.setAttribute("aria-checked", isActive ? "true" : "false");
-        });
       }
 
       async function reserveOrder(event) {
@@ -524,7 +452,6 @@
 
           currentOrderId = result.orderId;
           reservedUntil = result.reservedUntil;
-          selectedMomoChannel = inferMomoChannel(buyerPhone);
           window.localStorage.setItem("nsaa:lastOrderId", currentOrderId);
           showPaymentStep();
         } catch (err) {
@@ -544,7 +471,6 @@
         document.getElementById("checkout-progress-details")?.classList.add("complete");
         document.getElementById("checkout-progress-payment")?.classList.add("active");
         startReservationCountdown(reservedUntil);
-        syncMomoChannelButtons();
         document.getElementById("status-link").href =
           `/order-status?orderId=${encodeURIComponent(currentOrderId)}`;
         setSelectedPaymentMethod(selectedPaymentMethod);
@@ -678,7 +604,7 @@
             setPaymentState(
               "waiting",
               "Still waiting for confirmation",
-              "If you approved the prompt or completed card checkout, keep this page open. You can check again in a few seconds.",
+              "If you completed Moolre checkout, keep this page open. You can check again in a few seconds.",
             );
           }
           setPaymentFollowup(
@@ -702,165 +628,57 @@
         }
       }
 
-      async function submitMoolrePayment(otpcode) {
-        const payBtn = document.getElementById("pay-btn");
-        const otpStep = document.getElementById("otp-step");
-        const otpSubmitBtn = document.getElementById("otp-submit-btn");
-        const otpResendBtn = document.getElementById("otp-resend-btn");
-        const activeBtn = otpcode ? otpSubmitBtn : payBtn;
-        activeBtn.disabled = true;
+      async function openHostedCheckout(method) {
+        const isCard = method === "card";
+        const button = document.getElementById(isCard ? "pay-card-btn" : "pay-btn");
+        if (!button || !currentOrderId) return;
 
+        button.disabled = true;
+        button.innerHTML = `<i class="ph ph-spinner-gap" aria-hidden="true"></i> Opening Moolre checkout...`;
         setPaymentState(
           "waiting",
-          otpcode ? "Checking code" : "Sending Mobile Money request",
-          otpcode
-            ? "Confirming the verification code for this wallet."
-            : "Keep this page open. Your phone may ask you to approve the Mobile Money payment.",
+          "Opening Moolre checkout",
+          isCard
+            ? "Choose card on the secure Moolre page. Nsaa will check this order when you return."
+            : "Choose Mobile Money on the secure Moolre page. Nsaa will check this order when you return.",
+        );
+        setPaymentFollowup(
+          true,
+          "If the Moolre page does not open or you come back before confirmation, use Check payment status here.",
         );
 
         try {
-          const result = await client.action("orders:initiateMoolrePayment", {
+          const result = await client.action("orders:initiateHostedCheckout", {
             orderId: currentOrderId,
-            channel: selectedMomoChannel,
-            ...(otpcode ? { otpcode } : {}),
+            method: isCard ? "card" : "momo",
+            returnUrl: `${window.location.origin}/order-status?orderId=${encodeURIComponent(currentOrderId)}&payment=${isCard ? "card" : "momo"}&check=1`,
           });
-
-          if (result.status === "otp_required" || result.status === "otp_invalid") {
-            otpStep.classList.remove("d-none");
-            payBtn.disabled = true;
-            otpSubmitBtn.disabled = false;
-            otpResendBtn.disabled = false;
-            setPaymentFollowup(false);
-            setPaymentState(
-              "waiting",
-              result.status === "otp_invalid" ? "Incorrect code" : "Enter verification code",
-              "This wallet needs a verification code before the payment prompt can be sent. Enter the SMS code, or resend it if nothing arrives.",
-            );
-            return;
-          }
-
-          otpStep.classList.add("d-none");
-          otpResendBtn.disabled = true;
-          setPaymentState(
-            "waiting",
-            "Waiting for confirmation",
-            "Approve the prompt on your phone. Nsaa will move you to your tickets as soon as payment is confirmed.",
-          );
-          setPaymentFollowup(
-            true,
-            "Approved already? Use Check payment status if Moolre takes more than a few seconds to confirm.",
-          );
           startPaymentPolling();
-          payBtn.innerHTML = `<i class="ph ph-check" aria-hidden="true"></i> Payment request sent`;
+          window.location.href = result.authorizationUrl;
         } catch (err) {
           setPaymentState(
             "failed",
-            "Could not start payment",
+            "Could not open Moolre checkout",
             err.message || "Please try again.",
           );
-          payBtn.disabled = false;
-          otpSubmitBtn.disabled = false;
-          otpResendBtn.disabled = false;
-        }
-      }
-
-      async function resendMoolreOtp() {
-        const otpResendBtn = document.getElementById("otp-resend-btn");
-        const payBtn = document.getElementById("pay-btn");
-        otpResendBtn.disabled = true;
-        if (payBtn) payBtn.disabled = true;
-
-        setPaymentState(
-          "waiting",
-          "Resending verification code",
-          "Requesting a new verification SMS for this wallet. Keep this page open.",
-        );
-
-        try {
-          const result = await client.action("orders:initiateMoolrePayment", {
-            orderId: currentOrderId,
-            channel: selectedMomoChannel,
-          });
-
-          if (result.status === "otp_required" || result.status === "otp_invalid") {
-            otpResendBtn.disabled = false;
-            document.getElementById("otp-submit-btn").disabled = false;
-            setPaymentFollowup(false);
-            setPaymentState(
-              "waiting",
-              "Verification code required",
-              "If the SMS still does not arrive, confirm the number and wallet network, then try card checkout or start a fresh checkout.",
-            );
-            return;
-          }
-
-          document.getElementById("otp-step").classList.add("d-none");
-          setPaymentState(
-            "waiting",
-            "Waiting for confirmation",
-            "Approve the prompt on your phone. Nsaa will move you to your tickets as soon as payment is confirmed.",
-          );
-          setPaymentFollowup(
-            true,
-            "Approved already? Use Check payment status if Moolre takes more than a few seconds to confirm.",
-          );
-          startPaymentPolling();
-        } catch (err) {
-          otpResendBtn.disabled = false;
-          setPaymentState(
-            "failed",
-            "Could not resend code",
-            err.message || "Please try again.",
-          );
+          button.disabled = false;
+          button.innerHTML = isCard
+            ? `<i class="ph ph-credit-card" aria-hidden="true"></i> Open secure card checkout`
+            : `<i class="ph ph-device-mobile" aria-hidden="true"></i> Open Mobile Money checkout`;
         }
       }
 
       document.addEventListener("click", async (event) => {
         const target = event.target instanceof Element ? event.target : null;
         if (target?.closest("#pay-btn")) {
-          await submitMoolrePayment();
-        }
-        if (target?.closest("#otp-submit-btn")) {
-          const code = document.getElementById("otp-code").value.trim();
-          if (!code) return;
-          await submitMoolrePayment(code);
-        }
-        if (target?.closest("#otp-resend-btn")) {
-          await resendMoolreOtp();
+          await openHostedCheckout("momo");
         }
         if (target?.closest("#check-payment-btn")) {
           await checkPaymentStatus();
         }
         const cardButton = target?.closest("#pay-card-btn");
         if (cardButton) {
-          const cardBtn = cardButton;
-          cardBtn.disabled = true;
-          cardBtn.innerHTML = `<i class="ph ph-spinner-gap" aria-hidden="true"></i> Opening card checkout...`;
-          setPaymentState(
-            "waiting",
-            "Opening secure card page",
-            "Moolre handles card entry on a hosted page. Nsaa will check this order again when you return.",
-          );
-          setPaymentFollowup(
-            true,
-            "If the Moolre page does not open or you come back before confirmation, use Check payment status here.",
-          );
-          try {
-            const result = await client.action("orders:initiateCardPayment", {
-              orderId: currentOrderId,
-              returnUrl: `${window.location.origin}/order-status?orderId=${encodeURIComponent(currentOrderId)}&payment=card&check=1`,
-            });
-            startPaymentPolling();
-            window.location.href = result.authorizationUrl;
-          } catch (err) {
-            setPaymentState(
-              "failed",
-              "Could not start card payment",
-              err.message || "Please try again.",
-            );
-            cardBtn.disabled = false;
-            cardBtn.innerHTML = `<i class="ph ph-credit-card" aria-hidden="true"></i> Open secure card checkout`;
-          }
+          await openHostedCheckout("card");
         }
       });
 
