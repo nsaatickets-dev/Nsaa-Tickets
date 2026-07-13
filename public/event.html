@@ -47,7 +47,7 @@
       );
 
       function serviceFee(subtotal) {
-        return Math.round(subtotal * 0.035 * 100) / 100;
+        return Math.floor(subtotal * 0.045 * 100) / 100;
       }
 
       function renderEvent(event) {

@@ -195,8 +195,7 @@ export default defineSchema({
     createdAt: v.number(),
   }).index("by_email", ["email"]),
 
-  // Self-serve organizer pricing tier (see convex/events.ts and
-  // convex/orders.ts:computeServiceFee). One profile per Clerk user -
+  // Self-serve organizer pricing tier (see convex/events.ts). One profile per Clerk user -
   // applies to every event that organizer runs, not chosen per event.
   // No profile (legacy/seeded events, or an organizer who never picked a
   // plan) falls back to the "essential" rate - see feePercentForTier.

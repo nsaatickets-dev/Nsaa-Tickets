@@ -718,8 +718,8 @@
 
       const PLAN_OPTIONS = [
         { tier: "free", label: "Free", fee: "0%", blurb: "Non-ticketed or free events." },
-        { tier: "essential", label: "Standard", fee: "3.5%", blurb: "Flat under-cut rate for paid events." },
-        { tier: "pro", label: "Volume", fee: "4.5%", blurb: "Higher-volume support, still capped below 5%." },
+        { tier: "essential", label: "Standard", fee: "4.5%", blurb: "Flat under-cut rate for paid events." },
+        { tier: "pro", label: "Priority", fee: "4.9%", blurb: "More support, still strictly below 5%." },
       ];
 
       function planPickerHtml(currentTier) {
@@ -727,7 +727,7 @@
         return `
         <section class="nsaa-form-section mb-4">
           <h2 class="h5 mb-1">Your plan</h2>
-          <p class="nsaa-muted small mb-3">Applies to every event on your account. Nsaa's standard paid rate is 3.5% per ticket - designed as payment gateway cost plus Nsaa's margin, and never charged on free tickets. Need a hybrid or custom rate for a premium event? <a href="/contact">Contact us</a>.</p>
+          <p class="nsaa-muted small mb-3">Applies to every event on your account. Nsaa's standard paid rate is 4.5% per ticket - designed to cover payment gateway cost plus Nsaa's margin while staying below the 5% local benchmark, and never charged on free tickets. Need a hybrid or custom rate for a premium event? <a href="/contact">Contact us</a>.</p>
           <div class="row g-2" id="plan-picker">
             ${PLAN_OPTIONS.map(
               (opt) => `

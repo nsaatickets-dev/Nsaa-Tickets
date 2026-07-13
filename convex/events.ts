@@ -10,16 +10,16 @@ import {
   requirePositiveInteger,
 } from "./validation";
 
-// Organizer pricing tiers. The standard paid rate is a flat 3.5%:
-// roughly 1.5% gateway cost plus a 2% Nsaa margin. Every self-serve
-// paid tier stays strictly below 5% so Nsaa visibly undercuts local
-// percentage-only ticketing plans.
+// Organizer pricing tiers. The standard paid rate is a flat 4.5%:
+// enough room for Moolre's processing share plus Nsaa's margin, while
+// every self-serve paid tier stays strictly below the 5% local Essential
+// benchmark. No flat add-on means low-priced tickets stay competitive too.
 // "custom" has no listed rate; an admin sets customFeePercent per
 // organizer via setOrganizerTierAdmin.
 export const TIER_FEE_PERCENT: Record<string, number> = {
   free: 0,
-  essential: 0.035,
-  pro: 0.045,
+  essential: 0.045,
+  pro: 0.049,
 };
 
 export function slugify(value: string): string {
@@ -59,6 +59,13 @@ export function feePercentForTier(
   if (!tier) return TIER_FEE_PERCENT.essential; // no profile yet - legacy/seeded events
   if (tier === "custom") return customFeePercent ?? TIER_FEE_PERCENT.pro;
   return TIER_FEE_PERCENT[tier] ?? TIER_FEE_PERCENT.essential;
+}
+
+export function computePlatformFee(ticketSubtotalGHS: number, feePercent: number): number {
+  if (ticketSubtotalGHS <= 0) return 0;
+  // Floor to the nearest pesewa so sub-cedi rounding never turns a
+  // below-5% tier into an effective 5% charge on low-priced tickets.
+  return Math.floor(ticketSubtotalGHS * feePercent * 100) / 100;
 }
 
 export const generateHeroImageUploadUrl = mutation({
@@ -454,17 +461,18 @@ export const ticketTypesForEvent = query({
       .withIndex("by_event", (q) => q.eq("eventId", eventId))
       .collect();
 
-    return types.map((t) => ({
-      ...t,
-      quantityAvailable: t.quantityTotal - t.quantitySold - t.quantityReserved,
-      serviceFeeGHS:
-        t.priceGHS <= 0 ? 0 : Math.round(t.priceGHS * feePercent * 100) / 100,
-      totalPerTicketGHS:
-        t.priceGHS <= 0
-          ? 0
-          : Math.round((t.priceGHS + Math.round(t.priceGHS * feePercent * 100) / 100) * 100) /
-            100,
-    }));
+    return types.map((t) => {
+      const serviceFeeGHS = computePlatformFee(t.priceGHS, feePercent);
+      return {
+        ...t,
+        quantityAvailable: t.quantityTotal - t.quantitySold - t.quantityReserved,
+        serviceFeeGHS,
+        totalPerTicketGHS:
+          t.priceGHS <= 0
+            ? 0
+            : Math.round((t.priceGHS + serviceFeeGHS) * 100) / 100,
+      };
+    });
   },
 });
 

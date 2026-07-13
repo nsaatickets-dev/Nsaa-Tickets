@@ -1,7 +1,7 @@
 import { mutation, query, internalMutation, internalQuery, action } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
-import { feePercentForTier } from "./events";
+import { computePlatformFee, feePercentForTier } from "./events";
 import { optionalTrimmed, requireNonEmpty, requireValidEmail, requireValidGhanaPhone } from "./validation";
 import { rateLimiter } from "./rateLimit";
 import { requireMoolreEnv } from "./moolreConfig";
@@ -10,16 +10,6 @@ import { requireMoolreEnv } from "./moolreConfig";
 // availability. Long enough to comfortably approve a MoMo prompt,
 // short enough that abandoned carts don't lock up tickets forever.
 const RESERVATION_MS = 10 * 60 * 1000; // 10 minutes
-
-// Nsaa's fee is a pure percentage of ticket subtotal, driven by the
-// organizer's pricing tier (see convex/events.ts:TIER_FEE_PERCENT) - no
-// flat add-on. Free tickets are never charged a fee, matching every
-// tier's intent (a percentage of zero is zero, but this also protects
-// against a future flat-fee re-add accidentally charging free tickets).
-function computeServiceFee(ticketSubtotalGHS: number, feePercent: number): number {
-  if (ticketSubtotalGHS <= 0) return 0;
-  return Math.round(ticketSubtotalGHS * feePercent * 100) / 100;
-}
 
 // Moolre's collection API requires a `channel` telling it which network
 // to route the Mobile Money prompt to (13=MTN, 6=Telecel, 7=AirtelTigo).
@@ -147,7 +137,7 @@ export const createReservation = mutation({
     );
 
     const ticketSubtotalGHS = ticketType.priceGHS * args.quantity;
-    const serviceFeeGHS = computeServiceFee(ticketSubtotalGHS, feePercent);
+    const serviceFeeGHS = computePlatformFee(ticketSubtotalGHS, feePercent);
     const totalGHS =
       Math.round((ticketSubtotalGHS + serviceFeeGHS) * 100) / 100;
 
