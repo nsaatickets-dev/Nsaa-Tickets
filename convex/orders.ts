@@ -462,6 +462,49 @@ export const initiateCardPayment = action({
   },
 });
 
+export const refreshPaymentStatus = action({
+  args: { orderId: v.id("orders") },
+  handler: async (
+    ctx,
+    { orderId },
+  ): Promise<{
+    status: string;
+    moolreStatus?: string;
+    checkedAt: number;
+  }> => {
+    const order = await ctx.runQuery(internal.orders.getOrderInternal, { orderId });
+    if (!order) throw new Error("Order not found");
+
+    if (order.status !== "reserved") {
+      return {
+        status: order.status,
+        moolreStatus: order.moolreStatus,
+        checkedAt: Date.now(),
+      };
+    }
+
+    if (!order.moolreExternalRef) {
+      return {
+        status: order.status,
+        moolreStatus: order.moolreStatus ?? "not_started",
+        checkedAt: Date.now(),
+      };
+    }
+
+    await ctx.runAction(internal.moolre.verifyAndProcessPayment, {
+      orderId,
+      externalref: order.moolreExternalRef,
+    });
+
+    const updated = await ctx.runQuery(internal.orders.getOrderInternal, { orderId });
+    return {
+      status: updated?.status ?? order.status,
+      moolreStatus: updated?.moolreStatus ?? order.moolreStatus,
+      checkedAt: Date.now(),
+    };
+  },
+});
+
 export const getOrderInternal = internalQuery({
   args: { orderId: v.id("orders") },
   handler: async (ctx, { orderId }) => {

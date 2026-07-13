@@ -43,6 +43,9 @@
         params.get("orderId") ||
         window.localStorage.getItem("nsaa:lastOrderId");
       const root = document.getElementById("status-root");
+      let client = null;
+      let refreshInFlight = false;
+      let autoRefreshAttempted = false;
 
       function statusCopy(order) {
         if (order.status === "paid") {
@@ -53,13 +56,34 @@
             activeStep: 3,
           };
         }
+        if (order.status === "reserved" && order.moolreStatus === "rejected") {
+          return {
+            kind: "failed",
+            title: "Payment could not start",
+            body: order.moolreFailureReason
+              ? `${order.moolreFailureReason} No ticket was issued. Start a fresh checkout or try another payment method.`
+              : "Moolre did not accept this payment attempt. Start a fresh checkout or try another payment method.",
+            activeStep: 1,
+          };
+        }
+        if (
+          order.status === "reserved" &&
+          (order.moolreStatus === "otp_required" || order.moolreStatus === "otp_invalid")
+        ) {
+          return {
+            kind: "waiting",
+            title: "Verification code needed",
+            body: "Return to the checkout tab to enter the SMS verification code. If that tab is closed, start a fresh checkout from the event page.",
+            activeStep: 2,
+          };
+        }
         if (order.status === "failed") {
           return {
             kind: "failed",
-            title: "Payment did not start",
+            title: "Payment could not be confirmed",
             body: order.moolreFailureReason
-              ? `${order.moolreFailureReason} No charge was made and no ticket was issued.`
-              : "No charge was made and no ticket was issued. Start a fresh checkout from the event page or contact support if this keeps happening.",
+              ? `${order.moolreFailureReason} No ticket was issued.`
+              : "No ticket was issued. Start a fresh checkout from the event page or contact support if this keeps happening.",
             activeStep: 1,
           };
         }
@@ -81,8 +105,10 @@
         }
         return {
           kind: "waiting",
-          title: "Waiting for Mobile Money confirmation",
-          body: "If you already approved the prompt, keep this page open. Nsaa updates the moment Moolre confirms payment.",
+          title: order.moolreExternalRef ? "Waiting for payment confirmation" : "Payment not started",
+          body: order.moolreExternalRef
+            ? "If you already approved the prompt or completed card checkout, keep this page open or use Check payment status."
+            : "This order is reserved, but payment has not started yet. Return to checkout or start fresh from the event page.",
           activeStep: 2,
         };
       }
@@ -127,7 +153,7 @@
             <div class="nsaa-timeline-step ${copy.activeStep >= 2 ? "active" : ""}">
               <span class="nsaa-timeline-dot"></span>
               <div>
-                <p class="mb-0 fw-semibold">Mobile Money confirmation</p>
+                <p class="mb-0 fw-semibold">Payment confirmation</p>
                 <p class="nsaa-muted small mb-0">${order.moolreStatus ? NSAA.escapeHtml(order.moolreStatus) : "Awaiting Moolre update"}</p>
               </div>
             </div>
@@ -167,11 +193,65 @@
             ${order.status === "paid" ? `<a class="btn btn-nsaa" href="${NSAA.escapeAttr(walletLink)}">View tickets</a>` : ""}
             ${order.status === "paid" ? `<a class="btn btn-nsaa" href="${NSAA.escapeAttr(whatsappLink)}" target="_blank" rel="noreferrer">Send on WhatsApp</a>` : ""}
             ${order.status === "paid" ? `<a class="btn btn-nsaa" href="${NSAA.escapeAttr(emailLink)}">Email link</a>` : ""}
-            ${order.status === "reserved" ? `<a class="btn btn-nsaa" href="${NSAA.escapeAttr(walletLink)}">Check ticket wallet</a>` : ""}
+            ${order.status === "reserved" && order.moolreExternalRef ? `<button id="refresh-payment-btn" class="btn btn-nsaa" type="button"><i class="ph ph-arrows-clockwise me-1" aria-hidden="true"></i>Check payment status</button>` : ""}
             <a class="btn btn-nsaa" href="${NSAA.escapeAttr(eventLink)}">Back to event</a>
           </div>
+          <p id="refresh-payment-note" class="nsaa-faint small mb-0 mt-3"></p>
         </section>
       `;
+
+        document.getElementById("refresh-payment-btn")?.addEventListener("click", () => {
+          refreshPaymentStatus();
+        });
+
+        if (
+          params.get("check") === "1" &&
+          order.status === "reserved" &&
+          order.moolreExternalRef &&
+          !autoRefreshAttempted
+        ) {
+          autoRefreshAttempted = true;
+          window.setTimeout(() => refreshPaymentStatus({ silent: true }), 500);
+        }
+      }
+
+      async function refreshPaymentStatus({ silent = false } = {}) {
+        if (!client || !orderId || refreshInFlight) return;
+        refreshInFlight = true;
+        const button = document.getElementById("refresh-payment-btn");
+        const note = document.getElementById("refresh-payment-note");
+        const previousHtml = button?.innerHTML;
+        if (button) {
+          button.disabled = true;
+          button.innerHTML = `<i class="ph ph-spinner-gap me-1" aria-hidden="true"></i>Checking`;
+        }
+        if (note && !silent) {
+          note.textContent = "Asking Moolre for the latest status...";
+        }
+
+        try {
+          const result = await client.action("orders:refreshPaymentStatus", { orderId });
+          if (result.status === "paid") {
+            window.location.href = `/wallet?orderId=${encodeURIComponent(orderId)}`;
+            return;
+          }
+          if (note) {
+            note.textContent =
+              result.status === "reserved"
+                ? "Still waiting for Moolre confirmation. If you paid, check again in a few seconds."
+                : `Order is now ${result.status}.`;
+          }
+        } catch (err) {
+          if (note) {
+            note.textContent = err.message || "Could not check payment status. Try again in a few seconds.";
+          }
+        } finally {
+          refreshInFlight = false;
+          if (button) {
+            button.disabled = false;
+            button.innerHTML = previousHtml || `<i class="ph ph-arrows-clockwise me-1" aria-hidden="true"></i>Check payment status`;
+          }
+        }
       }
 
       if (!orderId) {
@@ -184,7 +264,7 @@
         root.innerHTML = NSAA.setupNotice("Order status");
       } else {
         root.innerHTML = NSAA.loading("Checking order status");
-        const client = new ConvexClient(NSAA.CONVEX_URL);
+        client = new ConvexClient(NSAA.CONVEX_URL);
         client.onUpdate("orders:getOrderSummary", { orderId }, render);
       }
     </script>

@@ -1903,6 +1903,17 @@ a:hover {
   color: var(--nsaa-coral-ink);
 }
 
+.nsaa-payment-followup {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.85rem;
+  padding: 0.9rem;
+  background: rgba(39, 148, 133, 0.08);
+  border: 1px solid rgba(39, 148, 133, 0.22);
+  border-radius: 6px;
+}
+
 .nsaa-checkout-assurance {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2626,6 +2637,10 @@ a:hover {
   }
 
   .nsaa-wallet-panel-head {
+    display: grid;
+  }
+
+  .nsaa-payment-followup {
     display: grid;
   }
 

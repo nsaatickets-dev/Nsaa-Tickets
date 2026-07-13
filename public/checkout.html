@@ -57,6 +57,8 @@
       let checkoutRendered = false;
       let reservedUntil = null;
       let reservationTimer = null;
+      let paymentPollTimer = null;
+      let paymentCheckInFlight = false;
       let selectedPaymentMethod = "momo";
       let selectedMomoChannel = "13";
 
@@ -230,10 +232,22 @@
                     <i class="ph ph-credit-card" aria-hidden="true"></i>
                     Open secure card checkout
                   </button>
+                  <button id="check-payment-btn" class="btn btn-outline-nsaa d-none" type="button">
+                    <i class="ph ph-arrows-clockwise" aria-hidden="true"></i>
+                    Check payment status
+                  </button>
                   <a id="status-link" class="btn btn-outline-nsaa" href="/order-status">
                     <i class="ph ph-receipt" aria-hidden="true"></i>
                     Track order
                   </a>
+                </div>
+
+                <div id="payment-followup" class="nsaa-payment-followup d-none mt-3">
+                  <div>
+                    <p class="fw-semibold mb-1">Keep this page open</p>
+                    <p id="payment-followup-copy" class="nsaa-muted small mb-0">Nsaa can check Moolre again if confirmation is slow.</p>
+                  </div>
+                  <span class="nsaa-chip">Live check</span>
                 </div>
 
                 <div id="otp-step" class="d-none mt-3">
@@ -551,17 +565,21 @@
             );
 
             if (order.status === "paid") {
+              stopPaymentPolling();
               window.location.href = `/wallet?orderId=${encodeURIComponent(order._id)}`;
             }
             if (order.status === "expired") {
+              stopPaymentPolling();
               setPaymentState(
                 "failed",
                 "Reservation expired",
                 "The hold window ended before payment was confirmed. Start again to reserve fresh inventory.",
               );
               document.getElementById("pay-btn").disabled = true;
+              document.getElementById("check-payment-btn").disabled = true;
             }
             if (order.status === "failed") {
+              stopPaymentPolling();
               setPaymentState(
                 "failed",
                 "Payment could not be confirmed",
@@ -571,6 +589,7 @@
               );
               document.getElementById("pay-btn").disabled = true;
               document.getElementById("pay-card-btn").disabled = true;
+              document.getElementById("check-payment-btn").disabled = true;
             }
           },
         );
@@ -583,6 +602,104 @@
         <p class="fw-semibold mb-1">${NSAA.escapeHtml(title)} ${kind === "waiting" ? '<span class="nsaa-progress-dots" aria-hidden="true"><span></span><span></span><span></span></span>' : ""}</p>
         <p class="mb-0">${NSAA.escapeHtml(body)}</p>
       `;
+      }
+
+      function setPaymentFollowup(visible, body) {
+        const panel = document.getElementById("payment-followup");
+        const copy = document.getElementById("payment-followup-copy");
+        const checkBtn = document.getElementById("check-payment-btn");
+        if (panel) panel.classList.toggle("d-none", !visible);
+        if (copy && body) copy.textContent = body;
+        if (checkBtn) checkBtn.classList.toggle("d-none", !visible);
+      }
+
+      function stopPaymentPolling() {
+        if (paymentPollTimer) {
+          window.clearInterval(paymentPollTimer);
+          paymentPollTimer = null;
+        }
+      }
+
+      function startPaymentPolling() {
+        if (paymentPollTimer) return;
+        const startedAt = Date.now();
+        paymentPollTimer = window.setInterval(() => {
+          if (Date.now() - startedAt > 2 * 60 * 1000) {
+            stopPaymentPolling();
+            setPaymentFollowup(
+              true,
+              "Confirmation is taking longer than usual. Use Check payment status or Track order while Moolre finishes processing.",
+            );
+            return;
+          }
+          checkPaymentStatus({ silent: true });
+        }, 8000);
+      }
+
+      async function checkPaymentStatus({ silent = false } = {}) {
+        if (!currentOrderId || paymentCheckInFlight) return;
+        paymentCheckInFlight = true;
+        const checkBtn = document.getElementById("check-payment-btn");
+        const previousHtml = checkBtn?.innerHTML;
+        if (checkBtn) {
+          checkBtn.disabled = true;
+          checkBtn.innerHTML = `<i class="ph ph-spinner-gap" aria-hidden="true"></i> Checking payment`;
+        }
+        if (!silent) {
+          setPaymentState(
+            "waiting",
+            "Checking payment status",
+            "Nsaa is asking Moolre for the latest status on this order.",
+          );
+        }
+
+        try {
+          const result = await client.action("orders:refreshPaymentStatus", {
+            orderId: currentOrderId,
+          });
+
+          if (result.status === "paid") {
+            stopPaymentPolling();
+            window.location.href = `/wallet?orderId=${encodeURIComponent(currentOrderId)}`;
+            return;
+          }
+
+          if (result.status === "expired") {
+            stopPaymentPolling();
+            setPaymentState(
+              "failed",
+              "Reservation expired",
+              "The ticket hold ended before Moolre confirmed payment. Start a fresh checkout from the event page.",
+            );
+            return;
+          }
+
+          if (!silent) {
+            setPaymentState(
+              "waiting",
+              "Still waiting for confirmation",
+              "If you approved the prompt or completed card checkout, keep this page open. You can check again in a few seconds.",
+            );
+          }
+          setPaymentFollowup(
+            true,
+            "Last checked just now. Nsaa will move you to your ticket as soon as Moolre confirms payment.",
+          );
+        } catch (err) {
+          if (!silent) {
+            setPaymentState(
+              "failed",
+              "Could not check payment",
+              err.message || "Please try again in a few seconds.",
+            );
+          }
+        } finally {
+          paymentCheckInFlight = false;
+          if (checkBtn) {
+            checkBtn.disabled = false;
+            checkBtn.innerHTML = previousHtml || `<i class="ph ph-arrows-clockwise" aria-hidden="true"></i> Check payment status`;
+          }
+        }
       }
 
       async function submitMoolrePayment(otpcode) {
@@ -613,6 +730,7 @@
             payBtn.disabled = true;
             otpSubmitBtn.disabled = false;
             otpResendBtn.disabled = false;
+            setPaymentFollowup(false);
             setPaymentState(
               "waiting",
               result.status === "otp_invalid" ? "Incorrect code" : "Enter verification code",
@@ -628,6 +746,11 @@
             "Waiting for confirmation",
             "Approve the prompt on your phone. Nsaa will move you to your tickets as soon as payment is confirmed.",
           );
+          setPaymentFollowup(
+            true,
+            "Approved already? Use Check payment status if Moolre takes more than a few seconds to confirm.",
+          );
+          startPaymentPolling();
           payBtn.innerHTML = `<i class="ph ph-check" aria-hidden="true"></i> Payment request sent`;
         } catch (err) {
           setPaymentState(
@@ -662,6 +785,7 @@
           if (result.status === "otp_required" || result.status === "otp_invalid") {
             otpResendBtn.disabled = false;
             document.getElementById("otp-submit-btn").disabled = false;
+            setPaymentFollowup(false);
             setPaymentState(
               "waiting",
               "Verification code required",
@@ -676,6 +800,11 @@
             "Waiting for confirmation",
             "Approve the prompt on your phone. Nsaa will move you to your tickets as soon as payment is confirmed.",
           );
+          setPaymentFollowup(
+            true,
+            "Approved already? Use Check payment status if Moolre takes more than a few seconds to confirm.",
+          );
+          startPaymentPolling();
         } catch (err) {
           otpResendBtn.disabled = false;
           setPaymentState(
@@ -699,6 +828,9 @@
         if (target?.closest("#otp-resend-btn")) {
           await resendMoolreOtp();
         }
+        if (target?.closest("#check-payment-btn")) {
+          await checkPaymentStatus();
+        }
         const cardButton = target?.closest("#pay-card-btn");
         if (cardButton) {
           const cardBtn = cardButton;
@@ -707,13 +839,18 @@
           setPaymentState(
             "waiting",
             "Opening secure card page",
-            "You will return to Nsaa after you complete card payment.",
+            "Moolre handles card entry on a hosted page. Nsaa will check this order again when you return.",
+          );
+          setPaymentFollowup(
+            true,
+            "If the Moolre page does not open or you come back before confirmation, use Check payment status here.",
           );
           try {
             const result = await client.action("orders:initiateCardPayment", {
               orderId: currentOrderId,
-              returnUrl: `${window.location.origin}/order-status?orderId=${encodeURIComponent(currentOrderId)}`,
+              returnUrl: `${window.location.origin}/order-status?orderId=${encodeURIComponent(currentOrderId)}&payment=card&check=1`,
             });
+            startPaymentPolling();
             window.location.href = result.authorizationUrl;
           } catch (err) {
             setPaymentState(
