@@ -31,8 +31,8 @@
   /* Ignite coral - the one primary-action color: buy tickets, get in,
      checkout CTAs. Vivid, saturated orange (not a muted red-coral) so it
      reads as energetic against the warm paper background. */
-  --nsaa-coral: #ff6a00;
-  --nsaa-coral-hover: #ff8534;
+  --nsaa-coral: #ff8a00;
+  --nsaa-coral-hover: #ffa733;
   --nsaa-coral-ink: #241f1a;
 
   /* Gold rush - highlights, "selling fast" badges, price tags,
@@ -112,8 +112,13 @@ a:hover {
   color: var(--nsaa-coral);
 }
 
+#how-it-works,
+#fees {
+  scroll-margin-top: 6rem;
+}
+
 ::selection {
-  background: rgba(244, 78, 37, 0.18);
+  background: rgba(255, 138, 0, 0.18);
 }
 
 :focus-visible {
@@ -150,7 +155,7 @@ a:hover {
 .nsaa-brand-lockup {
   display: inline-flex;
   align-items: center;
-  gap: 0.72rem;
+  gap: 0.55rem;
   min-height: 44px;
   padding: 0.25rem 0;
   color: var(--nsaa-on-charcoal);
@@ -158,30 +163,24 @@ a:hover {
 }
 
 .nsaa-brand-lockup::before {
-  content: "N";
-  display: inline-grid;
-  place-items: center;
-  width: 2.2rem;
-  height: 2.2rem;
+  content: none;
+}
+
+.nsaa-brand-mark {
+  width: 2.35rem;
+  height: 2.35rem;
   flex: none;
-  background: rgba(244, 78, 37, 0.14);
-  border: 1px solid rgba(244, 78, 37, 0.4);
-  border-radius: 4px;
-  color: var(--nsaa-coral);
-  font-size: 0.95rem;
-  font-weight: 850;
-  line-height: 1;
+  object-fit: cover;
+  border: 1px solid rgba(36, 31, 26, 0.14);
+  border-radius: 6px;
+  background: var(--nsaa-paper);
   transition:
-    background-color 0.2s cubic-bezier(0.16, 1, 0.3, 1),
     border-color 0.2s cubic-bezier(0.16, 1, 0.3, 1),
-    color 0.2s cubic-bezier(0.16, 1, 0.3, 1),
     transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.nsaa-brand-lockup:hover::before {
-  background-color: var(--nsaa-coral);
+.nsaa-brand-lockup:hover .nsaa-brand-mark {
   border-color: var(--nsaa-coral);
-  color: var(--nsaa-coral-ink);
   transform: translateY(-1px);
 }
 
@@ -412,7 +411,7 @@ a:hover {
   width: 2rem;
   height: 2rem;
   flex: none;
-  border: 1px solid rgba(244, 78, 37, 0.35);
+  border: 1px solid rgba(255, 138, 0, 0.35);
   border-radius: 6px;
   object-fit: cover;
 }
@@ -518,8 +517,8 @@ a:hover {
   }
 
   .nsaa-nav-links .nsaa-nav-link.active {
-    background: rgba(244, 78, 37, 0.14);
-    border-color: rgba(244, 78, 37, 0.32);
+    background: rgba(255, 138, 0, 0.14);
+    border-color: rgba(255, 138, 0, 0.32);
     color: var(--nsaa-on-charcoal);
   }
 
@@ -750,7 +749,7 @@ a:hover {
 .form-select-nsaa:focus {
   background-color: var(--nsaa-paper-surface);
   border-color: var(--nsaa-coral);
-  box-shadow: 0 0 0 3px rgba(244, 78, 37, 0.1);
+  box-shadow: 0 0 0 3px rgba(255, 138, 0, 0.1);
   color: var(--nsaa-ink);
 }
 
@@ -813,8 +812,8 @@ a:hover {
 
 .nsaa-onboarding-steps .active,
 .nsaa-onboarding-steps .complete {
-  background: rgba(255, 106, 0, 0.11);
-  border-color: rgba(255, 106, 0, 0.34);
+  background: rgba(255, 138, 0, 0.11);
+  border-color: rgba(255, 138, 0, 0.34);
   color: var(--nsaa-ink);
 }
 
@@ -840,8 +839,8 @@ a:hover {
 
 .nsaa-plan-option:hover,
 .nsaa-plan-option.active {
-  background: rgba(255, 106, 0, 0.08);
-  border-color: rgba(255, 106, 0, 0.42);
+  background: rgba(255, 138, 0, 0.08);
+  border-color: rgba(255, 138, 0, 0.42);
 }
 
 .nsaa-plan-option input {
@@ -918,8 +917,8 @@ a:hover {
 
 .nsaa-checkbox-tile:hover,
 .nsaa-checkbox-tile:has(input:checked) {
-  background: rgba(244, 78, 37, 0.09);
-  border-color: rgba(244, 78, 37, 0.35);
+  background: rgba(255, 138, 0, 0.09);
+  border-color: rgba(255, 138, 0, 0.35);
   color: var(--nsaa-ink);
 }
 
@@ -985,7 +984,7 @@ a:hover {
 
 .nsaa-search-shell:focus-within {
   border-color: var(--nsaa-coral);
-  box-shadow: 0 0 0 3px rgba(244, 78, 37, 0.12);
+  box-shadow: 0 0 0 3px rgba(255, 138, 0, 0.12);
 }
 
 .nsaa-home-search {
@@ -1095,7 +1094,7 @@ a:hover {
 }
 
 .nsaa-stage-card:hover {
-  border-color: rgba(255, 106, 0, 0.65);
+  border-color: rgba(255, 138, 0, 0.65);
   color: var(--nsaa-on-charcoal);
   transform: translateY(-2px);
 }
@@ -1439,8 +1438,8 @@ a:hover {
 
 .nsaa-quick-filter:hover,
 .nsaa-quick-filter.active {
-  background: rgba(244, 78, 37, 0.1);
-  border-color: rgba(244, 78, 37, 0.35);
+  background: rgba(255, 138, 0, 0.1);
+  border-color: rgba(255, 138, 0, 0.35);
   color: var(--nsaa-coral);
   transform: translateY(-1px);
 }
@@ -1756,8 +1755,8 @@ a:hover {
 
 .nsaa-checkout-progress-item.active,
 .nsaa-checkout-progress-item.complete {
-  background: rgba(255, 106, 0, 0.09);
-  border-color: rgba(255, 106, 0, 0.32);
+  background: rgba(255, 138, 0, 0.09);
+  border-color: rgba(255, 138, 0, 0.32);
   color: var(--nsaa-ink);
 }
 
@@ -1858,20 +1857,20 @@ a:hover {
 
 .nsaa-payment-method:hover {
   background: #fff6e8;
-  border-color: rgba(255, 106, 0, 0.26);
+  border-color: rgba(255, 138, 0, 0.26);
   transform: translateY(-1px);
 }
 
 .nsaa-payment-method:focus-visible {
-  outline: 3px solid rgba(244, 78, 37, 0.32);
+  outline: 3px solid rgba(255, 138, 0, 0.32);
   outline-offset: 3px;
 }
 
 .nsaa-payment-method.active {
   background: #fff6e8;
-  border-color: rgba(244, 78, 37, 0.58);
+  border-color: rgba(255, 138, 0, 0.58);
   color: var(--nsaa-ink);
-  box-shadow: inset 0 0 0 1px rgba(244, 78, 37, 0.22);
+  box-shadow: inset 0 0 0 1px rgba(255, 138, 0, 0.22);
 }
 
 .nsaa-payment-method-icon,
@@ -1978,12 +1977,12 @@ a:hover {
 }
 
 .nsaa-wallet-option:hover {
-  border-color: rgba(244, 78, 37, 0.32);
+  border-color: rgba(255, 138, 0, 0.32);
   transform: translateY(-1px);
 }
 
 .nsaa-wallet-option:focus-visible {
-  outline: 3px solid rgba(244, 78, 37, 0.28);
+  outline: 3px solid rgba(255, 138, 0, 0.28);
   outline-offset: 3px;
 }
 
@@ -2532,7 +2531,7 @@ a:hover {
 }
 
 .nsaa-category-tile:hover {
-  border-color: rgba(244, 78, 37, 0.4);
+  border-color: rgba(255, 138, 0, 0.4);
   transform: translateY(-2px);
   box-shadow: 0 12px 28px rgba(36, 31, 26, 0.16);
 }
@@ -2623,15 +2622,11 @@ a:hover {
 }
 
 .nsaa-navbar .nsaa-brand-lockup::before {
-  background: var(--nsaa-ink);
-  border-color: var(--nsaa-ink);
-  color: var(--nsaa-paper);
+  content: none;
 }
 
-.nsaa-navbar .nsaa-brand-lockup:hover::before {
-  background: var(--nsaa-coral);
-  border-color: var(--nsaa-coral);
-  color: var(--nsaa-coral-ink);
+.nsaa-navbar .nsaa-brand-mark {
+  border-color: rgba(36, 31, 26, 0.16);
 }
 
 .nsaa-navbar .nsaa-wordmark {
@@ -2647,7 +2642,7 @@ a:hover {
 }
 
 .nsaa-navbar .nsaa-nav-links {
-  gap: 0.58rem;
+  gap: 0.5rem;
 }
 
 .nsaa-navbar .nsaa-nav-primary {
@@ -2664,7 +2659,7 @@ a:hover {
 
 .nsaa-navbar .nsaa-nav-link {
   min-height: 2.25rem;
-  padding: 0.48rem 0.58rem;
+  padding: 0.48rem 0.54rem;
   border: 1px solid transparent;
   border-radius: 4px;
   color: var(--nsaa-ink-muted);
@@ -2682,8 +2677,8 @@ a:hover {
 
 .nsaa-navbar .nsaa-nav-link:hover,
 .nsaa-navbar .nsaa-nav-link.active {
-  background: rgba(255, 106, 0, 0.09);
-  border-color: rgba(255, 106, 0, 0.22);
+  background: rgba(255, 138, 0, 0.1);
+  border-color: rgba(255, 138, 0, 0.24);
   color: var(--nsaa-ink);
 }
 
@@ -2739,8 +2734,8 @@ a:hover {
 
 .nsaa-navbar .nsaa-nav-toggle:hover,
 .nsaa-navbar .nsaa-nav-toggle:focus-visible {
-  background: rgba(244, 78, 37, 0.08);
-  border-color: rgba(244, 78, 37, 0.28);
+  background: rgba(255, 138, 0, 0.08);
+  border-color: rgba(255, 138, 0, 0.28);
 }
 
 .nsaa-navbar .btn-nsaa {
@@ -2775,6 +2770,10 @@ a:hover {
 .nsaa-footer .nsaa-brand-lockup,
 .nsaa-footer .nsaa-wordmark {
   color: var(--nsaa-on-charcoal);
+}
+
+.nsaa-footer .nsaa-brand-mark {
+  border-color: var(--nsaa-on-charcoal-border-strong);
 }
 
 .nsaa-footer .nsaa-brand-tickets {
@@ -2821,8 +2820,8 @@ a:hover {
   }
 
   .nsaa-navbar .nsaa-nav-links .nsaa-nav-link.active {
-    background: rgba(244, 78, 37, 0.1);
-    border-color: rgba(244, 78, 37, 0.28);
+    background: rgba(255, 138, 0, 0.1);
+    border-color: rgba(255, 138, 0, 0.28);
     color: var(--nsaa-ink);
   }
 

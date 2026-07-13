@@ -556,25 +556,35 @@
 
       if (!links) return;
 
-      const navLinks = Array.from(links.querySelectorAll(".nsaa-nav-link"));
+      const navLinks = Array.from(links.querySelectorAll(".nsaa-nav-link[href]"));
 
       const currentPath = window.location.pathname;
-      const inferredActiveHref =
+      const currentHash = window.location.hash || "";
+      let inferredActiveHref =
         currentPath === "/category" ||
         currentPath === "/search-results" ||
         currentPath === "/event"
           ? "/"
           : currentPath;
-      const exactActiveLink = navLinks.find(
-        (link) => link.getAttribute("href") === inferredActiveHref,
-      );
 
-      if (exactActiveLink) {
-        exactActiveLink.classList.add("active");
+      if (currentPath === "/" && currentHash === "#how-it-works") {
+        inferredActiveHref = "/#how-it-works";
+      } else if (currentPath === "/faq" && currentHash === "#fees") {
+        inferredActiveHref = "/faq#fees";
       }
 
       navLinks.forEach((link) => {
-        if (link.classList.contains("active")) {
+        let linkHref = link.getAttribute("href");
+        try {
+          const url = new URL(linkHref, window.location.origin);
+          linkHref = url.hash ? `${url.pathname}${url.hash}` : url.pathname;
+        } catch (_err) {
+          linkHref = link.getAttribute("href");
+        }
+
+        const isActive = linkHref === inferredActiveHref;
+        link.classList.toggle("active", isActive);
+        if (isActive) {
           link.setAttribute("aria-current", "page");
         } else {
           link.removeAttribute("aria-current");

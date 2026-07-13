@@ -20,11 +20,18 @@ function currentPage() {
 
 function activePageForNav() {
   const page = currentPage();
+  const hash = window.location.hash || "";
   // /category and /search-results are redirect stubs into /, and /event
   // is reached from the same unified browse view - all three should
-  // light up "Browse" as the active nav link.
+  // light up "Events" as the active nav link.
   if (page === "/category" || page === "/search-results" || page === "/event") {
     return "/";
+  }
+  if (page === "/" && hash === "#how-it-works") {
+    return `${page}${hash}`;
+  }
+  if (page === "/faq" && hash === "#fees") {
+    return `${page}${hash}`;
   }
   return page;
 }
@@ -36,8 +43,8 @@ function footerHtml() {
         <div class="row g-4 pb-4">
           <div class="col-lg-4">
             <a class="nsaa-brand-lockup d-inline-flex mb-3" href="/">
-              <span class="nsaa-wordmark">Nsaa</span>
-              <span class="nsaa-brand-tickets" aria-label="Tickets">T I C K E T S</span>
+              <img class="nsaa-brand-mark" src="/logo.jpeg" alt="" width="38" height="38" />
+              <span class="visually-hidden">Nsaa Tickets</span>
             </a>
             <p class="nsaa-muted small mb-3" style="max-width: 320px;">
               Ghana-first ticketing with clear fees and fraud-resistant entry.
@@ -49,21 +56,21 @@ function footerHtml() {
             </div>
           </div>
           <div class="col-6 col-lg-2">
-            <p class="nsaa-faint small text-uppercase mb-3">Discover</p>
+            <p class="nsaa-faint small text-uppercase mb-3">Use Nsaa</p>
             <ul class="list-unstyled d-grid gap-2 mb-0">
-              <li><a href="/" class="nsaa-muted text-decoration-none">Browse events</a></li>
-              <li><a href="/venues" class="nsaa-muted text-decoration-none">Venues</a></li>
-              <li><a href="/organizers" class="nsaa-muted text-decoration-none">Organizers</a></li>
-              <li><a href="/organizer-signup" class="nsaa-muted text-decoration-none">List an event</a></li>
+              <li><a href="/" class="nsaa-muted text-decoration-none">Events</a></li>
+              <li><a href="/#how-it-works" class="nsaa-muted text-decoration-none">How it works</a></li>
+              <li><a href="/faq#fees" class="nsaa-muted text-decoration-none">Fees</a></li>
+              <li><a href="/faq" class="nsaa-muted text-decoration-none">Help center</a></li>
             </ul>
           </div>
           <div class="col-6 col-lg-2">
-            <p class="nsaa-faint small text-uppercase mb-3">Company</p>
+            <p class="nsaa-faint small text-uppercase mb-3">For hosts</p>
             <ul class="list-unstyled d-grid gap-2 mb-0">
-              <li><a href="/about" class="nsaa-muted text-decoration-none">About</a></li>
-              <li><a href="/faq" class="nsaa-muted text-decoration-none">FAQ</a></li>
-              <li><a href="/contact" class="nsaa-muted text-decoration-none">Contact</a></li>
-              <li><a href="/blog" class="nsaa-muted text-decoration-none">News</a></li>
+              <li><a href="/organizer-signup" class="nsaa-muted text-decoration-none">Sell tickets</a></li>
+              <li><a href="/organizer-dashboard" class="nsaa-muted text-decoration-none">Dashboard</a></li>
+              <li><a href="/scan" class="nsaa-muted text-decoration-none">Door scanner</a></li>
+              <li><a href="/contact" class="nsaa-muted text-decoration-none">Contact sales</a></li>
             </ul>
           </div>
           <div class="col-6 col-lg-2">
@@ -97,9 +104,10 @@ function footerHtml() {
 
 function navLinksHtml(context, showSwitcher) {
   const primaryLinks = [
-    `<a href="/" class="nsaa-nav-link"><i class="ph ph-compass" aria-hidden="true"></i><span>Browse</span></a>`,
-    `<a href="/venues" class="nsaa-nav-link"><i class="ph ph-map-pin" aria-hidden="true"></i><span>Venues</span></a>`,
-    `<a href="/organizers" class="nsaa-nav-link"><i class="ph ph-users-three" aria-hidden="true"></i><span>Organizers</span></a>`,
+    `<a href="/" class="nsaa-nav-link"><i class="ph ph-compass" aria-hidden="true"></i><span>Events</span></a>`,
+    `<a href="/#how-it-works" class="nsaa-nav-link"><i class="ph ph-list-checks" aria-hidden="true"></i><span>How it works</span></a>`,
+    `<a href="/faq#fees" class="nsaa-nav-link"><i class="ph ph-receipt" aria-hidden="true"></i><span>Fees</span></a>`,
+    `<a href="/faq" class="nsaa-nav-link"><i class="ph ph-lifebuoy" aria-hidden="true"></i><span>Help</span></a>`,
   ];
 
   const actionLinks = [];
@@ -107,7 +115,6 @@ function navLinksHtml(context, showSwitcher) {
     actionLinks.push(`<a href="/organizer-dashboard" class="nsaa-nav-link nsaa-nav-link--utility"><i class="ph ph-squares-four" aria-hidden="true"></i><span>Dashboard</span></a>`);
     actionLinks.push(`<a href="/organizer-dashboard?new=1" class="nsaa-nav-link nsaa-nav-link--cta"><i class="ph ph-plus-circle" aria-hidden="true"></i><span>Create event</span></a>`);
   } else {
-    actionLinks.push(`<a href="/wallet" class="nsaa-nav-link nsaa-nav-link--utility"><i class="ph ph-ticket" aria-hidden="true"></i><span>My tickets</span></a>`);
     actionLinks.push(`<a href="/organizer-signup" class="nsaa-nav-link nsaa-nav-link--cta"><i class="ph ph-megaphone" aria-hidden="true"></i><span>Sell tickets</span></a>`);
   }
 
@@ -132,8 +139,8 @@ function navShellHtml() {
     <nav class="navbar nsaa-navbar navbar-expand sticky-top">
       <div class="container">
         <a class="nsaa-brand-lockup" href="/" aria-label="Nsaa Tickets home">
-          <span class="nsaa-wordmark">Nsaa</span>
-          <span class="nsaa-brand-tickets" aria-label="Tickets">T I C K E T S</span>
+          <img class="nsaa-brand-mark" src="/logo.jpeg" alt="" width="38" height="38" />
+          <span class="visually-hidden">Nsaa Tickets</span>
         </a>
         <div class="ms-auto d-flex align-items-center gap-2">
           <button
@@ -158,7 +165,8 @@ function highlightActiveLink(linksRoot) {
   linksRoot.querySelectorAll(".nsaa-nav-link[href]").forEach((link) => {
     let linkPath = link.getAttribute("href");
     try {
-      linkPath = new URL(linkPath, window.location.origin).pathname;
+      const url = new URL(linkPath, window.location.origin);
+      linkPath = url.hash ? `${url.pathname}${url.hash}` : url.pathname;
     } catch (_err) {
       linkPath = link.getAttribute("href");
     }
@@ -245,3 +253,8 @@ function render() {
 
 render();
 applyRoleGating();
+
+window.addEventListener("hashchange", () => {
+  const linksRoot = document.getElementById("nsaa-nav-links");
+  if (linksRoot) highlightActiveLink(linksRoot);
+});
