@@ -11,6 +11,7 @@
     />
     <link href="css/nsaa.css" rel="stylesheet" />
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <script src="https://js.moolre.com/v1/inline.js"></script>
   </head>
   <body class="checkout-body">
     <nav class="navbar nsaa-navbar">
@@ -162,7 +163,7 @@
                   </div>
                   <span class="nsaa-chip">Step 2 of 2</span>
                 </div>
-                <p class="nsaa-muted mb-4">Your ticket is held for this order while payment completes. Keep this page open until Nsaa confirms it.</p>
+                <p class="nsaa-muted mb-4">Your ticket is held for this order while the Moolre payment window completes. Keep this page open until Nsaa confirms it.</p>
 
                 <div class="nsaa-checkout-payment-grid mb-3">
                   <div class="nsaa-hold-countdown">
@@ -181,7 +182,7 @@
                     <span class="nsaa-payment-method-icon"><i class="ph ph-device-mobile" aria-hidden="true"></i></span>
                     <span class="nsaa-payment-method-copy">
                       <strong>Mobile Money</strong>
-                      <small>Open Moolre checkout and choose your wallet</small>
+                      <small>Open Moolre here and choose your wallet</small>
                     </span>
                     <span class="nsaa-payment-method-check"><i class="ph ph-check" aria-hidden="true"></i></span>
                   </button>
@@ -189,7 +190,7 @@
                     <span class="nsaa-payment-method-icon"><i class="ph ph-credit-card" aria-hidden="true"></i></span>
                     <span class="nsaa-payment-method-copy">
                       <strong>Card</strong>
-                      <small>Pay by card on the same secure Moolre page</small>
+                      <small>Open the same secure Moolre window for card</small>
                     </span>
                     <span class="nsaa-payment-method-check"><i class="ph ph-check" aria-hidden="true"></i></span>
                   </button>
@@ -198,11 +199,11 @@
                 <div class="nsaa-payment-actions">
                   <button id="pay-btn" class="btn btn-nsaa" type="button">
                     <i class="ph ph-device-mobile" aria-hidden="true"></i>
-                    Open Mobile Money checkout
+                    Pay with Mobile Money
                   </button>
                   <button id="pay-card-btn" class="btn btn-nsaa d-none" type="button">
                     <i class="ph ph-credit-card" aria-hidden="true"></i>
-                    Open secure card checkout
+                    Pay with card
                   </button>
                   <button id="check-payment-btn" class="btn btn-outline-nsaa d-none" type="button">
                     <i class="ph ph-arrows-clockwise" aria-hidden="true"></i>
@@ -346,8 +347,8 @@
           "waiting",
           selectedPaymentMethod === "card" ? "Card selected" : "Mobile Money selected",
           selectedPaymentMethod === "card"
-            ? "Open Moolre's secure checkout page and choose card."
-            : "Open Moolre's secure checkout page and choose Mobile Money.",
+            ? "Open Moolre's secure payment window and choose card."
+            : "Open Moolre's secure payment window and choose Mobile Money.",
         );
       }
 
@@ -628,13 +629,15 @@
         }
       }
 
-      async function openHostedCheckout(method) {
-        const isCard = method === "card";
-        const button = document.getElementById(isCard ? "pay-card-btn" : "pay-btn");
-        if (!button || !currentOrderId) return;
+      function resetPaymentButton(button, isCard) {
+        button.disabled = false;
+        button.innerHTML = isCard
+          ? `<i class="ph ph-credit-card" aria-hidden="true"></i> Pay with card`
+          : `<i class="ph ph-device-mobile" aria-hidden="true"></i> Pay with Mobile Money`;
+      }
 
-        button.disabled = true;
-        button.innerHTML = `<i class="ph ph-spinner-gap" aria-hidden="true"></i> Opening Moolre checkout...`;
+      async function openHostedCheckoutFallback(method, button) {
+        const isCard = method === "card";
         setPaymentState(
           "waiting",
           "Opening Moolre checkout",
@@ -661,24 +664,120 @@
             "Could not open Moolre checkout",
             err.message || "Please try again.",
           );
-          button.disabled = false;
-          button.innerHTML = isCard
-            ? `<i class="ph ph-credit-card" aria-hidden="true"></i> Open secure card checkout`
-            : `<i class="ph ph-device-mobile" aria-hidden="true"></i> Open Mobile Money checkout`;
+          resetPaymentButton(button, isCard);
+        }
+      }
+
+      async function openMoolreInlineCheckout(method) {
+        const isCard = method === "card";
+        const button = document.getElementById(isCard ? "pay-card-btn" : "pay-btn");
+        if (!button || !currentOrderId) return;
+
+        button.disabled = true;
+        button.innerHTML = `<i class="ph ph-spinner-gap" aria-hidden="true"></i> Opening Moolre...`;
+        setPaymentState(
+          "waiting",
+          "Opening Moolre payment window",
+          isCard
+            ? "Choose card in the secure Moolre window. Nsaa will verify payment before issuing the ticket."
+            : "Choose Mobile Money in the secure Moolre window. Nsaa will verify payment before issuing the ticket.",
+        );
+        setPaymentFollowup(
+          true,
+          "If the payment window closes before confirmation, use Check payment status here.",
+        );
+
+        try {
+          const config = await client.action("orders:prepareInlineCheckout", {
+            orderId: currentOrderId,
+            method: isCard ? "card" : "momo",
+          });
+
+          const MoolrePayCtor = window.MoolrePay;
+          if (typeof MoolrePayCtor !== "function") {
+            await openHostedCheckoutFallback(method, button);
+            return;
+          }
+
+          const popup = new MoolrePayCtor();
+          const handlePluginError = (err) => {
+            stopPaymentPolling();
+            setPaymentState(
+              "failed",
+              "Moolre could not start payment",
+              err?.message || "Please try again or switch payment method.",
+            );
+            setPaymentFollowup(true, "If money left your account, use Check payment status before starting a fresh checkout.");
+            resetPaymentButton(button, isCard);
+          };
+
+          const checkoutResult = popup.checkout({
+            publicKey: config.publicKey,
+            accountNumber: config.accountNumber,
+            amount: config.amount,
+            currency: config.currency,
+            externalRef: config.externalRef,
+            metadata: config.metadata,
+            onLoad: () => {
+              setPaymentState(
+                "waiting",
+                "Moolre checkout loaded",
+                "Complete the payment in the Moolre window. Keep this Nsaa page open.",
+              );
+              startPaymentPolling();
+            },
+            onSuccess: () => {
+              setPaymentState(
+                "waiting",
+                "Payment submitted",
+                "Nsaa is verifying the payment with Moolre before issuing your QR ticket.",
+              );
+              setPaymentFollowup(
+                true,
+                "Verification can take a few seconds. Use Check payment status if this page does not move automatically.",
+              );
+              startPaymentPolling();
+              checkPaymentStatus({ silent: true });
+            },
+            onCancel: () => {
+              stopPaymentPolling();
+              setPaymentState(
+                "waiting",
+                "Payment window closed",
+                "No ticket has been issued yet. You can try again while this reservation is still active.",
+              );
+              setPaymentFollowup(
+                true,
+                "Paid already? Use Check payment status so Nsaa can ask Moolre for the latest status.",
+              );
+              resetPaymentButton(button, isCard);
+            },
+            onError: handlePluginError,
+          });
+          if (checkoutResult && typeof checkoutResult.catch === "function") {
+            checkoutResult.catch(handlePluginError);
+          }
+        } catch (err) {
+          setPaymentState(
+            "failed",
+            "Could not start Moolre checkout",
+            err.message || "Please try again.",
+          );
+          resetPaymentButton(button, isCard);
         }
       }
 
       document.addEventListener("click", async (event) => {
         const target = event.target instanceof Element ? event.target : null;
         if (target?.closest("#pay-btn")) {
-          await openHostedCheckout("momo");
+          await openMoolreInlineCheckout("momo");
         }
         if (target?.closest("#check-payment-btn")) {
           await checkPaymentStatus();
         }
         const cardButton = target?.closest("#pay-card-btn");
         if (cardButton) {
-          await openHostedCheckout("card");
+          await openMoolreInlineCheckout("card");
         }
       });
 

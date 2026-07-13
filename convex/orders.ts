@@ -374,6 +374,60 @@ export const initiateMoolrePayment = action({
   },
 });
 
+export const prepareInlineCheckout = action({
+  args: {
+    orderId: v.id("orders"),
+    method: v.union(v.literal("momo"), v.literal("card")),
+  },
+  handler: async (
+    ctx,
+    { orderId, method },
+  ): Promise<{
+    publicKey: string;
+    accountNumber: string;
+    amount: number;
+    currency: "GHS";
+    externalRef: string;
+    metadata: Record<string, string>;
+  }> => {
+    const order = await ctx.runQuery(internal.orders.getOrderInternal, {
+      orderId,
+    });
+    if (!order) throw new Error("Order not found");
+    if (order.status !== "reserved") {
+      throw new Error(`Order is ${order.status}, cannot pay`);
+    }
+
+    const config = requireMoolreEnv([
+      "MOOLRE_API_BASE",
+      "MOOLRE_API_PUBKEY",
+      "MOOLRE_ACCOUNT_NUMBER",
+    ]);
+
+    const externalRef = `order:${order._id}:${method}:inline:${Date.now()}`;
+
+    await ctx.runMutation(internal.orders.recordMoolreReference, {
+      orderId,
+      moolreReference: "inline_checkout",
+      moolreExternalRef: externalRef,
+      moolreStatus: "initiated",
+    });
+
+    return {
+      publicKey: config.MOOLRE_API_PUBKEY,
+      accountNumber: config.MOOLRE_ACCOUNT_NUMBER,
+      amount: Math.round(order.totalGHS * 100) / 100,
+      currency: "GHS",
+      externalRef,
+      metadata: {
+        order_id: order._id,
+        payment_method: method,
+        platform: "nsaa_tickets",
+      },
+    };
+  },
+});
+
 async function createHostedCheckoutLink(
   ctx: ActionCtx,
   {
