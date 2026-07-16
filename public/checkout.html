@@ -256,7 +256,7 @@
                   <div class="nsaa-summary-event-media" style="background-image: url('${NSAA.escapeAttr(eventImage)}');"></div>
                   <div>
                     <h2 class="h5 mb-1">${NSAA.escapeHtml(eventRecord.title)}</h2>
-                    <p class="nsaa-muted small mb-1">${NSAA.escapeHtml(ticketType.name)}</p>
+                    <p class="nsaa-muted small mb-1"><i class="ph ${NSAA.escapeAttr(NSAA.tierPresentation(ticketType.name).icon)} me-1" style="color: ${NSAA.escapeAttr(NSAA.tierPresentation(ticketType.name).accentHex)};"></i>${NSAA.escapeHtml(ticketType.name)}</p>
                     <p class="nsaa-faint small mb-0">${NSAA.escapeHtml(eventDate)} &middot; ${NSAA.escapeHtml(placeLine || eventRecord.venue)}</p>
                   </div>
                 </div>

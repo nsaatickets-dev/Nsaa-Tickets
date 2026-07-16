@@ -55,8 +55,7 @@ function footerHtml() {
             <p class="nsaa-faint small text-uppercase mb-3">Use Nsaa</p>
             <ul class="list-unstyled d-grid gap-2 mb-0">
               <li><a href="/" class="nsaa-muted text-decoration-none">Events</a></li>
-              <li><a href="/venues" class="nsaa-muted text-decoration-none">Venues</a></li>
-              <li><a href="/organizers" class="nsaa-muted text-decoration-none">Organizers</a></li>
+              <li><a href="/pricing" class="nsaa-muted text-decoration-none">Pricing</a></li>
               <li><a href="/faq" class="nsaa-muted text-decoration-none">Help center</a></li>
             </ul>
           </div>
@@ -102,8 +101,7 @@ function navLinksHtml(context, showSwitcher) {
   const primaryLinks = [
     `<a href="/" class="nsaa-nav-link"><i class="ph ph-compass" aria-hidden="true"></i><span>Events</span></a>`,
     `<a href="/#home-search" class="nsaa-nav-link"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><span>Search</span></a>`,
-    `<a href="/venues" class="nsaa-nav-link"><i class="ph ph-map-pin" aria-hidden="true"></i><span>Venues</span></a>`,
-    `<a href="/organizers" class="nsaa-nav-link"><i class="ph ph-users-three" aria-hidden="true"></i><span>Organizers</span></a>`,
+    `<a href="/pricing" class="nsaa-nav-link"><i class="ph ph-tag" aria-hidden="true"></i><span>Pricing</span></a>`,
     `<a href="/faq" class="nsaa-nav-link"><i class="ph ph-lifebuoy" aria-hidden="true"></i><span>Help</span></a>`,
   ];
 

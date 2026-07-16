@@ -118,6 +118,31 @@
 
   const categoryByValue = new Map(categories.map((item) => [item.value, item]));
 
+  // Ticket tier names are free text (organizers type whatever they like),
+  // so differentiation is keyword-based rather than a fixed enum - matches
+  // common tier naming without forcing organizers into a picklist. Tones
+  // reuse the same palette as category chips (see TONE_HEX above); "gold"
+  // additionally matches DESIGN.md's rule that gold marks value/premium.
+  const TIER_TONE_HEX = { ...TONE_HEX, gold: "#d9a441" };
+  const TIER_FALLBACK_TONES = ["teal", "rose", "blue", "green"];
+  const TIER_KEYWORD_RULES = [
+    { pattern: /\b(vip|platinum|premium)\b/i, tone: "gold", icon: "ph-crown" },
+    { pattern: /\bearly[\s-]?bird\b/i, tone: "teal", icon: "ph-lightning" },
+    { pattern: /\b(group|table|booth)\b/i, tone: "blue", icon: "ph-users-three" },
+    { pattern: /\b(regular|general|standard|\bga\b|free)\b/i, tone: "green", icon: "ph-ticket" },
+  ];
+
+  function tierPresentation(name, fallbackIndex = 0) {
+    const value = String(name ?? "");
+    const matched = TIER_KEYWORD_RULES.find((rule) => rule.pattern.test(value));
+    const tone = matched?.tone ?? TIER_FALLBACK_TONES[fallbackIndex % TIER_FALLBACK_TONES.length];
+    return {
+      tone,
+      icon: matched?.icon ?? "ph-ticket",
+      accentHex: TIER_TONE_HEX[tone] ?? TIER_TONE_HEX.teal,
+    };
+  }
+
   // All 16 regions of Ghana, represented by their capital plus other major
   // towns/cities - lets organizers list an event anywhere in the country
   // instead of only Accra/Kumasi, and keeps city values canonical so the
@@ -251,15 +276,24 @@
 
   function eventHref(event, extraParams = {}) {
     const params = new URLSearchParams();
-    if (event?.slug) {
-      params.set("slug", event.slug);
-    } else if (event?._id) {
-      params.set("id", event._id);
-    }
     Object.entries(extraParams).forEach(([key, value]) => {
       if (value) params.set(key, value);
     });
-    return `/event?${params.toString()}`;
+    const query = params.toString();
+
+    // Slugged events use the crawlable canonical path (/events/<slug>,
+    // rewritten server-side to Convex's SEO HTTP route - see
+    // convex/http.ts and vercel.json) instead of the client-only
+    // /event.html route, so links shared/indexed from anywhere on the
+    // site unfurl and rank correctly.
+    if (event?.slug) {
+      return `/events/${encodeURIComponent(event.slug)}${query ? `?${query}` : ""}`;
+    }
+    if (event?._id) {
+      params.set("id", event._id);
+      return `/event?${params.toString()}`;
+    }
+    return "/event";
   }
 
   function priceLabel(event) {
@@ -691,5 +725,6 @@
     isValidEmail,
     skeletonCards,
     skeletonTickets,
+    tierPresentation,
   };
 })();

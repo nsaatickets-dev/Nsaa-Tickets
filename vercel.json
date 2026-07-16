@@ -1,6 +1,12 @@
 {
-  "buildCommand": "npx convex deploy --cmd 'node scripts/write-convex-config.js'",
+  "buildCommand": "npx convex deploy --cmd 'node scripts/write-convex-config.js && node scripts/write-sitemap.js'",
   "outputDirectory": "public",
   "cleanUrls": true,
-  "trailingSlash": false
+  "trailingSlash": false,
+  "rewrites": [
+    {
+      "source": "/events/:slug",
+      "destination": "https://adjoining-aardvark-475.convex.site/seo/event?slug=:slug"
+    }
+  ]
 }

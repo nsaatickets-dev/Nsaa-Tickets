@@ -95,6 +95,17 @@
     </header>
 
     <main>
+      <section class="container py-5" id="this-month" hidden>
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-end gap-3 mb-4">
+          <div>
+            <h2 class="nsaa-section-title mb-2">Upcoming events this month</h2>
+            <p class="nsaa-muted mb-0">Happening before the month is out.</p>
+          </div>
+          <a class="btn btn-nsaa" href="#browse">See all events</a>
+        </div>
+        <div id="this-month-grid" class="row g-4"></div>
+      </section>
+
       <section class="container py-5 nsaa-browse-section" id="browse">
         <div class="nsaa-browse-header">
           <div class="nsaa-browse-header-copy">
@@ -238,6 +249,28 @@
     <script src="js/nsaa.js"></script>
     <script type="module">
       import { ConvexClient } from "https://esm.sh/convex/browser";
+
+      const thisMonthSectionEl = document.getElementById("this-month");
+      const thisMonthGridEl = document.getElementById("this-month-grid");
+
+      function endOfCurrentMonth() {
+        const now = new Date();
+        // Day 0 of next month = last day of this month.
+        return new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999).getTime();
+      }
+
+      function renderThisMonth(result) {
+        const list = result?.items || [];
+        if (!thisMonthSectionEl || !thisMonthGridEl) return;
+        if (list.length === 0) {
+          thisMonthSectionEl.hidden = true;
+          return;
+        }
+        thisMonthSectionEl.hidden = false;
+        thisMonthGridEl.innerHTML = list
+          .map((event, index) => NSAA.eventCard(event, { colClass: "col-md-6 col-xl-3", index }))
+          .join("");
+      }
 
       const resultsEl = document.getElementById("results-grid");
       const paginationEl = document.getElementById("results-pagination");
@@ -586,6 +619,11 @@
           lastCounts = counts;
           renderChips(counts);
         });
+        client.onUpdate(
+          "events:searchPublishedPage",
+          { startsAfter: Date.now(), startsBefore: endOfCurrentMonth(), pageSize: 8, page: 1 },
+          renderThisMonth,
+        );
         applyState();
       }
     </script>

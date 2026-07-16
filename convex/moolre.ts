@@ -110,6 +110,11 @@ export const applyVerifiedStatus = internalMutation({
     await ctx.scheduler.runAfter(0, internal.moolre.sendConfirmation, {
       orderId: order._id,
     });
+    // Independent of the buyer confirmation above - a failure here (or a
+    // missing organizer contact email) must never block ticket delivery.
+    await ctx.scheduler.runAfter(0, internal.moolre.sendOrganizerNotification, {
+      orderId: order._id,
+    });
   },
 });
 
@@ -208,5 +213,41 @@ export const sendConfirmation = internalAction({
         attachment: attachment.length > 0 ? attachment : undefined,
       });
     }
+  },
+});
+
+// Lets an organizer find out about a sale without having to keep the
+// dashboard open. Separate action from sendConfirmation (not just an extra
+// step inside it) so a Brevo failure or a missing organizer contact email
+// can never delay or block the buyer's own ticket email above.
+export const sendOrganizerNotification = internalAction({
+  args: { orderId: v.id("orders") },
+  handler: async (ctx, { orderId }) => {
+    const detailed = await ctx.runQuery(api.tickets.ticketsForOrderDetailed, { orderId });
+    if (!detailed?.order || !detailed.event) return;
+    const { order, event, ticketType } = detailed;
+
+    const contact = await ctx.runQuery(internal.events.getOrganizerContactForEvent, {
+      eventId: event._id,
+    });
+    if (!contact) return;
+
+    await sendBrevoEmail({
+      sender: SENDERS.events,
+      to: [{ email: contact.contactEmail, name: contact.organizerName }],
+      subject: `New ticket sale: ${event.title}`,
+      htmlContent: renderEmailLayout({
+        heading: "You have a new ticket sale",
+        bodyHtml:
+          paragraph(`Hi ${escapeHtml(contact.organizerName)},`) +
+          paragraph(
+            `<strong>${order.quantity}&times; ${escapeHtml(ticketType?.name ?? "Ticket")}</strong> just sold for <strong>${escapeHtml(event.title)}</strong>.`,
+          ) +
+          paragraph(
+            `Buyer: ${escapeHtml(order.buyerName)} (${escapeHtml(order.buyerPhone)})<br/>Your payout for this order: GHS ${order.ticketSubtotalGHS}`,
+          ),
+        footerNote: "This email confirms a ticket sale on Nsaa Tickets.",
+      }),
+    });
   },
 });

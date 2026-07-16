@@ -1,4 +1,4 @@
-import { mutation, query, MutationCtx, QueryCtx } from "./_generated/server";
+import { mutation, query, internalQuery, MutationCtx, QueryCtx } from "./_generated/server";
 import { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { requireAdminSecret } from "./admin";
@@ -98,6 +98,28 @@ export const myOrganizerTier = query({
       .query("organizerProfiles")
       .withIndex("by_organizer", (q) => q.eq("organizerClerkUserId", identity.subject))
       .unique();
+  },
+});
+
+// Resolves who to notify when one of an organizer's tickets sells. Returns
+// null for legacy/seeded events (no organizerClerkUserId) or an organizer
+// who never set a contact email on their profile - callers should treat
+// that as "nothing to send", not an error.
+export const getOrganizerContactForEvent = internalQuery({
+  args: { eventId: v.id("events") },
+  handler: async (ctx, { eventId }) => {
+    const event = await ctx.db.get(eventId);
+    if (!event?.organizerClerkUserId) return null;
+
+    const profile = await ctx.db
+      .query("organizerProfiles")
+      .withIndex("by_organizer", (q) =>
+        q.eq("organizerClerkUserId", event.organizerClerkUserId!),
+      )
+      .unique();
+    if (!profile?.contactEmail) return null;
+
+    return { contactEmail: profile.contactEmail, organizerName: event.organizerName };
   },
 });
 
@@ -413,9 +435,18 @@ export const searchPublishedPage = query({
         .take(400);
     }
 
+    // Once an event is over it should stop appearing in default discovery.
+    // startsAt alone isn't a safe cutoff (a still-running multi-day event
+    // would vanish mid-run), so this checks endsAt when the organizer set
+    // one. Only applied when the caller didn't ask for an explicit date
+    // range - the UI's date pickers only ever request future ranges today,
+    // but this keeps any future "show past events too" caller unaffected.
+    const hidesPastByDefault = args.startsAfter === undefined && args.startsBefore === undefined;
+
     const term = args.search?.trim().toLowerCase();
     const filteredByEventFields = candidates.filter((event) => {
       if (event.startsAt > startsBefore) return false;
+      if (hidesPastByDefault && (event.endsAt ?? event.startsAt) < Date.now()) return false;
       if (args.ageRating && event.ageRating && event.ageRating !== args.ageRating) return false;
       if (!term) return true;
       return [
