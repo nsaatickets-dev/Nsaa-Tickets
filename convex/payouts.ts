@@ -1,7 +1,7 @@
-import { action, internalAction, internalMutation, query } from "./_generated/server";
+import { action, mutation, internalAction, internalMutation, query } from "./_generated/server";
 import { internal, api } from "./_generated/api";
 import { v } from "convex/values";
-import { requireAdminSecret } from "./admin";
+import { requireAdmin, logAdminAction } from "./admin";
 import { alertCritical } from "./alerts";
 import { requireMoolreEnv } from "./moolreConfig";
 
@@ -9,7 +9,7 @@ import { requireMoolreEnv } from "./moolreConfig";
 // channel codes (verified against docs.moolre.com) - MTN is 1 here vs 13
 // for collections. Kept separate from orders.ts's detectMoolreChannel so
 // the two mappings never get silently conflated.
-function detectMoolreTransferChannel(phone: string): string {
+export function detectMoolreTransferChannel(phone: string): string {
   const digits = phone.replace(/[\s\-()]/g, "");
   const local = digits.startsWith("233")
     ? `0${digits.slice(3)}`
@@ -73,16 +73,21 @@ export const payoutsForEvent = query({
 // Admin-triggered escrow release, per the product decision: revenue is
 // eligible only after the event's end date has passed, and there is no
 // self-serve organizer request flow or automatic batch job yet - this is
-// invoked manually, one event at a time, via `npx convex run
-// payouts:initiateOrganizerPayout '{"adminSecret":"...","eventId":"..."}'`
-// or the Convex dashboard function runner.
+// invoked from the admin dashboard's Payouts tab (or the Convex dashboard
+// function runner), one event at a time.
 export const initiateOrganizerPayout = action({
-  args: { adminSecret: v.string(), eventId: v.id("events") },
+  args: {
+    eventId: v.id("events"),
+    // Rare manual correction when the automatic eligibility math is known
+    // to be wrong for this event (e.g. a prior off-platform settlement) -
+    // logged explicitly so it's clearly not the computed figure.
+    overrideAmountGHS: v.optional(v.number()),
+  },
   handler: async (
     ctx,
-    { adminSecret, eventId },
+    { eventId, overrideAmountGHS },
   ): Promise<{ status: string; amountGHS?: number }> => {
-    requireAdminSecret(adminSecret);
+    const admin = await requireAdmin(ctx);
 
     const event = await ctx.runQuery(api.events.getById, { eventId });
     if (!event) throw new Error("Event not found");
@@ -98,7 +103,8 @@ export const initiateOrganizerPayout = action({
       throw new Error("Event hasn't ended yet - revenue isn't eligible for payout until then.");
     }
 
-    const amountGHS: number = await ctx.runQuery(api.payouts.eligiblePayoutAmount, { eventId });
+    const eligibleGHS: number = await ctx.runQuery(api.payouts.eligiblePayoutAmount, { eventId });
+    const amountGHS = overrideAmountGHS ?? eligibleGHS;
     if (amountGHS <= 0) {
       return { status: "nothing_due", amountGHS: 0 };
     }
@@ -107,6 +113,16 @@ export const initiateOrganizerPayout = action({
       eventId,
       organizerPayoutPhone: event.organizerPayoutPhone,
       amountGHS,
+    });
+
+    await ctx.runMutation(internal.payouts.logPayoutInitiated, {
+      payoutId,
+      adminSubject: admin.subject,
+      adminLabel: admin.label,
+      eventId,
+      amountGHS,
+      wasOverride: overrideAmountGHS !== undefined,
+      eligibleGHS,
     });
 
     // Same prefixing scheme as orders.ts - lets the shared webhook tell a
@@ -169,6 +185,64 @@ export const markPayoutFailed = internalMutation({
   args: { payoutId: v.id("payouts") },
   handler: async (ctx, { payoutId }) => {
     await ctx.db.patch(payoutId, { status: "failed" });
+  },
+});
+
+export const logPayoutInitiated = internalMutation({
+  args: {
+    payoutId: v.id("payouts"),
+    adminSubject: v.string(),
+    adminLabel: v.string(),
+    eventId: v.id("events"),
+    amountGHS: v.number(),
+    wasOverride: v.boolean(),
+    eligibleGHS: v.number(),
+  },
+  handler: async (ctx, args) => {
+    await logAdminAction(ctx, { subject: args.adminSubject, label: args.adminLabel }, {
+      action: "payout.initiate",
+      targetType: "payout",
+      targetId: args.payoutId,
+      details: {
+        eventId: args.eventId,
+        amountGHS: args.amountGHS,
+        wasOverride: args.wasOverride,
+        eligibleGHS: args.eligibleGHS,
+      },
+    });
+  },
+});
+
+// Admin God Mode: manual override for out-of-band settlement (e.g. a
+// bank transfer made outside Moolre because a transfer was rejected) -
+// bypasses the normal pending->paid verification flow entirely, so it's
+// audit-logged with a mandatory reason rather than just a status field.
+export const adminSetPayoutStatus = mutation({
+  args: {
+    payoutId: v.id("payouts"),
+    status: v.union(v.literal("paid"), v.literal("failed")),
+    reason: v.string(),
+  },
+  handler: async (ctx, { payoutId, status, reason }) => {
+    const admin = await requireAdmin(ctx);
+    const trimmedReason = reason.trim();
+    if (!trimmedReason) throw new Error("A reason is required.");
+
+    const payout = await ctx.db.get(payoutId);
+    if (!payout) throw new Error("Payout not found.");
+
+    await ctx.db.patch(payoutId, {
+      status,
+      paidAt: status === "paid" ? Date.now() : payout.paidAt,
+    });
+
+    await logAdminAction(ctx, admin, {
+      action: "payout.manualStatus",
+      targetType: "payout",
+      targetId: payoutId,
+      reason: trimmedReason,
+      details: { previousStatus: payout.status, newStatus: status },
+    });
   },
 });
 

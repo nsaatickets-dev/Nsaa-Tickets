@@ -184,6 +184,9 @@
         const startsAtValue = event?.startsAt
           ? new Date(event.startsAt).toISOString().slice(0, 16)
           : "";
+        const endsAtValue = event?.endsAt
+          ? new Date(event.endsAt).toISOString().slice(0, 16)
+          : "";
         const organizerName = event?.organizerName || organizerProfile?.displayName || "";
         const payoutPhone =
           event?.organizerPayoutPhone ||
@@ -233,6 +236,11 @@
             <div class="col-md-6">
               <label class="form-label nsaa-muted small" for="ef-starts">Starts at</label>
               <input id="ef-starts" class="form-control form-control-nsaa" type="datetime-local" value="${startsAtValue}" required />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label nsaa-muted small" for="ef-ends">Ends at</label>
+              <input id="ef-ends" class="form-control form-control-nsaa" type="datetime-local" value="${endsAtValue}" required />
+              <p class="nsaa-faint small mt-1 mb-0">Your payout is only released after this time.</p>
             </div>
             <div class="col-md-6">
               <label class="form-label nsaa-muted small" for="ef-image-file">Event thumbnail upload optional</label>
@@ -641,6 +649,7 @@
           city: document.getElementById("ef-city").value.trim(),
           address: document.getElementById("ef-address").value.trim(),
           startsAt: new Date(document.getElementById("ef-starts").value).getTime(),
+          endsAt: new Date(document.getElementById("ef-ends").value).getTime(),
           heroImageUrl: document.getElementById("ef-image").value.trim() || undefined,
           category: document.getElementById("ef-category").value,
           ageRating: document.getElementById("ef-age").value || undefined,
@@ -790,10 +799,18 @@
           const fields = readEventForm();
           const ticketTypes = isEditing ? [] : readTicketTypesForm();
 
-          if (!fields.title || !fields.description || !fields.venue || !fields.city || !fields.address || !fields.organizerName || !fields.startsAt || Number.isNaN(fields.startsAt)) {
+          if (!fields.title || !fields.description || !fields.venue || !fields.city || !fields.address || !fields.organizerName || !fields.startsAt || Number.isNaN(fields.startsAt) || !fields.endsAt || Number.isNaN(fields.endsAt)) {
             resultEl.innerHTML = NSAA.errorState(
               "Check event details",
-              "Title, description, venue, city, address, start time, and organizer name are all required.",
+              "Title, description, venue, city, address, start time, end time, and organizer name are all required.",
+            );
+            return;
+          }
+
+          if (fields.endsAt <= fields.startsAt) {
+            resultEl.innerHTML = NSAA.errorState(
+              "Check event times",
+              "End time must be after the start time.",
             );
             return;
           }

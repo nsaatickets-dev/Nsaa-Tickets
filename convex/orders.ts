@@ -6,6 +6,7 @@ import { computePlatformFee, feePercentForTier } from "./events";
 import { optionalTrimmed, requireNonEmpty, requireValidEmail, requireValidGhanaPhone } from "./validation";
 import { rateLimiter } from "./rateLimit";
 import { requireMoolreEnv } from "./moolreConfig";
+import { isBuyerBlocked } from "./buyerBlocklist";
 
 // How long a reservation holds inventory before it's released back to
 // availability. Long enough to comfortably approve a MoMo prompt,
@@ -99,6 +100,10 @@ export const createReservation = mutation({
     const buyerPhone = requireValidGhanaPhone(args.buyerPhone);
     const buyerEmail = requireValidEmail(args.buyerEmail);
     const referralCode = optionalTrimmed(args.referralCode, 80);
+
+    if (await isBuyerBlocked(ctx, buyerPhone, buyerEmail)) {
+      throw new Error("This account is not able to purchase tickets. Contact support.");
+    }
 
     await rateLimiter.limit(ctx, "reservationsGlobal", { throws: true });
     await rateLimiter.limit(ctx, "reservationsByPhone", { key: buyerPhone, throws: true });

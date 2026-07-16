@@ -178,11 +178,12 @@ http.route({
 // convex/moolre.ts:verifyAndProcessPayment and
 // convex/payouts.ts:verifyAndProcessPayout).
 //
-// One webhook URL handles both customer payments (collections) and
-// organizer payouts (transfers) - Moolre registers one callback per
-// account, not per transaction type - so externalref is always sent as
-// `order:<id>` or `payout:<id>` (see orders.ts / payouts.ts) and routed
-// here based on that prefix.
+// One webhook URL handles customer payments (collections), organizer
+// payouts, and admin-issued refunds (both transfers) - Moolre registers
+// one callback per account, not per transaction type - so externalref is
+// always sent as `order:<id>`, `payout:<id>`, or `refund:<id>:<ts>` (see
+// orders.ts / payouts.ts / ordersAdmin.ts) and routed here based on that
+// prefix.
 //
 // This URL must be registered as the account's webhook/callback URL in
 // the Moolre dashboard (or via POST /open/account/update's `callback`
@@ -209,6 +210,11 @@ http.route({
       await ctx.runAction(internal.payouts.verifyAndProcessPayout, {
         externalref,
         payoutId: id as Id<"payouts">,
+      });
+    } else if (prefix === "refund" && id) {
+      await ctx.runAction(internal.ordersAdmin.verifyAndProcessRefund, {
+        externalref,
+        orderId: id as Id<"orders">,
       });
     } else {
       console.error(`Unrecognized Moolre externalref format: ${externalref}`);

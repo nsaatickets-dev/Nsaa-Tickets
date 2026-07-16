@@ -1,7 +1,7 @@
 import { mutation, query, internalQuery, MutationCtx, QueryCtx } from "./_generated/server";
 import { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
-import { requireAdminSecret } from "./admin";
+import { requireAdminSecret, requireAdmin, logAdminAction } from "./admin";
 import {
   requireNonEmpty,
   optionalTrimmed,
@@ -216,11 +216,12 @@ export const completeOrganizerOnboarding = mutation({
   },
 });
 
-// Admin-only (the "Custom / Contact Us" tier) - callable via
-// `npx convex run events:setOrganizerTierAdmin '{"adminSecret":"...","organizerClerkUserId":"...","tier":"custom","customFeePercent":0.03}'`
+// Admin God Mode - sets an organizer's platform fee tier, including the
+// "Custom / Contact Us" tier no self-serve flow offers. Now surfaced in
+// the admin dashboard's Organizers tab (previously CLI-only via
+// `npx convex run events:setOrganizerTierAdmin`).
 export const setOrganizerTierAdmin = mutation({
   args: {
-    adminSecret: v.string(),
     organizerClerkUserId: v.string(),
     tier: v.union(
       v.literal("free"),
@@ -230,8 +231,8 @@ export const setOrganizerTierAdmin = mutation({
     ),
     customFeePercent: v.optional(v.number()),
   },
-  handler: async (ctx, { adminSecret, organizerClerkUserId, tier, customFeePercent }) => {
-    requireAdminSecret(adminSecret);
+  handler: async (ctx, { organizerClerkUserId, tier, customFeePercent }) => {
+    const admin = await requireAdmin(ctx);
     if (
       tier === "custom" &&
       customFeePercent !== undefined &&
@@ -255,6 +256,106 @@ export const setOrganizerTierAdmin = mutation({
         updatedAt: Date.now(),
       });
     }
+
+    await logAdminAction(ctx, admin, {
+      action: "organizer.setTier",
+      targetType: "organizerProfile",
+      targetId: organizerClerkUserId,
+      details: { tier, customFeePercent },
+    });
+  },
+});
+
+// Admin God Mode: blocks (or unblocks) self-serve event creation for an
+// organizer without touching events they've already published - an admin
+// can still draft/cancel those individually via the Events tab. There's
+// no account-level "ban" for organizers (they authenticate via Clerk, not
+// a Nsaa-owned user table), so this flag on their pricing profile is the
+// enforcement point instead.
+export const adminSetOrganizerSuspension = mutation({
+  args: {
+    organizerClerkUserId: v.string(),
+    suspended: v.boolean(),
+    reason: v.string(),
+  },
+  handler: async (ctx, { organizerClerkUserId, suspended, reason }) => {
+    const admin = await requireAdmin(ctx);
+    const trimmedReason = reason.trim();
+    if (!trimmedReason) throw new Error("A reason is required.");
+
+    const existing = await ctx.db
+      .query("organizerProfiles")
+      .withIndex("by_organizer", (q) => q.eq("organizerClerkUserId", organizerClerkUserId))
+      .unique();
+
+    const patch = {
+      suspended,
+      suspendedReason: suspended ? trimmedReason : undefined,
+      suspendedAt: suspended ? Date.now() : undefined,
+    };
+
+    if (existing) {
+      await ctx.db.patch(existing._id, { ...patch, updatedAt: Date.now() });
+    } else {
+      await ctx.db.insert("organizerProfiles", {
+        organizerClerkUserId,
+        tier: "essential",
+        ...patch,
+        updatedAt: Date.now(),
+      });
+    }
+
+    await logAdminAction(ctx, admin, {
+      action: suspended ? "organizer.suspend" : "organizer.unsuspend",
+      targetType: "organizerProfile",
+      targetId: organizerClerkUserId,
+      reason: trimmedReason,
+    });
+  },
+});
+
+// Admin God Mode: lists every organizer profile (self-serve pricing/
+// suspension record) plus a derived list of organizers who own published
+// events but have no profile row yet (legacy/seeded), for the Organizers
+// tab - profile-less organizers show up so an admin can still suspend or
+// tier them.
+export const adminListOrganizers = query({
+  args: {},
+  handler: async (ctx) => {
+    await requireAdmin(ctx);
+
+    const [profiles, events] = await Promise.all([
+      ctx.db.query("organizerProfiles").collect(),
+      ctx.db.query("events").collect(),
+    ]);
+
+    const byOrganizerId = new Map(profiles.map((p) => [p.organizerClerkUserId, p]));
+    const eventCounts = new Map<string, { name: string; count: number }>();
+    for (const event of events) {
+      if (!event.organizerClerkUserId) continue;
+      const entry = eventCounts.get(event.organizerClerkUserId) ?? {
+        name: event.organizerName,
+        count: 0,
+      };
+      entry.count += 1;
+      eventCounts.set(event.organizerClerkUserId, entry);
+    }
+
+    const organizerIds = new Set([...byOrganizerId.keys(), ...eventCounts.keys()]);
+
+    return [...organizerIds].map((organizerClerkUserId) => {
+      const profile = byOrganizerId.get(organizerClerkUserId);
+      const derived = eventCounts.get(organizerClerkUserId);
+      return {
+        organizerClerkUserId,
+        displayName: profile?.displayName || derived?.name || organizerClerkUserId,
+        tier: profile?.tier ?? "essential",
+        customFeePercent: profile?.customFeePercent,
+        suspended: profile?.suspended ?? false,
+        suspendedReason: profile?.suspendedReason,
+        eventCount: derived?.count ?? 0,
+      };
+    });
   },
 });
 
@@ -911,6 +1012,15 @@ function sanitizeOrganizerProfileFields(fields: RawOrganizerProfileFields) {
 // but that's UX only; this is the real gate, since these fields render
 // on public event pages and in search results.
 function sanitizeEventFields(fields: RawEventFields) {
+  // endsAt is what gates organizer payout eligibility (see
+  // payouts.ts:initiateOrganizerPayout's cutoff) - without it, eligibility
+  // silently falls back to startsAt, meaning revenue could be paid out
+  // while the event is still running. Not just a UI nicety, so it's
+  // re-checked here rather than trusted from the client.
+  if (fields.endsAt !== undefined && fields.endsAt <= fields.startsAt) {
+    throw new Error("End time must be after the start time.");
+  }
+
   return {
     title: requireNonEmpty(fields.title, "Event title", 140),
     description: requireNonEmpty(fields.description, "Description", 4000),
@@ -953,11 +1063,28 @@ function sanitizeTicketTypes(ticketTypes: RawTicketTypeFields[]) {
   return ticketTypes.map(sanitizeTicketTypeFields);
 }
 
+// Enforcement point for admin God Mode's organizer suspension
+// (setOrganizerTierAdmin's sibling adminSetOrganizerSuspension) - checked
+// at creation time only, so a suspended organizer's already-published
+// events keep running until an admin individually drafts/cancels them.
+async function requireNotSuspended(ctx: MutationCtx, organizerClerkUserId: string) {
+  const profile = await ctx.db
+    .query("organizerProfiles")
+    .withIndex("by_organizer", (q) => q.eq("organizerClerkUserId", organizerClerkUserId))
+    .unique();
+  if (profile?.suspended) {
+    throw new Error(
+      "This organizer account is suspended and cannot create new events. Contact support.",
+    );
+  }
+}
+
 export const createEvent = mutation({
   args: eventFields,
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Sign in required to create an event.");
+    await requireNotSuspended(ctx, identity.subject);
 
     return await ctx.db.insert("events", {
       ...sanitizeEventFields(args),
@@ -976,6 +1103,7 @@ export const createEventWithStarterTicket = mutation({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Sign in required to create an event.");
+    await requireNotSuspended(ctx, identity.subject);
     const [starterTicket] = sanitizeTicketTypes([args.starterTicket]);
 
     const eventId = await ctx.db.insert("events", {
@@ -1002,6 +1130,7 @@ export const createEventWithTicketTypes = mutation({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Sign in required to create an event.");
+    await requireNotSuspended(ctx, identity.subject);
     const ticketTypes = sanitizeTicketTypes(args.ticketTypes);
 
     const eventId = await ctx.db.insert("events", {

@@ -1,7 +1,7 @@
 import { mutation, query, internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
-import { requireAdminSecret } from "./admin";
+import { requireAdminSecret, requireAdmin, logAdminAction } from "./admin";
 import { rateLimiter } from "./rateLimit";
 import { requireNonEmpty } from "./validation";
 import { Doc, Id } from "./_generated/dataModel";
@@ -373,6 +373,176 @@ export const validateScan = mutation({
       gateLabel: scannerStaff?.gateLabel,
       scannerName: scannerStaff?.name,
     };
+  },
+});
+
+// Admin God Mode: voids a single ticket (suspected fraud, duplicate
+// print, a support-requested cancellation that doesn't warrant refunding
+// the whole order) without touching the rest of its order.
+export const adminVoidTicket = mutation({
+  args: { ticketId: v.id("tickets"), reason: v.string() },
+  handler: async (ctx, { ticketId, reason }) => {
+    const admin = await requireAdmin(ctx);
+    const trimmedReason = reason.trim();
+    if (!trimmedReason) throw new Error("A reason is required.");
+
+    const ticket = await ctx.db.get(ticketId);
+    if (!ticket) throw new Error("Ticket not found.");
+    if (ticket.status === "void") throw new Error("Ticket is already void.");
+
+    await ctx.db.patch(ticketId, { status: "void" });
+
+    await logAdminAction(ctx, admin, {
+      action: "ticket.void",
+      targetType: "ticket",
+      targetId: ticketId,
+      reason: trimmedReason,
+      details: { previousStatus: ticket.status },
+    });
+  },
+});
+
+// Admin God Mode: rotates a ticket's signed QR token in place - for a
+// leaked/photographed code before doors open, this invalidates every copy
+// of the old code (validateScan signature-checks against the current
+// token) without voiding the ticket or making the buyer re-checkout.
+export const adminReissueTicket = mutation({
+  args: { ticketId: v.id("tickets"), reason: v.string() },
+  handler: async (ctx, { ticketId, reason }) => {
+    const admin = await requireAdmin(ctx);
+    const trimmedReason = reason.trim();
+    if (!trimmedReason) throw new Error("A reason is required.");
+
+    const ticket = await ctx.db.get(ticketId);
+    if (!ticket) throw new Error("Ticket not found.");
+    if (ticket.status !== "valid") {
+      throw new Error(`Ticket is ${ticket.status} - only a valid ticket can be reissued.`);
+    }
+
+    const token = await buildSignedToken(ticketId);
+    await ctx.db.patch(ticketId, { qrToken: token });
+
+    await logAdminAction(ctx, admin, {
+      action: "ticket.reissue",
+      targetType: "ticket",
+      targetId: ticketId,
+      reason: trimmedReason,
+    });
+  },
+});
+
+// Admin God Mode: undoes a mis-scan (wrong ticket tapped, a scanner
+// glitch double-fired) by flipping "used" back to "valid".
+export const adminUnscanTicket = mutation({
+  args: { ticketId: v.id("tickets"), reason: v.string() },
+  handler: async (ctx, { ticketId, reason }) => {
+    const admin = await requireAdmin(ctx);
+    const trimmedReason = reason.trim();
+    if (!trimmedReason) throw new Error("A reason is required.");
+
+    const ticket = await ctx.db.get(ticketId);
+    if (!ticket) throw new Error("Ticket not found.");
+    if (ticket.status !== "used") {
+      throw new Error(`Ticket is ${ticket.status}, not used - nothing to unscan.`);
+    }
+
+    await ctx.db.patch(ticketId, { status: "valid", usedAt: undefined, scannedBy: undefined });
+
+    await logAdminAction(ctx, admin, {
+      action: "ticket.unscan",
+      targetType: "ticket",
+      targetId: ticketId,
+      reason: trimmedReason,
+    });
+  },
+});
+
+// Admin God Mode: looks up a single order (and its tickets) by order id,
+// or a single ticket by ticket id, for the dashboard's Orders/Tickets
+// search boxes. Read-only, but still admin-gated since it exposes a
+// buyer's full name/phone/email.
+export const adminFindOrder = query({
+  args: { orderId: v.id("orders") },
+  handler: async (ctx, { orderId }) => {
+    await requireAdmin(ctx);
+    const order = await ctx.db.get(orderId);
+    if (!order) return null;
+
+    const [event, ticketType, tickets] = await Promise.all([
+      ctx.db.get(order.eventId),
+      ctx.db.get(order.ticketTypeId),
+      ctx.db
+        .query("tickets")
+        .withIndex("by_order", (q) => q.eq("orderId", orderId))
+        .collect(),
+    ]);
+
+    return { order, event, ticketType, tickets };
+  },
+});
+
+// Admin God Mode: broader order search for the dashboard's Orders tab -
+// by buyer phone, buyer email, or event, each capped to a manageable page
+// since this scans the orders table rather than using an index (there's
+// no by_phone/by_email index on orders - see schema.ts's note on why -
+// and this is an infrequent admin lookup, not a hot path).
+export const adminSearchOrders = query({
+  args: {
+    phone: v.optional(v.string()),
+    email: v.optional(v.string()),
+    eventId: v.optional(v.id("events")),
+  },
+  handler: async (ctx, { phone, email, eventId }) => {
+    await requireAdmin(ctx);
+
+    let orders;
+    if (eventId) {
+      orders = await ctx.db
+        .query("orders")
+        .withIndex("by_event", (q) => q.eq("eventId", eventId))
+        .order("desc")
+        .take(100);
+    } else {
+      orders = await ctx.db.query("orders").order("desc").take(500);
+    }
+
+    const normalizedPhone = phone?.replace(/[\s\-()]/g, "").toLowerCase();
+    const normalizedEmail = email?.trim().toLowerCase();
+
+    return orders
+      .filter((order) => {
+        if (normalizedPhone && !order.buyerPhone.replace(/[\s\-()]/g, "").includes(normalizedPhone)) {
+          return false;
+        }
+        if (normalizedEmail && !order.buyerEmail.toLowerCase().includes(normalizedEmail)) {
+          return false;
+        }
+        return true;
+      })
+      .slice(0, 100);
+  },
+});
+
+// Admin God Mode: single-ticket lookup for the Tickets tab's search box,
+// plus that ticket's own scan history.
+export const adminFindTicket = query({
+  args: { ticketId: v.id("tickets") },
+  handler: async (ctx, { ticketId }) => {
+    await requireAdmin(ctx);
+    const ticket = await ctx.db.get(ticketId);
+    if (!ticket) return null;
+
+    const [order, scanLogs] = await Promise.all([
+      ctx.db.get(ticket.orderId),
+      ctx.db
+        .query("scanLogs")
+        .withIndex("by_event", (q) => q.eq("eventId", ticket.eventId))
+        .filter((q) => q.eq(q.field("ticketId"), ticketId))
+        .order("desc")
+        .collect(),
+    ]);
+
+    return { ticket, order, scanLogs };
   },
 });
 

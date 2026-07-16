@@ -102,6 +102,22 @@ export default defineSchema({
 
     createdAt: v.number(),
     paidAt: v.optional(v.number()),
+
+    // Admin God Mode: a real Moolre transfer back to the buyer, the
+    // deliberate/audited exception to "all sales final" (see
+    // convex/ordersAdmin.ts). Mirrors the pending->paid verification
+    // rigor payouts.ts uses for organizer payouts - never assume the
+    // transfer succeeded until Moolre's own status endpoint confirms it,
+    // so `status` only flips to "refunded" once refundStatus is "paid".
+    refundStatus: v.optional(
+      v.union(v.literal("pending"), v.literal("paid"), v.literal("failed")),
+    ),
+    refundAmountGHS: v.optional(v.number()),
+    refundReason: v.optional(v.string()),
+    refundExternalRef: v.optional(v.string()),
+    refundMoolreReference: v.optional(v.string()),
+    refundInitiatedByAdminId: v.optional(v.string()),
+    refundedAt: v.optional(v.number()),
   })
     // No standalone by_status index - by_reserved_until's leading column
     // (status) already serves pure status-equality lookups as a prefix,
@@ -219,6 +235,13 @@ export default defineSchema({
     createdAt: v.optional(v.number()),
     customFeePercent: v.optional(v.number()), // only meaningful for "custom"
     updatedAt: v.number(),
+    // Admin God Mode: blocks self-serve event creation for this organizer
+    // (convex/events.ts createEvent/createEventWithStarterTicket/
+    // createEventWithTicketTypes) without touching their already-published
+    // events, which an admin can still draft/cancel individually.
+    suspended: v.optional(v.boolean()),
+    suspendedReason: v.optional(v.string()),
+    suspendedAt: v.optional(v.number()),
   }).index("by_organizer", ["organizerClerkUserId"]),
 
   // Organizer payout ledger (the "escrow" model). Ticket revenue for an
@@ -300,4 +323,36 @@ export default defineSchema({
   })
     .index("by_event", ["eventId"])
     .index("by_scanner", ["scannerStaffId"]),
+
+  // Admin God Mode: every override action (force-paid, refund, void,
+  // reissue, unscan, suspend, block, payout override, ...) writes one row
+  // here so it's attributable to a real signed-in admin (see
+  // convex/admin.ts requireAdmin/logAdminAction) instead of vanishing into
+  // an untraceable shared-secret call.
+  adminAuditLog: defineTable({
+    adminClerkUserId: v.string(),
+    adminLabel: v.string(), // name/email snapshot at action time, for display even if the account changes later
+    action: v.string(), // e.g. "order.forcePaid", "ticket.void", "event.cancel"
+    targetType: v.string(), // "order" | "ticket" | "event" | "payout" | "organizerProfile" | "buyerBlocklist"
+    targetId: v.string(),
+    reason: v.optional(v.string()),
+    detailsJson: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_created", ["createdAt"])
+    .index("by_target", ["targetType", "targetId"]),
+
+  // Admin God Mode: blocks new guest-checkout reservations from a phone
+  // number or email (convex/orders.ts createReservation). Deliberately
+  // separate from any user-account table since guest checkout has no
+  // account to suspend - this is the only handle available on a bad actor.
+  buyerBlocklist: defineTable({
+    phone: v.optional(v.string()),
+    email: v.optional(v.string()),
+    reason: v.string(),
+    createdAt: v.number(),
+    createdByAdminId: v.string(),
+  })
+    .index("by_phone", ["phone"])
+    .index("by_email", ["email"]),
 });
