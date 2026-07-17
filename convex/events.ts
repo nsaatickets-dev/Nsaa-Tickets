@@ -453,7 +453,23 @@ export const searchPublished = query({
   },
 });
 
+// Pro-tier organizers get featured placement (homepage spotlight,
+// "upcoming this month") as a paid-tier perk - see PRODUCT decision
+// discussion. Deliberately does NOT touch search/category sort order,
+// which stays neutral by date for fairness across all organizers.
+// Fetched once per call (small table, same pattern as adminListOrganizers)
+// rather than per-event, since this runs over up to hundreds of events.
+async function fetchFeaturedOrganizerIds(ctx: QueryCtx): Promise<Set<string>> {
+  const profiles = await ctx.db.query("organizerProfiles").collect();
+  return new Set(
+    profiles
+      .filter((profile) => profile.tier === "pro" && !profile.suspended)
+      .map((profile) => profile.organizerClerkUserId),
+  );
+}
+
 async function enrichEventsWithTicketSummary(ctx: QueryCtx, events: Doc<"events">[]) {
+  const featuredOrganizerIds = await fetchFeaturedOrganizerIds(ctx);
   const enriched = [];
   for (const event of events) {
     const ticketTypes = await ctx.db
@@ -485,6 +501,9 @@ async function enrichEventsWithTicketSummary(ctx: QueryCtx, events: Doc<"events"
         available > 0 &&
         totalInventory > 0 &&
         available <= Math.max(10, Math.ceil(totalInventory * 0.12)),
+      isFeatured: Boolean(
+        event.organizerClerkUserId && featuredOrganizerIds.has(event.organizerClerkUserId),
+      ),
     });
   }
   return enriched;

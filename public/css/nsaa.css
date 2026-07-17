@@ -1619,6 +1619,18 @@ a:hover {
   box-shadow: 0 12px 28px rgba(36, 31, 26, 0.14);
 }
 
+/* Pro-tier organizer perk: marks their event cards wherever eventCard()
+   renders (listings, this-month, venue/organizer profiles). Corner
+   placement over the media keeps it out of the way of the existing
+   category/availability chip row in the card body. */
+.nsaa-featured-badge {
+  position: absolute;
+  top: 0.6rem;
+  left: 0.6rem;
+  z-index: 1;
+  box-shadow: 0 4px 12px rgba(36, 31, 26, 0.18);
+}
+
 .nsaa-event-body {
   padding: 1rem 0 0;
   transition: color 0.2s ease;

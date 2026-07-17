@@ -259,8 +259,15 @@
         return new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999).getTime();
       }
 
+      // Pro-tier organizer perk: featured events lead within this
+      // teaser section. Stable sort, so non-featured events keep their
+      // original (date-ascending) relative order behind them.
+      function featuredFirst(events) {
+        return [...events].sort((a, b) => (b.isFeatured ? 1 : 0) - (a.isFeatured ? 1 : 0));
+      }
+
       function renderThisMonth(result) {
-        const list = result?.items || [];
+        const list = featuredFirst(result?.items || []);
         if (!thisMonthSectionEl || !thisMonthGridEl) return;
         if (list.length === 0) {
           thisMonthSectionEl.hidden = true;
@@ -335,7 +342,7 @@
       }
 
       function renderHeroSpotlights(events = []) {
-        const spotlights = (events.length ? events.slice(0, 2).map(spotlightFromEvent) : fallbackSpotlights.slice(0, 2));
+        const spotlights = (events.length ? featuredFirst(events).slice(0, 2).map(spotlightFromEvent) : fallbackSpotlights.slice(0, 2));
         const cards = spotlights
           .map(
             (item, index) => `

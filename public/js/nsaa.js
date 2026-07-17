@@ -314,11 +314,16 @@
     const availabilityBadge = event.isSellingFast
       ? '<span class="nsaa-badge-gold">Selling fast</span>'
       : `<span class="nsaa-chip">${escapeHtml(priceLabel(event))}</span>`;
+    const featuredBadge = event.isFeatured
+      ? '<span class="nsaa-badge-gold nsaa-featured-badge"><i class="ph ph-star me-1"></i>Featured</span>'
+      : "";
     return `
       <div class="${escapeAttr(options.colClass || "col-md-6 col-xl-4")} nsaa-stagger-item" style="--stagger-index: ${staggerIndex};">
         <a class="text-decoration-none d-block h-100" href="${escapeAttr(href)}">
           <article class="nsaa-card nsaa-event-card h-100">
-            <div class="nsaa-event-media" style="background-image: linear-gradient(180deg, rgba(15,14,17,0.02), rgba(15,14,17,0.42)), url('${escapeAttr(image)}');"></div>
+            <div class="nsaa-event-media" style="background-image: linear-gradient(180deg, rgba(15,14,17,0.02), rgba(15,14,17,0.42)), url('${escapeAttr(image)}');">
+              ${featuredBadge}
+            </div>
             <div class="nsaa-event-body">
               <div class="d-flex align-items-center justify-content-between gap-2 mb-3">
                 <span class="nsaa-chip" data-tone="${escapeAttr(meta.tone)}">${escapeHtml(meta.shortLabel)}</span>
