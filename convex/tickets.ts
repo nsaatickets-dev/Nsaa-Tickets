@@ -42,19 +42,47 @@ async function sha256Hex(message: string): Promise<string> {
     .join("");
 }
 
+// Plain `===`/`!==` on secret-derived strings leaks comparison time
+// byte-by-byte (an early mismatch returns faster than a near-match) -
+// astronomically impractical to actually exploit over a network for a
+// 256-bit HMAC, but cheap to close properly rather than rely on that.
+// Deliberately does NOT short-circuit on length so timing doesn't leak
+// length either; both inputs are hex/opaque strings of expected fixed
+// length in every call site here.
+function timingSafeEqual(a: string, b: string): boolean {
+  const maxLength = Math.max(a.length, b.length);
+  let mismatch = a.length === b.length ? 0 : 1;
+  for (let i = 0; i < maxLength; i++) {
+    mismatch |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
+  }
+  return mismatch === 0;
+}
+
 async function scannerTokenHash(token: string): Promise<string> {
   const pepper = process.env.SCANNER_KEY || process.env.QR_SIGNING_SECRET;
   if (!pepper) throw new Error("Scanner token pepper is not configured");
   return await sha256Hex(`${pepper}:${token}`);
 }
 
-async function buildSignedToken(ticketId: string): Promise<string> {
+// Tickets don't expire on a timer the way a login token would - they're
+// valid until the event passes. This used to hardcode issuedAt+30 days,
+// which silently rejected valid tickets at the door for anything bought
+// more than 30 days ahead of the event (common for concerts/festivals) -
+// the expiry is now tied to the event's own end time (falling back to a
+// generous fixed window if the event can't be resolved), plus a buffer
+// for overnight events that run past midnight.
+const TICKET_EXPIRY_BUFFER_MS = 2 * 24 * 60 * 60 * 1000; // 2 days past the event's end
+const TICKET_EXPIRY_FALLBACK_MS = 730 * 24 * 60 * 60 * 1000; // 2 years, if the event can't be resolved
+
+async function ticketExpiryForEvent(ctx: any, eventId: any): Promise<number> {
+  const event = await ctx.db.get(eventId);
+  const eventCutoff = event ? (event.endsAt ?? event.startsAt) + TICKET_EXPIRY_BUFFER_MS : undefined;
+  return eventCutoff && eventCutoff > Date.now() ? eventCutoff : Date.now() + TICKET_EXPIRY_FALLBACK_MS;
+}
+
+async function buildSignedToken(ticketId: string, expiry: number): Promise<string> {
   const secret = process.env.QR_SIGNING_SECRET;
   if (!secret) throw new Error("QR_SIGNING_SECRET is not configured");
-  // Tickets don't expire on a timer the way a login token would - they're
-  // valid until the event passes. We still embed a far-future expiry so
-  // the token format supports time-boxing later without a schema change.
-  const expiry = Date.now() + 1000 * 60 * 60 * 24 * 30; // 30 days
   const payload = `${ticketId}.${expiry}`;
   const signature = await hmacSign(payload, secret);
   return `${payload}.${signature}`;
@@ -68,6 +96,7 @@ export async function issueTickets(ctx: any, orderId: any) {
   const order = await ctx.db.get(orderId);
   if (!order) throw new Error("Order not found");
 
+  const expiry = await ticketExpiryForEvent(ctx, order.eventId);
   const ticketIds = [];
   for (let i = 0; i < order.quantity; i++) {
     const ticketId = await ctx.db.insert("tickets", {
@@ -81,7 +110,7 @@ export async function issueTickets(ctx: any, orderId: any) {
       createdAt: Date.now(),
     });
 
-    const token = await buildSignedToken(ticketId);
+    const token = await buildSignedToken(ticketId, expiry);
     await ctx.db.patch(ticketId, { qrToken: token });
     ticketIds.push(ticketId);
   }
@@ -274,29 +303,19 @@ export const validateScan = mutation({
   args: { qrToken: v.string(), scannedBy: v.optional(v.string()), scannerKey: v.string() },
   handler: async (ctx, { qrToken, scannedBy, scannerKey }) => {
     const expectedScannerKey = process.env.SCANNER_KEY;
-    let scannerStaff: Doc<"scannerStaff"> | null = null;
-    let rateLimitKey = scannerKey;
-
-    if (expectedScannerKey && scannerKey === expectedScannerKey) {
-      rateLimitKey = "legacy-shared-scanner-key";
-    } else {
-      const tokenHash = await scannerTokenHash(scannerKey);
-      rateLimitKey = tokenHash;
-      const staff = await ctx.db
-        .query("scannerStaff")
-        .withIndex("by_token_hash", (q) => q.eq("tokenHash", tokenHash))
-        .unique();
-
-      if (!staff || staff.status !== "active") {
-        return { ok: false, reason: "Scanner not authorized" };
-      }
-      scannerStaff = staff;
-    }
+    const isLegacyKey = Boolean(expectedScannerKey && timingSafeEqual(scannerKey, expectedScannerKey));
+    // Computed unconditionally (even for the legacy-key path) so it's
+    // always a stable rate-limit key - see the rate-limit check
+    // immediately below, which must run before any auth decision so a
+    // bad/guessed key can't skip it entirely.
+    const scannerKeyHash = await scannerTokenHash(scannerKey);
+    const rateLimitKey = isLegacyKey ? "legacy-shared-scanner-key" : scannerKeyHash;
 
     const logScan = async (
       outcome: "accepted" | "rejected",
       reason?: string,
       ticket?: Doc<"tickets">,
+      scannerStaff?: Doc<"scannerStaff"> | null,
     ) => {
       await ctx.db.insert("scanLogs", {
         eventId: ticket?.eventId ?? scannerStaff?.eventId,
@@ -310,15 +329,35 @@ export const validateScan = mutation({
       });
     };
 
-    const reject = async (reason: string, ticket?: Doc<"tickets">) => {
-      await logScan("rejected", reason, ticket);
-      return { ok: false, reason };
-    };
-
+    // Rate-limited (and logged) before the scanner is even authorized -
+    // otherwise a garbage/guessed key would hit the early "not
+    // authorized" return below with an unlimited, invisible retry budget,
+    // since the limiter was previously only consulted for keys that had
+    // already passed the auth check.
     const scanLimit = await rateLimiter.limit(ctx, "scansByKey", { key: rateLimitKey });
     if (!scanLimit.ok) {
-      return await reject("Scanning too fast - wait a moment and try again");
+      await logScan("rejected", "Scanning too fast - wait a moment and try again");
+      return { ok: false, reason: "Scanning too fast - wait a moment and try again" };
     }
+
+    let scannerStaff: Doc<"scannerStaff"> | null = null;
+    if (!isLegacyKey) {
+      const staff = await ctx.db
+        .query("scannerStaff")
+        .withIndex("by_token_hash", (q) => q.eq("tokenHash", scannerKeyHash))
+        .unique();
+
+      if (!staff || staff.status !== "active") {
+        await logScan("rejected", "Scanner not authorized");
+        return { ok: false, reason: "Scanner not authorized" };
+      }
+      scannerStaff = staff;
+    }
+
+    const reject = async (reason: string, ticket?: Doc<"tickets">) => {
+      await logScan("rejected", reason, ticket, scannerStaff);
+      return { ok: false, reason };
+    };
 
     const [ticketId, expiryStr, signature] = qrToken.split(".");
     if (!ticketId || !expiryStr || !signature) {
@@ -334,7 +373,7 @@ export const validateScan = mutation({
       `${ticketId}.${expiryStr}`,
       secret,
     );
-    if (expectedSignature !== signature) {
+    if (!timingSafeEqual(expectedSignature, signature)) {
       return await reject("Invalid ticket - signature mismatch");
     }
 
@@ -364,7 +403,7 @@ export const validateScan = mutation({
       usedAt: Date.now(),
       scannedBy: scannedBy || scannerStaff?.name,
     });
-    await logScan("accepted", undefined, ticket);
+    await logScan("accepted", undefined, ticket, scannerStaff);
 
     return {
       ok: true,
@@ -419,7 +458,8 @@ export const adminReissueTicket = mutation({
       throw new Error(`Ticket is ${ticket.status} - only a valid ticket can be reissued.`);
     }
 
-    const token = await buildSignedToken(ticketId);
+    const expiry = await ticketExpiryForEvent(ctx, ticket.eventId);
+    const token = await buildSignedToken(ticketId, expiry);
     await ctx.db.patch(ticketId, { qrToken: token });
 
     await logAdminAction(ctx, admin, {

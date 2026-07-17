@@ -78,6 +78,11 @@
         } catch (err) {
           // ignore - key just won't persist across reloads on this device
         }
+        // Once saved, drop the token from the visible URL/browser history -
+        // a staff link/QR is meant to be used once to set up a device, not
+        // sit indefinitely in the address bar, screenshots, or synced
+        // history.
+        window.history.replaceState(null, "", window.location.pathname);
       }
       let scannerKey = urlKey;
       if (!scannerKey) {
