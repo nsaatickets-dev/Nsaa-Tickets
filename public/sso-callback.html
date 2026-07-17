@@ -43,7 +43,35 @@
 
         try {
           await clerk.handleRedirectCallback({ redirectUrl });
-          window.location.href = `/welcome?redirect_url=${encodeURIComponent(redirectUrl)}`;
+
+          // handleRedirectCallback can return without throwing even when no
+          // session was actually created - e.g. the sign-up is stuck on
+          // "missing_requirements" (Clerk needs a field the OAuth provider
+          // didn't supply), or the redirect/OAuth credentials aren't fully
+          // configured on this Clerk instance. Silently continuing in that
+          // case just bounces the visitor back to sign-in on the next page
+          // (since nothing ever signed them in) - surface it here instead.
+          if (clerk.user || clerk.isSignedIn) {
+            window.location.href = `/welcome?redirect_url=${encodeURIComponent(redirectUrl)}`;
+            return;
+          }
+
+          const pendingSignUp = clerk.client?.signUp;
+          const pendingSignIn = clerk.client?.signIn;
+
+          if (pendingSignUp?.status === "missing_requirements") {
+            const missing = (pendingSignUp.missingFields || []).join(", ") || "additional details";
+            statusEl.innerHTML = NSAA.errorState(
+              "Almost there",
+              `Google sign-up needs ${missing} to finish, which this flow doesn't collect yet. Please contact support or try creating an account with email and password instead.`,
+            );
+            return;
+          }
+
+          statusEl.innerHTML = NSAA.errorState(
+            "Could not finish sign-in",
+            `Google sign-in didn't complete (status: ${pendingSignUp?.status || pendingSignIn?.status || "unknown"}). This usually means Google sign-in isn't fully configured for this account yet - try email and password instead, or contact support.`,
+          );
         } catch (err) {
           statusEl.innerHTML = NSAA.errorState(
             "Could not finish sign-in",
