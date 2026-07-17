@@ -145,7 +145,10 @@
           try {
             await clerk.client.signUp.authenticateWithRedirect({
               strategy,
-              redirectUrl: `/sso-callback?redirect_url=${encodeURIComponent(redirectUrl)}`,
+              // legal=1 tells /sso-callback consent was already given right
+              // here, so it can finish the Google sign-up silently instead
+              // of asking again on the way back.
+              redirectUrl: `/sso-callback?redirect_url=${encodeURIComponent(redirectUrl)}&legal=1`,
               redirectUrlComplete: redirectUrl,
             });
           } catch (err) {

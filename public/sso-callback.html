@@ -15,6 +15,15 @@
     <link href="css/nsaa.css" rel="stylesheet" />
   </head>
   <body class="checkout-body">
+    <nav class="navbar nsaa-navbar">
+      <div class="container">
+        <a class="nsaa-brand-lockup" href="/" aria-label="Nsaa Tickets home">
+          <img class="nsaa-brand-mark" src="/logo.jpeg" alt="" width="38" height="38" />
+          <span class="visually-hidden">Nsaa Tickets</span>
+        </a>
+      </div>
+    </nav>
+
     <script src="js/clerk-config.js"></script>
     <script src="js/clerk-loader.js"></script>
     <script src="js/convex-config.js"></script>
@@ -28,14 +37,17 @@
     <script type="module">
       const params = new URLSearchParams(window.location.search);
       const redirectUrl = params.get("redirect_url") || "/";
+      // Set by signup.html/organizer-signup.html when their own Terms/
+      // Privacy checkbox was already checked before starting the Google
+      // redirect - lets this page finish the sign-up silently instead of
+      // asking the same question again on the way back.
+      const legalAlreadyAccepted = params.get("legal") === "1";
       const statusEl = document.getElementById("callback-status");
 
-      // Shown when Clerk reports the sign-up is only missing legal consent -
-      // OAuth (authenticateWithRedirect) has no way to pass legalAccepted at
-      // initiation time (unlike signUp.create() for the password flow), so
-      // this is the one place that can actually resolve it, via
-      // signUp.update(). Real consent collected here, not auto-accepted -
-      // this only renders when the visitor is looking at the screen.
+      // Fallback only - covers a Google click that didn't go through a page
+      // with the consent checkbox (e.g. signin.html's Google button, which
+      // can silently create a brand-new account). Real consent collected
+      // here, not auto-accepted, since nothing upstream confirmed it yet.
       function renderLegalConsentStep(clerk) {
         statusEl.innerHTML = `
           <div class="nsaa-panel text-start">
@@ -60,25 +72,26 @@
             errEl.innerHTML = NSAA.errorState("Agreement required", "Check the box to continue.");
             return;
           }
-
-          try {
-            const updated = await clerk.client.signUp.update({ legalAccepted: true });
-            if (updated.status === "complete") {
-              await clerk.setActive({ session: updated.createdSessionId });
-              window.location.href = `/welcome?redirect_url=${encodeURIComponent(redirectUrl)}`;
-              return;
-            }
-            errEl.innerHTML = NSAA.errorState(
-              "Could not finish sign-up",
-              `Still incomplete (status: ${updated.status}). Please contact support.`,
-            );
-          } catch (err) {
-            errEl.innerHTML = NSAA.errorState(
-              "Could not finish sign-up",
-              err?.errors?.[0]?.message || err.message || "Please try again.",
-            );
-          }
+          await finishWithLegalAcceptance(clerk, errEl);
         });
+      }
+
+      async function finishWithLegalAcceptance(clerk, errEl) {
+        try {
+          const updated = await clerk.client.signUp.update({ legalAccepted: true });
+          if (updated.status === "complete") {
+            await clerk.setActive({ session: updated.createdSessionId });
+            window.location.href = `/welcome?redirect_url=${encodeURIComponent(redirectUrl)}`;
+            return;
+          }
+          const message = `Still incomplete (status: ${updated.status}). Please contact support.`;
+          if (errEl) errEl.innerHTML = NSAA.errorState("Could not finish sign-up", message);
+          else statusEl.innerHTML = NSAA.errorState("Could not finish sign-up", message);
+        } catch (err) {
+          const message = err?.errors?.[0]?.message || err.message || "Please try again.";
+          if (errEl) errEl.innerHTML = NSAA.errorState("Could not finish sign-up", message);
+          else statusEl.innerHTML = NSAA.errorState("Could not finish sign-up", message);
+        }
       }
 
       async function boot() {
@@ -113,7 +126,11 @@
           if (pendingSignUp?.status === "missing_requirements") {
             const missing = pendingSignUp.missingFields || [];
             if (missing.includes("legal_accepted")) {
-              renderLegalConsentStep(clerk);
+              if (legalAlreadyAccepted) {
+                await finishWithLegalAcceptance(clerk, null);
+              } else {
+                renderLegalConsentStep(clerk);
+              }
               return;
             }
             statusEl.innerHTML = NSAA.errorState(
