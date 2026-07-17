@@ -53,8 +53,8 @@
       const isEditMode = params.has("edit");
 
       const PLAN_OPTIONS = [
-        { tier: "essential", label: "Standard", fee: "4.5%", blurb: "Best default for paid events." },
-        { tier: "pro", label: "Priority", fee: "4.9%", blurb: "More support, still below 5%." },
+        { tier: "essential", label: "Standard", fee: "4.5%", badge: "Most popular", blurb: "Everything you need to sell with confidence - no strings attached." },
+        { tier: "pro", label: "Priority", fee: "4.9%", badge: "Recommended for big shows", blurb: "Priority support and insurance cover, still below 5%." },
         { tier: "free", label: "Free", fee: "0%", blurb: "For free or invite-only events." },
       ];
 
@@ -68,6 +68,7 @@
                 <strong>${NSAA.escapeHtml(opt.label)}</strong>
                 <small>${NSAA.escapeHtml(opt.fee)} per paid ticket</small>
               </span>
+              ${opt.badge ? `<span class="nsaa-badge-gold nsaa-plan-option-badge">${NSAA.escapeHtml(opt.badge)}</span>` : ""}
               <em>${NSAA.escapeHtml(opt.blurb)}</em>
             </label>
           `,

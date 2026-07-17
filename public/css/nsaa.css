@@ -1517,6 +1517,28 @@ a:hover {
   color: var(--nsaa-gold-ink);
 }
 
+/* Pricing page: the two paid tiers get a full-weight border + a corner
+   ribbon so they read as the recommended choice against the plain Free
+   card, without resorting to a colored side-stripe accent. */
+.nsaa-plan-card {
+  position: relative;
+  border-width: 2px;
+  overflow: visible;
+}
+
+.nsaa-plan-ribbon {
+  position: absolute;
+  top: -0.75rem;
+  left: 1.25rem;
+  border-radius: 999px;
+  box-shadow: 0 4px 12px rgba(36, 31, 26, 0.14);
+}
+
+.nsaa-plan-option-badge {
+  justify-self: start;
+  border-radius: 999px;
+}
+
 .nsaa-tier-card {
   border-left-width: 4px;
   border-left-style: solid;
