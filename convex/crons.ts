@@ -20,4 +20,21 @@ crons.interval(
   internal.payouts.autoPayoutEndedEvents,
 );
 
+// Moves retained Nsaa service fees from the Moolre wallet into the
+// configured GCB instant bank account, and backfills paid orders created
+// before the account env var was configured.
+crons.interval(
+  "sweep service fees to GCB",
+  { minutes: 5 },
+  internal.serviceFees.sweepUntransferredServiceFees,
+);
+
+// Safety-net verification for service-fee bank transfers if Moolre's
+// callback is delayed or missed.
+crons.interval(
+  "verify service fee transfers",
+  { minutes: 10 },
+  internal.serviceFees.verifyPendingServiceFeeTransfers,
+);
+
 export default crons;

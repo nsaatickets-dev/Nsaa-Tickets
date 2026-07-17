@@ -44,6 +44,7 @@ export const adminForceMarkOrderPaid = mutation({
 
     await ctx.scheduler.runAfter(0, internal.moolre.sendConfirmation, { orderId });
     await ctx.scheduler.runAfter(0, internal.moolre.sendOrganizerNotification, { orderId });
+    await ctx.scheduler.runAfter(0, internal.serviceFees.sweepServiceFeeForOrder, { orderId });
 
     await logAdminAction(ctx, admin, {
       action: "order.forcePaid",

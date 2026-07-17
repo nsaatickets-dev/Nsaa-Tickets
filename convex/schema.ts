@@ -265,6 +265,32 @@ export default defineSchema({
     paidAt: v.optional(v.number()),
   }).index("by_event", ["eventId"]),
 
+  // Nsaa service-fee sweep ledger. Customer payments arrive into the
+  // Moolre wallet as ticket subtotal + service fee; organizer payouts
+  // release only the ticket subtotal after the event, while these rows
+  // track the retained platform fee being transferred to Nsaa's GCB bank
+  // account. The full bank account number lives only in Convex env vars.
+  serviceFeeTransfers: defineTable({
+    orderId: v.id("orders"),
+    eventId: v.id("events"),
+    amountGHS: v.number(),
+    bankSublistId: v.string(),
+    bankAccountLast4: v.string(),
+    externalRef: v.optional(v.string()),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("paid"),
+      v.literal("failed"),
+    ),
+    failureReason: v.optional(v.string()),
+    moolreReference: v.optional(v.string()),
+    createdAt: v.number(),
+    paidAt: v.optional(v.number()),
+  })
+    .index("by_order", ["orderId"])
+    .index("by_event", ["eventId"])
+    .index("by_status_created", ["status", "createdAt"]),
+
   // Public, reusable venue profile pages. Events can keep working without
   // a linked venue row; venueSlug on events lets us derive profile pages
   // from existing listings until a formal venue record exists.

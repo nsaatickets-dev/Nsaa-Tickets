@@ -115,6 +115,9 @@ export const applyVerifiedStatus = internalMutation({
     await ctx.scheduler.runAfter(0, internal.moolre.sendOrganizerNotification, {
       orderId: order._id,
     });
+    await ctx.scheduler.runAfter(0, internal.serviceFees.sweepServiceFeeForOrder, {
+      orderId: order._id,
+    });
   },
 });
 

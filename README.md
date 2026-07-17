@@ -58,9 +58,15 @@ Clerk, Convex, Brevo, and Moolre.
   a payout) minus anything already paid/pending, then transfers via
   Moolre. Same "verify via Moolre's own status endpoint" pattern as
   collections, since Moolre documents no webhook signature scheme.
+- **Nsaa service-fee sweep ledger** (`convex/serviceFees.ts`,
+  `serviceFeeTransfers` table) - retained service fees are automatically
+  transferred from the Moolre wallet to the configured GCB instant bank
+  account, with webhook/status verification and a cron backfill for paid
+  orders.
 - **Admin ops console** (`public/admin-ops.html`, `convex/ops.ts`) -
   admin-secret-gated triage for organizer inquiries, support messages,
-  event moderation, cancellation/refund marking, and payout initiation.
+  event moderation, cancellation/refund marking, payout status, and
+  service-fee transfer status.
 
 ## What you MUST fill in before this runs for real
 
@@ -103,6 +109,13 @@ Clerk, Convex, Brevo, and Moolre.
    all - it only reads which order to check, then re-fetches the
    authoritative status from Moolre's own status endpoint before ever
    marking an order paid (see `convex/moolre.ts:verifyAndProcessPayment`).
+
+   To route retained Nsaa service fees to a GCB instant bank account, set
+   `NSAA_SERVICE_FEE_GCB_ACCOUNT_NUMBER` in Convex env. The GCB bank code
+   defaults to Moolre's `300304`; override with
+   `NSAA_SERVICE_FEE_GCB_BANK_CODE` only if Moolre changes the bank list.
+   `NSAA_SERVICE_FEE_SWEEP_MIN_GHS` defaults to `0.01`, and
+   `NSAA_SERVICE_FEE_SWEEP_ENABLED=false` temporarily disables sweeps.
 
 5. **Brevo** - get an API key, set via
    `npx convex env set BREVO_API_KEY ...`.

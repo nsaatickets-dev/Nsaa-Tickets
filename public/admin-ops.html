@@ -52,6 +52,7 @@
         ["tickets", "Tickets"],
         ["organizers", "Organizers"],
         ["payouts", "Payouts"],
+        ["serviceFees", "Fees"],
         ["blocklist", "Blocklist"],
         ["audit", "Audit log"],
       ];
@@ -122,6 +123,7 @@
           tickets: renderTicketsTab,
           organizers: renderOrganizersTab,
           payouts: renderPayoutsTab,
+          serviceFees: renderServiceFeesTab,
           blocklist: renderBlocklistTab,
           audit: renderAuditTab,
         };
@@ -847,6 +849,116 @@
         try {
           await client.mutation("payouts:adminSetPayoutStatus", { payoutId, status, reason });
           await renderPayoutsTab();
+        } catch (err) {
+          showError(err);
+        } finally {
+          button.disabled = false;
+        }
+      });
+
+      // ---- Service fees ----
+      function serviceFeeConfigHtml(config) {
+        if (config.configured) {
+          return `
+            <div class="nsaa-status-box success mb-3">
+              <p class="mb-0">GCB sweep active: ${NSAA.escapeHtml(config.bankName)} (${NSAA.escapeHtml(config.bankSublistId)}), account ending ${NSAA.escapeHtml(config.bankAccountLast4)}.</p>
+            </div>
+          `;
+        }
+
+        return `
+          <div class="nsaa-status-box mb-3">
+            <p class="mb-0">GCB sweep is not active yet. Set <code>NSAA_SERVICE_FEE_GCB_ACCOUNT_NUMBER</code> in Convex production env.</p>
+          </div>
+        `;
+      }
+
+      function serviceFeeSummaryHtml(summary) {
+        return `
+          <div class="row g-3 mb-4">
+            <div class="col-md-4">
+              <div class="nsaa-panel">
+                <p class="nsaa-faint small text-uppercase mb-1">Paid to GCB</p>
+                <p class="nsaa-page-title mb-0" style="font-size: 2rem;">${NSAA.money(summary.paidGHS)}</p>
+                <p class="nsaa-muted small mb-0">${summary.paidCount} transfer${summary.paidCount === 1 ? "" : "s"}</p>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="nsaa-panel">
+                <p class="nsaa-faint small text-uppercase mb-1">Pending verification</p>
+                <p class="nsaa-page-title mb-0" style="font-size: 2rem;">${NSAA.money(summary.pendingGHS)}</p>
+                <p class="nsaa-muted small mb-0">${summary.pendingCount} transfer${summary.pendingCount === 1 ? "" : "s"}</p>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="nsaa-panel">
+                <p class="nsaa-faint small text-uppercase mb-1">Failed</p>
+                <p class="nsaa-page-title mb-0" style="font-size: 2rem;">${NSAA.money(summary.failedGHS)}</p>
+                <p class="nsaa-muted small mb-0">${summary.failedCount} transfer${summary.failedCount === 1 ? "" : "s"}</p>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      function serviceFeeTransferRowHtml(transfer) {
+        const actions =
+          transfer.status === "failed"
+            ? [`<button class="btn btn-nsaa admin-service-fee-action" type="button">Retry</button>`]
+            : [];
+        return `
+          <tr data-order-id="${NSAA.escapeAttr(transfer.orderId)}">
+            <td>
+              <strong>${NSAA.escapeHtml(transfer.orderId)}</strong>
+              ${transfer.failureReason ? `<div class="nsaa-muted small">${NSAA.escapeHtml(transfer.failureReason)}</div>` : ""}
+            </td>
+            <td>${NSAA.escapeHtml(transfer.eventId)}</td>
+            <td>GCB ${NSAA.escapeHtml(transfer.bankSublistId)} ending ${NSAA.escapeHtml(transfer.bankAccountLast4)}</td>
+            <td class="text-end">${NSAA.money(transfer.amountGHS)}</td>
+            <td>${statusChip(transfer.status)}</td>
+            <td>${NSAA.escapeHtml(NSAA.formatDate(transfer.createdAt))}</td>
+            <td>${NSAA.escapeHtml(transfer.externalRef || "-")}</td>
+            <td class="text-end"><div class="btn-group btn-group-sm">${actions.join("") || "-"}</div></td>
+          </tr>
+        `;
+      }
+
+      async function renderServiceFeesTab() {
+        root.innerHTML = NSAA.loading("Loading service fees");
+        try {
+          const [data, config, summary] = await Promise.all([
+            client.query("ops:overview", {}),
+            client.query("serviceFees:serviceFeeConfigStatus", {}),
+            client.query("serviceFees:serviceFeeTransferSummary", {}),
+          ]);
+          root.innerHTML = `
+            ${serviceFeeConfigHtml(config)}
+            ${serviceFeeSummaryHtml(summary)}
+            <div class="nsaa-panel">
+              <h2 class="h5 mb-3">Service fee transfers</h2>
+              <div class="table-responsive">
+                <table class="table align-middle mb-0">
+                  <thead><tr><th>Order</th><th>Event</th><th>Destination</th><th class="text-end">Amount</th><th>Status</th><th>Created</th><th>Reference</th><th class="text-end">Action</th></tr></thead>
+                  <tbody>${data.serviceFeeTransfers.map(serviceFeeTransferRowHtml).join("") || '<tr><td colspan="8" class="nsaa-muted">No service fee transfers yet.</td></tr>'}</tbody>
+                </table>
+              </div>
+            </div>
+          `;
+        } catch (err) {
+          root.innerHTML = "";
+          showError(err);
+        }
+      }
+
+      root.addEventListener("click", async (event) => {
+        const button = event.target.closest(".admin-service-fee-action");
+        if (!button) return;
+        const orderId = button.closest("[data-order-id]").dataset.orderId;
+        button.disabled = true;
+        try {
+          await client.mutation("serviceFees:queueServiceFeeTransfer", { orderId });
+          showSuccess("Service fee transfer queued.");
+          await renderServiceFeesTab();
         } catch (err) {
           showError(err);
         } finally {
