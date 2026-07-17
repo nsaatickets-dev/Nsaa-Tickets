@@ -11,4 +11,14 @@ crons.interval(
   internal.orders.sweepExpiredReservations,
 );
 
+// Pays organizers out automatically once their event ends - no admin
+// click needed. Safe to run repeatedly: eligiblePayoutAmount already
+// nets out any payout that's pending or paid, so an event with nothing
+// left owed is a no-op every subsequent run.
+crons.interval(
+  "auto payout ended events",
+  { hours: 1 },
+  internal.payouts.autoPayoutEndedEvents,
+);
+
 export default crons;

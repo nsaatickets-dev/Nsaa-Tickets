@@ -1,9 +1,15 @@
-import { action, mutation, internalAction, internalMutation, query } from "./_generated/server";
+import { action, mutation, internalAction, internalMutation, internalQuery, query } from "./_generated/server";
 import { internal, api } from "./_generated/api";
 import { v } from "convex/values";
-import { requireAdmin, logAdminAction } from "./admin";
+import { requireAdmin, logAdminAction, type AdminIdentity } from "./admin";
 import { alertCritical } from "./alerts";
 import { requireMoolreEnv } from "./moolreConfig";
+import { sendBrevoEmail, SENDERS, renderEmailLayout, paragraph, escapeHtml } from "./email";
+
+// Attributes automatic (cron-triggered) payouts in the same audit trail
+// as admin-triggered ones, so the Audit Log tab shows a single timeline
+// of every payout regardless of who/what started it.
+const SYSTEM_IDENTITY: AdminIdentity = { subject: "system", label: "Automatic payout (cron)" };
 
 // Moolre's TRANSFER channel codes are different from their COLLECTION
 // channel codes (verified against docs.moolre.com) - MTN is 1 here vs 13
@@ -70,11 +76,67 @@ export const payoutsForEvent = query({
   },
 });
 
-// Admin-triggered escrow release, per the product decision: revenue is
-// eligible only after the event's end date has passed, and there is no
-// self-serve organizer request flow or automatic batch job yet - this is
-// invoked from the admin dashboard's Payouts tab (or the Convex dashboard
-// function runner), one event at a time.
+// Shared by both the admin-triggered action below and the automatic cron
+// job (autoPayoutEndedEvents) - creates the pending payout record and
+// fires the real Moolre transfer. Never throws on a Moolre-side rejection
+// (marks the payout "failed" and returns that instead) so a batch of
+// automatic payouts can keep going after one event's transfer is
+// rejected, rather than the whole cron run aborting.
+async function sendOrganizerPayoutTransfer(
+  ctx: any,
+  params: { eventId: any; organizerPayoutPhone: string; amountGHS: number },
+): Promise<{ payoutId: any; accepted: boolean; failureReason?: string }> {
+  const { eventId, organizerPayoutPhone, amountGHS } = params;
+
+  const payoutId = await ctx.runMutation(internal.payouts.createPendingPayout, {
+    eventId,
+    organizerPayoutPhone,
+    amountGHS,
+  });
+
+  // Same prefixing scheme as orders.ts - lets the shared webhook tell a
+  // payout apart from a customer payment.
+  const externalref = `payout:${payoutId}`;
+  const channel = detectMoolreTransferChannel(organizerPayoutPhone);
+  const config = requireMoolreEnv([
+    "MOOLRE_API_BASE",
+    "MOOLRE_API_USER",
+    "MOOLRE_API_KEY",
+    "MOOLRE_ACCOUNT_NUMBER",
+  ]);
+
+  const response = await fetch(`${config.MOOLRE_API_BASE}/open/transact/transfer`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-API-USER": config.MOOLRE_API_USER,
+      "X-API-KEY": config.MOOLRE_API_KEY,
+    },
+    body: JSON.stringify({
+      type: 1,
+      channel,
+      currency: "GHS",
+      amount: String(amountGHS),
+      receiver: organizerPayoutPhone,
+      externalref,
+      accountnumber: config.MOOLRE_ACCOUNT_NUMBER,
+    }),
+  });
+
+  const data = await response.json();
+  const accepted = data.status === 1;
+
+  if (!accepted) {
+    await ctx.runMutation(internal.payouts.markPayoutFailed, { payoutId });
+    return { payoutId, accepted: false, failureReason: data.message || "Payout could not be started." };
+  }
+
+  return { payoutId, accepted: true };
+}
+
+// Admin-triggered escrow release - lets an admin pay out a specific event
+// on demand (e.g. to correct something the automatic run got wrong, or
+// before the next scheduled run), from the God Mode console's Payouts tab.
 export const initiateOrganizerPayout = action({
   args: {
     eventId: v.id("events"),
@@ -109,14 +171,14 @@ export const initiateOrganizerPayout = action({
       return { status: "nothing_due", amountGHS: 0 };
     }
 
-    const payoutId = await ctx.runMutation(internal.payouts.createPendingPayout, {
+    const result = await sendOrganizerPayoutTransfer(ctx, {
       eventId,
       organizerPayoutPhone: event.organizerPayoutPhone,
       amountGHS,
     });
 
     await ctx.runMutation(internal.payouts.logPayoutInitiated, {
-      payoutId,
+      payoutId: result.payoutId,
       adminSubject: admin.subject,
       adminLabel: admin.label,
       eventId,
@@ -125,44 +187,80 @@ export const initiateOrganizerPayout = action({
       eligibleGHS,
     });
 
-    // Same prefixing scheme as orders.ts - lets the shared webhook tell a
-    // payout apart from a customer payment.
-    const externalref = `payout:${payoutId}`;
-    const channel = detectMoolreTransferChannel(event.organizerPayoutPhone);
-    const config = requireMoolreEnv([
-      "MOOLRE_API_BASE",
-      "MOOLRE_API_USER",
-      "MOOLRE_API_KEY",
-      "MOOLRE_ACCOUNT_NUMBER",
-    ]);
-
-    const response = await fetch(`${config.MOOLRE_API_BASE}/open/transact/transfer`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-API-USER": config.MOOLRE_API_USER,
-        "X-API-KEY": config.MOOLRE_API_KEY,
-      },
-      body: JSON.stringify({
-        type: 1,
-        channel,
-        currency: "GHS",
-        amount: String(amountGHS),
-        receiver: event.organizerPayoutPhone,
-        externalref,
-        accountnumber: config.MOOLRE_ACCOUNT_NUMBER,
-      }),
-    });
-
-    const data = await response.json();
-    const accepted = data.status === 1;
-
-    if (!accepted) {
-      await ctx.runMutation(internal.payouts.markPayoutFailed, { payoutId });
-      throw new Error(data.message || "Payout could not be started.");
+    if (!result.accepted) {
+      throw new Error(result.failureReason);
     }
 
     return { status: "initiated", amountGHS };
+  },
+});
+
+// Cron-triggered (see convex/crons.ts) - finds every non-cancelled event
+// that has ended and still has eligible revenue, and pays it out
+// automatically with no admin action needed. eligiblePayoutAmount already
+// subtracts any payout that's pending or paid for an event, so re-running
+// this against the same event a second time is safe - it naturally sees
+// nothing left to pay out and skips it.
+export const autoPayoutEndedEvents = internalAction({
+  args: {},
+  handler: async (ctx) => {
+    const events = await ctx.runQuery(internal.payouts.listEventsDueForAutoPayout, {});
+
+    for (const event of events) {
+      if (!event.organizerPayoutPhone) continue;
+
+      try {
+        const eligibleGHS: number = await ctx.runQuery(api.payouts.eligiblePayoutAmount, {
+          eventId: event._id,
+        });
+        if (eligibleGHS <= 0) continue;
+
+        const result = await sendOrganizerPayoutTransfer(ctx, {
+          eventId: event._id,
+          organizerPayoutPhone: event.organizerPayoutPhone,
+          amountGHS: eligibleGHS,
+        });
+
+        await ctx.runMutation(internal.payouts.logPayoutInitiated, {
+          payoutId: result.payoutId,
+          adminSubject: SYSTEM_IDENTITY.subject,
+          adminLabel: SYSTEM_IDENTITY.label,
+          eventId: event._id,
+          amountGHS: eligibleGHS,
+          wasOverride: false,
+          eligibleGHS,
+        });
+
+        if (!result.accepted) {
+          await alertCritical(
+            "Automatic payout rejected by Moolre",
+            `Event ${event._id} ("${event.title}"): ${result.failureReason}`,
+          );
+        }
+      } catch (err) {
+        // One event's transfer failing (bad phone number, Moolre outage,
+        // etc.) shouldn't stop the rest of the batch - each is independent
+        // money movement to a different organizer.
+        await alertCritical(
+          "Automatic payout failed",
+          `Event ${event._id} ("${event.title}"): ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+  },
+});
+
+export const listEventsDueForAutoPayout = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const events = await ctx.db.query("events").collect();
+    const now = Date.now();
+    return events.filter(
+      (event) =>
+        event.status !== "cancelled" &&
+        Boolean(event.organizerPayoutPhone) &&
+        (event.endsAt ?? event.startsAt) <= now,
+    );
   },
 });
 
@@ -319,6 +417,47 @@ export const applyVerifiedPayoutStatus = internalMutation({
       status: "paid",
       moolreReference: transactionId,
       paidAt: Date.now(),
+    });
+
+    await ctx.scheduler.runAfter(0, internal.payouts.sendPayoutNotification, { payoutId });
+  },
+});
+
+export const getPayoutInternal = internalQuery({
+  args: { payoutId: v.id("payouts") },
+  handler: async (ctx, { payoutId }) => ctx.db.get(payoutId),
+});
+
+// Lets an organizer know their money actually moved, rather than having
+// to check the dashboard - mirrors the buyer confirmation and sale
+// notification emails in convex/moolre.ts.
+export const sendPayoutNotification = internalAction({
+  args: { payoutId: v.id("payouts") },
+  handler: async (ctx, { payoutId }) => {
+    const payout = await ctx.runQuery(internal.payouts.getPayoutInternal, { payoutId });
+    if (!payout) return;
+
+    const contact = await ctx.runQuery(internal.events.getOrganizerContactForEvent, {
+      eventId: payout.eventId,
+    });
+    if (!contact) return;
+
+    const event = await ctx.runQuery(api.events.getById, { eventId: payout.eventId });
+    const eventTitle = event?.title ?? "your event";
+
+    await sendBrevoEmail({
+      sender: SENDERS.events,
+      to: [{ email: contact.contactEmail, name: contact.organizerName }],
+      subject: `Payout sent: ${eventTitle}`,
+      htmlContent: renderEmailLayout({
+        heading: "Your payout is on its way",
+        bodyHtml:
+          paragraph(`Hi ${escapeHtml(contact.organizerName)},`) +
+          paragraph(
+            `GHS ${payout.amountGHS} for <strong>${escapeHtml(eventTitle)}</strong> has been sent to your Mobile Money number on file.`,
+          ),
+        footerNote: "This confirms an organizer payout from Nsaa Tickets.",
+      }),
     });
   },
 });
