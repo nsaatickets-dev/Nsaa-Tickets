@@ -30,6 +30,57 @@
       const redirectUrl = params.get("redirect_url") || "/";
       const statusEl = document.getElementById("callback-status");
 
+      // Shown when Clerk reports the sign-up is only missing legal consent -
+      // OAuth (authenticateWithRedirect) has no way to pass legalAccepted at
+      // initiation time (unlike signUp.create() for the password flow), so
+      // this is the one place that can actually resolve it, via
+      // signUp.update(). Real consent collected here, not auto-accepted -
+      // this only renders when the visitor is looking at the screen.
+      function renderLegalConsentStep(clerk) {
+        statusEl.innerHTML = `
+          <div class="nsaa-panel text-start">
+            <h2 class="h5 mb-2">One more step</h2>
+            <p class="nsaa-muted small mb-3">Agree to our Terms of Service and Privacy Policy to finish creating your account.</p>
+            <div class="form-check mb-3">
+              <input id="legal-consent-check" class="form-check-input" type="checkbox" />
+              <label class="form-check-label nsaa-muted small" for="legal-consent-check">
+                I agree to the <a href="/terms-of-service" target="_blank" rel="noreferrer">Terms of Service</a>
+                and <a href="/privacy-policy" target="_blank" rel="noreferrer">Privacy Policy</a>.
+              </label>
+            </div>
+            <div id="legal-consent-error"></div>
+            <button id="legal-consent-submit" class="btn btn-nsaa w-100" type="button">Finish creating account</button>
+          </div>
+        `;
+
+        document.getElementById("legal-consent-submit").addEventListener("click", async () => {
+          const errEl = document.getElementById("legal-consent-error");
+          errEl.innerHTML = "";
+          if (!document.getElementById("legal-consent-check").checked) {
+            errEl.innerHTML = NSAA.errorState("Agreement required", "Check the box to continue.");
+            return;
+          }
+
+          try {
+            const updated = await clerk.client.signUp.update({ legalAccepted: true });
+            if (updated.status === "complete") {
+              await clerk.setActive({ session: updated.createdSessionId });
+              window.location.href = `/welcome?redirect_url=${encodeURIComponent(redirectUrl)}`;
+              return;
+            }
+            errEl.innerHTML = NSAA.errorState(
+              "Could not finish sign-up",
+              `Still incomplete (status: ${updated.status}). Please contact support.`,
+            );
+          } catch (err) {
+            errEl.innerHTML = NSAA.errorState(
+              "Could not finish sign-up",
+              err?.errors?.[0]?.message || err.message || "Please try again.",
+            );
+          }
+        });
+      }
+
       async function boot() {
         const clerk = await NSAA.getClerk();
 
@@ -60,10 +111,14 @@
           const pendingSignIn = clerk.client?.signIn;
 
           if (pendingSignUp?.status === "missing_requirements") {
-            const missing = (pendingSignUp.missingFields || []).join(", ") || "additional details";
+            const missing = pendingSignUp.missingFields || [];
+            if (missing.includes("legal_accepted")) {
+              renderLegalConsentStep(clerk);
+              return;
+            }
             statusEl.innerHTML = NSAA.errorState(
               "Almost there",
-              `Google sign-up needs ${missing} to finish, which this flow doesn't collect yet. Please contact support or try creating an account with email and password instead.`,
+              `Google sign-up needs ${missing.join(", ") || "additional details"} to finish, which this flow doesn't collect yet. Please contact support or try creating an account with email and password instead.`,
             );
             return;
           }
