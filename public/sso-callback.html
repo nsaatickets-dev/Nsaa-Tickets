@@ -43,7 +43,7 @@
 
         try {
           await clerk.handleRedirectCallback({ redirectUrl });
-          window.location.href = redirectUrl;
+          window.location.href = `/welcome?redirect_url=${encodeURIComponent(redirectUrl)}`;
         } catch (err) {
           statusEl.innerHTML = NSAA.errorState(
             "Could not finish sign-in",

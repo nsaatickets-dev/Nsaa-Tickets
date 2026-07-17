@@ -355,4 +355,18 @@ export default defineSchema({
   })
     .index("by_phone", ["phone"])
     .index("by_email", ["email"]),
+
+  // One-time post-signup survey (public/welcome.html) - every fresh Clerk
+  // sign-in/sign-up passes through that page, which no-ops immediately if
+  // a row already exists here for that user, so this only ever prompts a
+  // given account once. `skipped` still counts as "asked" so declining
+  // doesn't nag the user again on their next session.
+  userOnboarding: defineTable({
+    clerkUserId: v.string(),
+    referralSource: v.optional(v.string()),
+    role: v.optional(v.string()),
+    skipped: v.optional(v.boolean()),
+    completedAt: v.optional(v.number()),
+    createdAt: v.number(),
+  }).index("by_clerk_user", ["clerkUserId"]),
 });

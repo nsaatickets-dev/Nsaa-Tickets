@@ -273,7 +273,7 @@
 
             if (attempt.status === "complete") {
               await clerk.setActive({ session: attempt.createdSessionId });
-              window.location.href = redirectUrl;
+              window.location.href = `/welcome?redirect_url=${encodeURIComponent(redirectUrl)}`;
               return;
             }
 
