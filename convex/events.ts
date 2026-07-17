@@ -70,6 +70,17 @@ export function computePlatformFee(ticketSubtotalGHS: number, feePercent: number
   return Math.floor(ticketSubtotalGHS * feePercent * 100) / 100;
 }
 
+async function scheduleAutoPayoutAtEventEnd(
+  ctx: MutationCtx,
+  eventId: Id<"events">,
+  event: Pick<Doc<"events">, "startsAt" | "endsAt">,
+) {
+  const payoutAt = event.endsAt ?? event.startsAt;
+  await ctx.scheduler.runAt(Math.max(Date.now(), payoutAt), internal.payouts.autoPayoutSingleEvent, {
+    eventId,
+  });
+}
+
 export const generateHeroImageUploadUrl = mutation({
   args: {},
   handler: async (ctx) => {
@@ -1159,12 +1170,15 @@ export const createEvent = mutation({
     if (!identity) throw new Error("Sign in required to create an event.");
     await requireNotSuspended(ctx, identity.subject);
 
-    return await ctx.db.insert("events", {
-      ...sanitizeEventFields(args),
+    const eventFields = sanitizeEventFields(args);
+    const eventId = await ctx.db.insert("events", {
+      ...eventFields,
       status: "draft",
       organizerClerkUserId: identity.subject,
       createdAt: Date.now(),
     });
+    await scheduleAutoPayoutAtEventEnd(ctx, eventId, eventFields);
+    return eventId;
   },
 });
 
@@ -1178,9 +1192,10 @@ export const createEventWithStarterTicket = mutation({
     if (!identity) throw new Error("Sign in required to create an event.");
     await requireNotSuspended(ctx, identity.subject);
     const [starterTicket] = sanitizeTicketTypes([args.starterTicket]);
+    const eventFields = sanitizeEventFields(args);
 
     const eventId = await ctx.db.insert("events", {
-      ...sanitizeEventFields(args),
+      ...eventFields,
       status: "draft",
       organizerClerkUserId: identity.subject,
       createdAt: Date.now(),
@@ -1191,6 +1206,7 @@ export const createEventWithStarterTicket = mutation({
       ...starterTicket,
     });
 
+    await scheduleAutoPayoutAtEventEnd(ctx, eventId, eventFields);
     return eventId;
   },
 });
@@ -1205,9 +1221,10 @@ export const createEventWithTicketTypes = mutation({
     if (!identity) throw new Error("Sign in required to create an event.");
     await requireNotSuspended(ctx, identity.subject);
     const ticketTypes = sanitizeTicketTypes(args.ticketTypes);
+    const eventFields = sanitizeEventFields(args);
 
     const eventId = await ctx.db.insert("events", {
-      ...sanitizeEventFields(args),
+      ...eventFields,
       status: "draft",
       organizerClerkUserId: identity.subject,
       createdAt: Date.now(),
@@ -1220,6 +1237,7 @@ export const createEventWithTicketTypes = mutation({
       });
     }
 
+    await scheduleAutoPayoutAtEventEnd(ctx, eventId, eventFields);
     return eventId;
   },
 });
@@ -1228,7 +1246,9 @@ export const updateEvent = mutation({
   args: { eventId: v.id("events"), ...eventFields },
   handler: async (ctx, { eventId, ...fields }) => {
     await requireOwnedEvent(ctx, eventId);
-    await ctx.db.patch(eventId, sanitizeEventFields(fields));
+    const eventFields = sanitizeEventFields(fields);
+    await ctx.db.patch(eventId, eventFields);
+    await scheduleAutoPayoutAtEventEnd(ctx, eventId, eventFields);
   },
 });
 
@@ -1240,8 +1260,9 @@ export const setEventStatus = mutation({
     status: v.union(v.literal("draft"), v.literal("published")),
   },
   handler: async (ctx, { eventId, status }) => {
-    await requireOwnedEvent(ctx, eventId);
+    const { event } = await requireOwnedEvent(ctx, eventId);
     await ctx.db.patch(eventId, { status });
+    await scheduleAutoPayoutAtEventEnd(ctx, eventId, event);
   },
 });
 

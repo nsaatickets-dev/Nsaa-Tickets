@@ -245,12 +245,12 @@ export default defineSchema({
   }).index("by_organizer", ["organizerClerkUserId"]),
 
   // Organizer payout ledger (the "escrow" model). Ticket revenue for an
-  // event isn't paid out to the organizer until the event's end date has
-  // passed and an admin explicitly triggers it (see convex/payouts.ts) -
-  // this table is what makes that a real accounting record rather than a
-  // one-off wire transfer with no trail. amountGHS is the organizer's cut
-  // only (ticketSubtotalGHS sum) - the service fee is always retained by
-  // the platform and never appears here.
+  // event is released automatically after the event's end date has passed
+  // (see convex/payouts.ts); manual admin queueing exists only for
+  // exceptional retries/overrides. This table is what makes payout a real
+  // accounting record rather than a one-off wire transfer with no trail.
+  // amountGHS is the organizer's cut only (ticketSubtotalGHS sum) - the
+  // service fee is always retained by the platform and never appears here.
   payouts: defineTable({
     eventId: v.id("events"),
     organizerPayoutPhone: v.string(), // snapshotted at payout time

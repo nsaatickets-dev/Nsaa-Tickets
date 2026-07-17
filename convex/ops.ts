@@ -1,4 +1,5 @@
 import { mutation, query } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { requireAdmin, logAdminAction } from "./admin";
 import { optionalTrimmed, requireNonEmpty, requireValidGhanaPhone } from "./validation";
@@ -122,7 +123,14 @@ export const setEventStatusAdmin = mutation({
   },
   handler: async (ctx, { eventId, status }) => {
     const admin = await requireAdmin(ctx);
+    const event = await ctx.db.get(eventId);
+    if (!event) throw new Error("Event not found.");
     await ctx.db.patch(eventId, { status });
+    await ctx.scheduler.runAt(
+      Math.max(Date.now(), event.endsAt ?? event.startsAt),
+      internal.payouts.autoPayoutSingleEvent,
+      { eventId },
+    );
     await logAdminAction(ctx, admin, {
       action: "event.setStatus",
       targetType: "event",
@@ -182,6 +190,11 @@ export const adminUpdateEventFields = mutation({
     }
 
     await ctx.db.patch(args.eventId, patch);
+    await ctx.scheduler.runAt(
+      Math.max(Date.now(), effectiveEndsAt ?? effectiveStartsAt),
+      internal.payouts.autoPayoutSingleEvent,
+      { eventId: args.eventId },
+    );
 
     await logAdminAction(ctx, admin, {
       action: "event.updateFields",

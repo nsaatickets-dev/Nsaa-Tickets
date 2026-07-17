@@ -9,7 +9,8 @@ import { sendBrevoEmail, SENDERS, renderEmailLayout, paragraph, escapeHtml } fro
 // Attributes automatic (cron-triggered) payouts in the same audit trail
 // as admin-triggered ones, so the Audit Log tab shows a single timeline
 // of every payout regardless of who/what started it.
-const SYSTEM_IDENTITY: AdminIdentity = { subject: "system", label: "Automatic payout (cron)" };
+const SYSTEM_IDENTITY: AdminIdentity = { subject: "system", label: "Automatic payout" };
+const AUTO_PAYOUT_FAILED_RETRY_DELAY_MS = 30 * 60 * 1000;
 
 // Moolre's TRANSFER channel codes are different from their COLLECTION
 // channel codes (verified against docs.moolre.com) - MTN is 1 here vs 13
@@ -134,6 +135,84 @@ async function sendOrganizerPayoutTransfer(
   return { payoutId, accepted: true };
 }
 
+async function payoutEventIfDue(
+  ctx: any,
+  params: {
+    eventId: any;
+    actor: AdminIdentity;
+    overrideAmountGHS?: number;
+    strict: boolean;
+    alertPrefix?: string;
+  },
+): Promise<{ status: string; amountGHS?: number; reason?: string }> {
+  const { eventId, actor, overrideAmountGHS, strict, alertPrefix } = params;
+
+  const event = await ctx.runQuery(api.events.getById, { eventId });
+  if (!event) {
+    if (strict) throw new Error("Event not found");
+    return { status: "skipped", reason: "event_not_found" };
+  }
+  if (event.status === "cancelled") {
+    if (strict) throw new Error("Event is cancelled - resolve refunds before paying out.");
+    return { status: "skipped", reason: "cancelled" };
+  }
+
+  const cutoff = event.endsAt ?? event.startsAt;
+  if (Date.now() < cutoff) {
+    if (strict) throw new Error("Event hasn't ended yet - revenue isn't eligible for payout until then.");
+    return { status: "not_due" };
+  }
+
+  const eligibleGHS: number = await ctx.runQuery(api.payouts.eligiblePayoutAmount, { eventId });
+  const amountGHS = overrideAmountGHS ?? eligibleGHS;
+  if (amountGHS <= 0) {
+    return { status: "nothing_due", amountGHS: 0 };
+  }
+
+  if (!strict) {
+    const hasRecentFailure: boolean = await ctx.runQuery(internal.payouts.hasRecentFailedPayout, {
+      eventId,
+      since: Date.now() - AUTO_PAYOUT_FAILED_RETRY_DELAY_MS,
+    });
+    if (hasRecentFailure) {
+      return { status: "deferred", amountGHS, reason: "recent_failed_payout" };
+    }
+  }
+
+  if (!event.organizerPayoutPhone) {
+    const message = "Event has no organizer payout phone on file.";
+    if (strict) throw new Error(message);
+    return { status: "skipped", amountGHS, reason: "missing_payout_phone" };
+  }
+
+  const result = await sendOrganizerPayoutTransfer(ctx, {
+    eventId,
+    organizerPayoutPhone: event.organizerPayoutPhone,
+    amountGHS,
+  });
+
+  await ctx.runMutation(internal.payouts.logPayoutInitiated, {
+    payoutId: result.payoutId,
+    adminSubject: actor.subject,
+    adminLabel: actor.label,
+    eventId,
+    amountGHS,
+    wasOverride: overrideAmountGHS !== undefined,
+    eligibleGHS,
+  });
+
+  if (!result.accepted) {
+    const message = result.failureReason || "Payout could not be started.";
+    if (alertPrefix) {
+      await alertCritical(alertPrefix, `Event ${event._id} ("${event.title}"): ${message}`);
+    }
+    if (strict) throw new Error(message);
+    return { status: "failed", amountGHS, reason: message };
+  }
+
+  return { status: "initiated", amountGHS };
+}
+
 // Admin-triggered escrow release - lets an admin pay out a specific event
 // on demand (e.g. to correct something the automatic run got wrong, or
 // before the next scheduled run), from the God Mode console's Payouts tab.
@@ -150,48 +229,100 @@ export const initiateOrganizerPayout = action({
     { eventId, overrideAmountGHS },
   ): Promise<{ status: string; amountGHS?: number }> => {
     const admin = await requireAdmin(ctx);
+    return await payoutEventIfDue(ctx, {
+      eventId,
+      actor: admin,
+      overrideAmountGHS,
+      strict: true,
+    });
+  },
+});
 
-    const event = await ctx.runQuery(api.events.getById, { eventId });
-    if (!event) throw new Error("Event not found");
+// Browser-safe manual trigger: the admin console queues the real network
+// transfer as a server-side action and returns immediately, so the browser
+// connection is not holding the Moolre transfer open.
+export const queueOrganizerPayout = mutation({
+  args: {
+    eventId: v.id("events"),
+    overrideAmountGHS: v.optional(v.number()),
+  },
+  handler: async (ctx, { eventId, overrideAmountGHS }) => {
+    const admin = await requireAdmin(ctx);
+    const event = await ctx.db.get(eventId);
+    if (!event) throw new Error("Event not found.");
     if (event.status === "cancelled") {
       throw new Error("Event is cancelled - resolve refunds before paying out.");
     }
     if (!event.organizerPayoutPhone) {
       throw new Error("Event has no organizer payout phone on file.");
     }
-
     const cutoff = event.endsAt ?? event.startsAt;
     if (Date.now() < cutoff) {
       throw new Error("Event hasn't ended yet - revenue isn't eligible for payout until then.");
     }
-
-    const eligibleGHS: number = await ctx.runQuery(api.payouts.eligiblePayoutAmount, { eventId });
-    const amountGHS = overrideAmountGHS ?? eligibleGHS;
-    if (amountGHS <= 0) {
-      return { status: "nothing_due", amountGHS: 0 };
+    if (overrideAmountGHS !== undefined && overrideAmountGHS <= 0) {
+      throw new Error("Override payout amount must be greater than 0.");
     }
 
-    const result = await sendOrganizerPayoutTransfer(ctx, {
+    await ctx.scheduler.runAfter(0, internal.payouts.runQueuedOrganizerPayout, {
       eventId,
-      organizerPayoutPhone: event.organizerPayoutPhone,
-      amountGHS,
-    });
-
-    await ctx.runMutation(internal.payouts.logPayoutInitiated, {
-      payoutId: result.payoutId,
+      overrideAmountGHS,
       adminSubject: admin.subject,
       adminLabel: admin.label,
-      eventId,
-      amountGHS,
-      wasOverride: overrideAmountGHS !== undefined,
-      eligibleGHS,
     });
 
-    if (!result.accepted) {
-      throw new Error(result.failureReason);
-    }
+    await logAdminAction(ctx, admin, {
+      action: "payout.queue",
+      targetType: "event",
+      targetId: eventId,
+      details: { overrideAmountGHS },
+    });
 
-    return { status: "initiated", amountGHS };
+    return { status: "queued" };
+  },
+});
+
+export const runQueuedOrganizerPayout = internalAction({
+  args: {
+    eventId: v.id("events"),
+    overrideAmountGHS: v.optional(v.number()),
+    adminSubject: v.string(),
+    adminLabel: v.string(),
+  },
+  handler: async (ctx, { eventId, overrideAmountGHS, adminSubject, adminLabel }) => {
+    try {
+      await payoutEventIfDue(ctx, {
+        eventId,
+        actor: { subject: adminSubject, label: adminLabel },
+        overrideAmountGHS,
+        strict: true,
+      });
+    } catch (err) {
+      await alertCritical(
+        "Queued payout failed",
+        `Event ${eventId}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      throw err;
+    }
+  },
+});
+
+export const autoPayoutSingleEvent = internalAction({
+  args: { eventId: v.id("events") },
+  handler: async (ctx, { eventId }) => {
+    try {
+      await payoutEventIfDue(ctx, {
+        eventId,
+        actor: SYSTEM_IDENTITY,
+        strict: false,
+        alertPrefix: "Automatic payout failed",
+      });
+    } catch (err) {
+      await alertCritical(
+        "Automatic payout failed",
+        `Event ${eventId}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   },
 });
 
@@ -207,36 +338,13 @@ export const autoPayoutEndedEvents = internalAction({
     const events = await ctx.runQuery(internal.payouts.listEventsDueForAutoPayout, {});
 
     for (const event of events) {
-      if (!event.organizerPayoutPhone) continue;
-
       try {
-        const eligibleGHS: number = await ctx.runQuery(api.payouts.eligiblePayoutAmount, {
+        await payoutEventIfDue(ctx, {
           eventId: event._id,
+          actor: SYSTEM_IDENTITY,
+          strict: false,
+          alertPrefix: "Automatic payout failed",
         });
-        if (eligibleGHS <= 0) continue;
-
-        const result = await sendOrganizerPayoutTransfer(ctx, {
-          eventId: event._id,
-          organizerPayoutPhone: event.organizerPayoutPhone,
-          amountGHS: eligibleGHS,
-        });
-
-        await ctx.runMutation(internal.payouts.logPayoutInitiated, {
-          payoutId: result.payoutId,
-          adminSubject: SYSTEM_IDENTITY.subject,
-          adminLabel: SYSTEM_IDENTITY.label,
-          eventId: event._id,
-          amountGHS: eligibleGHS,
-          wasOverride: false,
-          eligibleGHS,
-        });
-
-        if (!result.accepted) {
-          await alertCritical(
-            "Automatic payout rejected by Moolre",
-            `Event ${event._id} ("${event.title}"): ${result.failureReason}`,
-          );
-        }
       } catch (err) {
         // One event's transfer failing (bad phone number, Moolre outage,
         // etc.) shouldn't stop the rest of the batch - each is independent
@@ -261,6 +369,21 @@ export const listEventsDueForAutoPayout = internalQuery({
         Boolean(event.organizerPayoutPhone) &&
         (event.endsAt ?? event.startsAt) <= now,
     );
+  },
+});
+
+export const hasRecentFailedPayout = internalQuery({
+  args: {
+    eventId: v.id("events"),
+    since: v.number(),
+  },
+  handler: async (ctx, { eventId, since }) => {
+    const recent = await ctx.db
+      .query("payouts")
+      .withIndex("by_event", (q) => q.eq("eventId", eventId))
+      .filter((q) => q.gte(q.field("createdAt"), since))
+      .collect();
+    return recent.some((payout) => payout.status === "failed");
   },
 });
 

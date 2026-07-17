@@ -11,13 +11,12 @@ crons.interval(
   internal.orders.sweepExpiredReservations,
 );
 
-// Pays organizers out automatically once their event ends - no admin
-// click needed. Safe to run repeatedly: eligiblePayoutAmount already
-// nets out any payout that's pending or paid, so an event with nothing
-// left owed is a no-op every subsequent run.
+// Safety-net payout sweep in case an event-end scheduled payout was missed
+// during a deploy, edit race, or legacy event migration. New/updated events
+// schedule their own exact end-time payout from events.ts.
 crons.interval(
   "auto payout ended events",
-  { hours: 1 },
+  { minutes: 1 },
   internal.payouts.autoPayoutEndedEvents,
 );
 

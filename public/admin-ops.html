@@ -470,8 +470,12 @@
               const overrideRaw = window.prompt("Override payout amount in GHS (leave blank to use the computed eligible amount):");
               if (overrideRaw === null) return;
               const overrideAmountGHS = overrideRaw.trim() ? Number(overrideRaw.trim()) : undefined;
-              const result = await client.action("payouts:initiateOrganizerPayout", { eventId, overrideAmountGHS });
-              showSuccess(`Payout ${result.status}: ${NSAA.money(result.amountGHS || 0)}`);
+              if (overrideAmountGHS !== undefined && (!Number.isFinite(overrideAmountGHS) || overrideAmountGHS <= 0)) {
+                window.alert("Enter a payout amount greater than 0, or leave it blank.");
+                return;
+              }
+              await client.mutation("payouts:queueOrganizerPayout", { eventId, overrideAmountGHS });
+              showSuccess("Payout queued. The transfer now runs server-side; check the Payouts tab for status.");
             }
             await loadEvents();
             root.innerHTML = renderEventsSection();
@@ -817,7 +821,7 @@
           root.innerHTML = `
             <div class="nsaa-panel">
               <h2 class="h5 mb-3">Payouts</h2>
-              <p class="nsaa-muted small">Payouts fire automatically once an event ends (hourly check) - Moolre transfers the organizer's cut and the service fee stays with Nsaa. Use the Events tab to trigger one on demand, and the override actions below only for out-of-band settlement.</p>
+              <p class="nsaa-muted small">Payouts are scheduled automatically for the event end time, with a one-minute safety sweep. Moolre transfers the organizer's cut and the service fee stays with Nsaa. Use the Events tab only to queue an exceptional on-demand retry, and the override actions below only for out-of-band settlement.</p>
               <div class="table-responsive">
                 <table class="table align-middle mb-0">
                   <thead><tr><th>Event</th><th>Payout phone</th><th class="text-end">Amount</th><th>Status</th><th>Date</th><th class="text-end">Override</th></tr></thead>
