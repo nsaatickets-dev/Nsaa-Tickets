@@ -1,7 +1,9 @@
-import { mutation, query, internalQuery, MutationCtx, QueryCtx } from "./_generated/server";
+import { mutation, query, internalQuery, internalAction, MutationCtx, QueryCtx } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { requireAdminSecret, requireAdmin, logAdminAction } from "./admin";
+import { escapeHtml, sendBrevoEmail, SENDERS, renderEmailLayout, paragraph } from "./email";
 import {
   requireNonEmpty,
   optionalTrimmed,
@@ -192,6 +194,8 @@ export const completeOrganizerOnboarding = mutation({
       .query("organizerProfiles")
       .withIndex("by_organizer", (q) => q.eq("organizerClerkUserId", identity.subject))
       .unique();
+    const wasAlreadyOnboarded = Boolean(existing?.onboardingCompletedAt);
+    let profileId: Id<"organizerProfiles">;
 
     if (existing) {
       await ctx.db.patch(existing._id, {
@@ -201,17 +205,67 @@ export const completeOrganizerOnboarding = mutation({
         onboardingCompletedAt: existing.onboardingCompletedAt ?? now,
         updatedAt: now,
       });
-      return existing._id;
+      profileId = existing._id;
+    } else {
+      profileId = await ctx.db.insert("organizerProfiles", {
+        organizerClerkUserId: identity.subject,
+        ...profileFields,
+        contactEmail,
+        tier,
+        onboardingCompletedAt: now,
+        createdAt: now,
+        updatedAt: now,
+      });
     }
 
-    return await ctx.db.insert("organizerProfiles", {
-      organizerClerkUserId: identity.subject,
-      ...profileFields,
-      contactEmail,
-      tier,
-      onboardingCompletedAt: now,
-      createdAt: now,
-      updatedAt: now,
+    if (contactEmail && !wasAlreadyOnboarded) {
+      await ctx.scheduler.runAfter(0, internal.events.sendOrganizerWelcomeEmail, {
+        email: contactEmail,
+        contactName: profileFields.contactName,
+        displayName: profileFields.displayName,
+        tier,
+      });
+    }
+
+    return profileId;
+  },
+});
+
+const ORGANIZER_TIER_LABELS: Record<string, string> = {
+  free: "Free",
+  essential: "Standard",
+  pro: "Priority",
+};
+
+export const sendOrganizerWelcomeEmail = internalAction({
+  args: {
+    email: v.string(),
+    contactName: v.optional(v.string()),
+    displayName: v.string(),
+    tier: v.union(v.literal("free"), v.literal("essential"), v.literal("pro")),
+  },
+  handler: async (_ctx, { email, contactName, displayName, tier }) => {
+    const dashboardUrl = "https://nsaatickets.com/organizer-dashboard";
+    const greetingName = contactName || displayName;
+    const tierLabel = ORGANIZER_TIER_LABELS[tier] ?? "Standard";
+
+    await sendBrevoEmail({
+      sender: SENDERS.events,
+      to: [{ email, name: greetingName }],
+      subject: "Your Nsaa organizer dashboard is ready",
+      htmlContent: renderEmailLayout({
+        heading: "Your organizer dashboard is ready",
+        bodyHtml:
+          paragraph(`Hi ${escapeHtml(greetingName)},`) +
+          paragraph(
+            `Your organizer profile for <strong>${escapeHtml(displayName)}</strong> is set up on the ${escapeHtml(tierLabel)} plan. You can now create events, add ticket tiers, share campaign links, and manage scanner staff from your dashboard.`,
+          ) +
+          `<p style="margin:0 0 18px;"><a href="${dashboardUrl}" style="display:inline-block; background:#ff8a00; color:#241f1a; text-decoration:none; font-weight:800; padding:12px 16px; border-radius:4px;">Open organizer dashboard</a></p>` +
+          paragraph("We will also email you whenever a ticket sells, so you do not need to keep the dashboard open to follow sales.") +
+          paragraph("&mdash; Nsaa Tickets Events"),
+        footerNote:
+          "You're receiving this because you completed organizer setup on Nsaa Tickets.",
+      }),
     });
   },
 });

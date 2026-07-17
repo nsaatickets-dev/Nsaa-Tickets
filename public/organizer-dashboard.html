@@ -21,12 +21,13 @@
     <script src="js/clerk-config.js"></script>
     <script src="js/clerk-loader.js"></script>
 
-<main class="container py-5" style="max-width: 980px">
-      <div
-        class="d-flex flex-column flex-md-row justify-content-between gap-3 mb-4"
-      >
+    <main class="container py-5 nsaa-dashboard-page">
+      <div class="nsaa-dashboard-header">
         <div>
-          <h1 class="nsaa-section-title mb-0">Your events</h1>
+          <h1 class="nsaa-section-title mb-2">Organizer dashboard</h1>
+          <p class="nsaa-muted mb-0">
+            Manage event setup, sales, distribution, ticket inventory, and door teams.
+          </p>
         </div>
         <div class="d-flex align-items-center gap-2 align-self-md-end">
           <div id="organizer-avatar-slot"></div>
@@ -56,6 +57,8 @@
       const isNew = params.has("new");
       let clerk = null;
       let currentOrganizerProfile = null;
+      let dashboardEventFilter = "all";
+      let dashboardEventsCache = [];
 
       function renderOrganizerAvatar() {
         const slot = document.getElementById("organizer-avatar-slot");
@@ -106,35 +109,155 @@
       }
 
       // ---- List view ----
-      function renderList(events) {
-        if (!events || events.length === 0) {
-          root.innerHTML = NSAA.emptyState(
-            "No events yet",
-            "Create your first event to start selling tickets.",
-            '<a class="btn btn-nsaa" href="/organizer-dashboard?new=1">Create event</a>',
-          );
-          return;
-        }
+      function eventDateBadgeHtml(startsAt) {
+        const date = new Date(startsAt);
+        const day = date.toLocaleDateString(undefined, { day: "2-digit" });
+        const month = date.toLocaleDateString(undefined, { month: "short" });
+        return `
+          <span class="nsaa-dashboard-date" aria-hidden="true">
+            <strong>${NSAA.escapeHtml(day)}</strong>
+            <small>${NSAA.escapeHtml(month)}</small>
+          </span>
+        `;
+      }
 
-        root.innerHTML = events
-          .map(
-            (event) => `
-          <a class="text-decoration-none d-block mb-3" href="/organizer-dashboard?eventId=${NSAA.escapeAttr(event._id)}">
-            <div class="nsaa-panel d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-2">
-              <div>
-                <div class="d-flex align-items-center gap-2 mb-2">
-                  ${statusChip(event.status)}
-                  <span class="nsaa-chip" data-tone="${NSAA.escapeAttr(NSAA.categoryMeta(event.category).tone)}">${NSAA.escapeHtml(NSAA.categoryMeta(event.category).shortLabel)}</span>
-                </div>
-                <h2 class="h5 mb-1">${NSAA.escapeHtml(event.title)}</h2>
-                <p class="nsaa-muted small mb-0">${NSAA.escapeHtml(event.venue)}, ${NSAA.escapeHtml(event.city)} &middot; ${NSAA.escapeHtml(NSAA.formatDate(event.startsAt))}</p>
-              </div>
-              <i class="ph ph-caret-right nsaa-muted"></i>
+      function organizerEventCounts(events) {
+        return events.reduce(
+          (counts, event) => {
+            counts.all += 1;
+            counts[event.status] = (counts[event.status] || 0) + 1;
+            return counts;
+          },
+          { all: 0, draft: 0, published: 0, cancelled: 0 },
+        );
+      }
+
+      function dashboardSummaryHtml(events, counts) {
+        const now = Date.now();
+        const nextEvent = events
+          .filter((event) => event.startsAt >= now && event.status !== "cancelled")
+          .sort((a, b) => a.startsAt - b.startsAt)[0];
+        const lastUpdated = events.length
+          ? events.reduce((latest, event) => Math.max(latest, event.createdAt || 0), 0)
+          : null;
+        return `
+          <section class="nsaa-dashboard-summary-grid" aria-label="Organizer event summary">
+            <div class="nsaa-dashboard-metric">
+              <span>Total events</span>
+              <strong>${counts.all}</strong>
+              <small>Across every status</small>
             </div>
+            <div class="nsaa-dashboard-metric">
+              <span>Published</span>
+              <strong>${counts.published}</strong>
+              <small>Visible to buyers</small>
+            </div>
+            <div class="nsaa-dashboard-metric">
+              <span>Drafts</span>
+              <strong>${counts.draft}</strong>
+              <small>Still being prepared</small>
+            </div>
+            <div class="nsaa-dashboard-metric">
+              <span>Next event</span>
+              <strong>${nextEvent ? NSAA.escapeHtml(NSAA.formatDate(nextEvent.startsAt)) : "None"}</strong>
+              <small>${nextEvent ? NSAA.escapeHtml(nextEvent.title) : lastUpdated ? `Last created ${NSAA.escapeHtml(NSAA.formatDate(lastUpdated))}` : "Create your first listing"}</small>
+            </div>
+          </section>
+        `;
+      }
+
+      function dashboardTabsHtml(counts) {
+        const tabs = [
+          { key: "all", label: "All", count: counts.all, icon: "ph-squares-four" },
+          { key: "published", label: "Published", count: counts.published, icon: "ph-broadcast" },
+          { key: "draft", label: "Drafts", count: counts.draft, icon: "ph-note-pencil" },
+          { key: "cancelled", label: "Cancelled", count: counts.cancelled, icon: "ph-prohibit" },
+        ];
+        return `
+          <div class="nsaa-dashboard-tabs" role="tablist" aria-label="Event status">
+            ${tabs
+              .map(
+                (tab) => `
+                <button class="nsaa-dashboard-tab ${dashboardEventFilter === tab.key ? "active" : ""}" type="button" role="tab" aria-selected="${dashboardEventFilter === tab.key ? "true" : "false"}" data-dashboard-tab="${NSAA.escapeAttr(tab.key)}">
+                  <i class="ph ${NSAA.escapeAttr(tab.icon)}" aria-hidden="true"></i>
+                  <span>${NSAA.escapeHtml(tab.label)}</span>
+                  <strong>${tab.count}</strong>
+                </button>
+              `,
+              )
+              .join("")}
+          </div>
+        `;
+      }
+
+      function eventRowHtml(event) {
+        const category = NSAA.categoryMeta(event.category);
+        return `
+          <a class="nsaa-dashboard-event-row" href="/organizer-dashboard?eventId=${NSAA.escapeAttr(event._id)}">
+            ${eventDateBadgeHtml(event.startsAt)}
+            <span class="nsaa-dashboard-event-main">
+              <span class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                ${statusChip(event.status)}
+                <span class="nsaa-chip" data-tone="${NSAA.escapeAttr(category.tone)}">${NSAA.escapeHtml(category.shortLabel)}</span>
+              </span>
+              <strong>${NSAA.escapeHtml(event.title)}</strong>
+              <small>${NSAA.escapeHtml(event.venue)}, ${NSAA.escapeHtml(event.city)} &middot; ${NSAA.escapeHtml(NSAA.formatDate(event.startsAt))}</small>
+            </span>
+            <span class="nsaa-dashboard-event-action">
+              Manage
+              <i class="ph ph-caret-right" aria-hidden="true"></i>
+            </span>
           </a>
-        `,
-          )
-          .join("");
+        `;
+      }
+
+      function bindDashboardTabs() {
+        root.querySelectorAll("[data-dashboard-tab]").forEach((button) => {
+          button.addEventListener("click", () => {
+            dashboardEventFilter = button.dataset.dashboardTab || "all";
+            renderList(dashboardEventsCache);
+          });
+        });
+      }
+
+      function renderList(events) {
+        dashboardEventsCache = events || [];
+        const counts = organizerEventCounts(dashboardEventsCache);
+        if (!["all", "draft", "published", "cancelled"].includes(dashboardEventFilter)) {
+          dashboardEventFilter = "all";
+        }
+        const visibleEvents =
+          dashboardEventFilter === "all"
+            ? dashboardEventsCache
+            : dashboardEventsCache.filter((event) => event.status === dashboardEventFilter);
+        const emptyCopy =
+          dashboardEventsCache.length === 0
+            ? {
+                title: "No events yet",
+                body: "Create your first event to start selling tickets.",
+                action:
+                  '<a class="btn btn-nsaa" href="/organizer-dashboard?new=1">Create event</a>',
+              }
+            : {
+                title: `No ${dashboardEventFilter} events`,
+                body: "Switch tabs or create a new event when you are ready.",
+                action: "",
+              };
+
+        root.innerHTML = `
+          <section class="nsaa-dashboard-board">
+            ${dashboardSummaryHtml(dashboardEventsCache, counts)}
+            ${dashboardTabsHtml(counts)}
+            <div id="dashboard-event-list" class="nsaa-dashboard-event-list" role="tabpanel">
+              ${
+                visibleEvents.length
+                  ? visibleEvents.map(eventRowHtml).join("")
+                  : NSAA.emptyState(emptyCopy.title, emptyCopy.body, emptyCopy.action)
+              }
+            </div>
+          </section>
+        `;
+        bindDashboardTabs();
       }
 
       // ---- Editor view (create or edit) ----
@@ -295,32 +418,36 @@
 
       function salesSummaryHtml(summary) {
         return `
-        <div class="row g-3 mb-4">
-          <div class="col-6 col-md-3">
-            <div class="nsaa-meta-item">
-              <p class="nsaa-faint small mb-1">Tickets sold</p>
-              <p class="h5 mb-0">${summary.ticketsSold}</p>
+        <section class="nsaa-panel nsaa-dashboard-sales-panel">
+          <div class="d-flex flex-column flex-lg-row justify-content-between gap-2 mb-3">
+            <div>
+              <h2 class="h5 mb-1">Sales overview</h2>
+              <p class="nsaa-muted small mb-0">Live revenue and order status for this event.</p>
             </div>
           </div>
-          <div class="col-6 col-md-3">
-            <div class="nsaa-meta-item">
-              <p class="nsaa-faint small mb-1">Gross revenue</p>
-              <p class="h5 mb-0" style="color: var(--nsaa-gold);">${NSAA.money(summary.grossRevenueGHS)}</p>
+          <div class="nsaa-dashboard-summary-grid">
+            <div class="nsaa-dashboard-metric">
+              <span>Tickets sold</span>
+              <strong>${summary.ticketsSold}</strong>
+              <small>Confirmed tickets</small>
+            </div>
+            <div class="nsaa-dashboard-metric">
+              <span>Gross revenue</span>
+              <strong style="color: var(--nsaa-gold);">${NSAA.money(summary.grossRevenueGHS)}</strong>
+              <small>Paid order total</small>
+            </div>
+            <div class="nsaa-dashboard-metric">
+              <span>Paid orders</span>
+              <strong>${summary.ordersPaid}</strong>
+              <small>Completed payments</small>
+            </div>
+            <div class="nsaa-dashboard-metric">
+              <span>Pending orders</span>
+              <strong>${summary.ordersPending}</strong>
+              <small>Reserved checkout holds</small>
             </div>
           </div>
-          <div class="col-6 col-md-3">
-            <div class="nsaa-meta-item">
-              <p class="nsaa-faint small mb-1">Paid orders</p>
-              <p class="h5 mb-0">${summary.ordersPaid}</p>
-            </div>
-          </div>
-          <div class="col-6 col-md-3">
-            <div class="nsaa-meta-item">
-              <p class="nsaa-faint small mb-1">Pending orders</p>
-              <p class="h5 mb-0">${summary.ordersPending}</p>
-            </div>
-          </div>
-        </div>
+        </section>
       `;
       }
 
@@ -761,27 +888,140 @@
       `;
       }
 
+      const EDITOR_TABS = [
+        { key: "overview", label: "Overview", icon: "ph-chart-line-up" },
+        { key: "setup", label: "Event setup", icon: "ph-note-pencil" },
+        { key: "distribution", label: "Distribution", icon: "ph-share-network" },
+        { key: "tickets", label: "Tickets", icon: "ph-ticket" },
+        { key: "door", label: "Door", icon: "ph-scan" },
+      ];
+
+      function editorTabsHtml(activeKey) {
+        return `
+          <div class="nsaa-dashboard-tabs nsaa-dashboard-tabs--workspace" role="tablist" aria-label="Event workspace">
+            ${EDITOR_TABS.map(
+              (tab) => `
+                <button class="nsaa-dashboard-tab ${activeKey === tab.key ? "active" : ""}" type="button" role="tab" aria-selected="${activeKey === tab.key ? "true" : "false"}" data-dashboard-panel-tab="${NSAA.escapeAttr(tab.key)}">
+                  <i class="ph ${NSAA.escapeAttr(tab.icon)}" aria-hidden="true"></i>
+                  <span>${NSAA.escapeHtml(tab.label)}</span>
+                </button>
+              `,
+            ).join("")}
+          </div>
+        `;
+      }
+
+      function bindEditorTabs(activeKey = "overview") {
+        const buttons = Array.from(root.querySelectorAll("[data-dashboard-panel-tab]"));
+        const panels = Array.from(root.querySelectorAll("[data-dashboard-panel]"));
+        if (!buttons.length || !panels.length) return;
+
+        function activate(nextKey) {
+          buttons.forEach((button) => {
+            const isActive = button.dataset.dashboardPanelTab === nextKey;
+            button.classList.toggle("active", isActive);
+            button.setAttribute("aria-selected", isActive ? "true" : "false");
+          });
+          panels.forEach((panel) => {
+            panel.hidden = panel.dataset.dashboardPanel !== nextKey;
+          });
+        }
+
+        buttons.forEach((button) => {
+          button.addEventListener("click", () => activate(button.dataset.dashboardPanelTab || "overview"));
+        });
+        activate(activeKey);
+      }
+
+      function eventFactsHtml(event) {
+        const directUrl = absoluteEventUrl(event);
+        return `
+          <section class="nsaa-panel nsaa-dashboard-facts-panel">
+            <div>
+              <h2 class="h5 mb-1">Event basics</h2>
+              <p class="nsaa-muted small mb-0">The operational details buyers and door staff rely on.</p>
+            </div>
+            <div class="nsaa-dashboard-fact-list">
+              <div>
+                <span>Status</span>
+                <strong>${event.status === "published" ? "Published" : event.status === "cancelled" ? "Cancelled" : "Draft"}</strong>
+              </div>
+              <div>
+                <span>When</span>
+                <strong>${NSAA.escapeHtml(NSAA.formatDate(event.startsAt))}</strong>
+              </div>
+              <div>
+                <span>Venue</span>
+                <strong>${NSAA.escapeHtml(event.venue)}, ${NSAA.escapeHtml(event.city)}</strong>
+              </div>
+              <div>
+                <span>Public page</span>
+                <a href="${NSAA.escapeAttr(directUrl)}" target="_blank" rel="noreferrer">Open event page</a>
+              </div>
+            </div>
+          </section>
+        `;
+      }
+
       async function renderEditor(client, existingEvent, organizerProfile) {
         const isEditing = Boolean(existingEvent);
+        const requestedTab = params.get("tab");
+        const activeTab = isEditing && EDITOR_TABS.some((tab) => tab.key === requestedTab)
+          ? requestedTab
+          : "overview";
 
         root.innerHTML = `
         <a class="nsaa-nav-link d-inline-flex align-items-center gap-1 mb-4" href="/organizer-dashboard">
           <i class="ph ph-arrow-left"></i> Back to my events
         </a>
-        <div id="sales-summary-slot"></div>
-        <div id="share-toolkit-slot"></div>
-        <div class="nsaa-panel mb-4">
-          <div class="d-flex justify-content-between align-items-center mb-3">
-            <h2 class="h4 mb-0">${isEditing ? "Edit event" : "Create event"}</h2>
-            ${isEditing ? `<span id="status-slot">${statusChip(existingEvent.status)}</span>` : ""}
+        <section class="nsaa-dashboard-workspace">
+          <div class="nsaa-dashboard-workspace-head">
+            <div>
+              <h2 class="h4 mb-1">${isEditing ? NSAA.escapeHtml(existingEvent.title) : "Create event"}</h2>
+              <p class="nsaa-muted small mb-0">${isEditing ? `${NSAA.escapeHtml(existingEvent.venue)}, ${NSAA.escapeHtml(existingEvent.city)} &middot; ${NSAA.escapeHtml(NSAA.formatDate(existingEvent.startsAt))}` : "Start with the event details and ticket tiers."}</p>
+            </div>
+            ${isEditing ? `<div id="status-slot" class="nsaa-dashboard-status-actions">${statusChip(existingEvent.status)}</div>` : ""}
           </div>
-          ${isEditing ? "" : organizerPlanSummaryHtml(organizerProfile)}
-          ${eventFormHtml(existingEvent, organizerProfile)}
-        </div>
-        <div id="ticket-types-slot"></div>
-        <div id="scanner-staff-slot"></div>
-        <div id="scan-log-slot"></div>
+          ${isEditing ? editorTabsHtml(activeTab) : ""}
+          ${
+            isEditing
+              ? `
+                <div class="nsaa-dashboard-tab-panel" data-dashboard-panel="overview">
+                  <div id="sales-summary-slot"><p class="nsaa-muted mb-0">Loading sales overview...</p></div>
+                  ${eventFactsHtml(existingEvent)}
+                </div>
+                <div class="nsaa-dashboard-tab-panel" data-dashboard-panel="setup">
+                  <div class="nsaa-panel mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                      <h2 class="h5 mb-0">Event setup</h2>
+                    </div>
+                    ${eventFormHtml(existingEvent, organizerProfile)}
+                  </div>
+                </div>
+                <div class="nsaa-dashboard-tab-panel" data-dashboard-panel="distribution">
+                  <div id="share-toolkit-slot"></div>
+                </div>
+                <div class="nsaa-dashboard-tab-panel" data-dashboard-panel="tickets">
+                  <div id="ticket-types-slot"></div>
+                </div>
+                <div class="nsaa-dashboard-tab-panel" data-dashboard-panel="door">
+                  <div id="scanner-staff-slot"></div>
+                  <div id="scan-log-slot"></div>
+                </div>
+              `
+              : `
+                <div class="nsaa-panel mb-4">
+                  <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h2 class="h5 mb-0">Event setup</h2>
+                  </div>
+                  ${organizerPlanSummaryHtml(organizerProfile)}
+                  ${eventFormHtml(existingEvent, organizerProfile)}
+                </div>
+              `
+          }
+        </section>
       `;
+        bindEditorTabs(activeTab);
 
         populateCategorySelect(existingEvent?.category);
         populateCitySelect(existingEvent?.city);

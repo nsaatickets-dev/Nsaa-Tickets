@@ -890,6 +890,305 @@ a:hover {
   border-top: 1px solid var(--nsaa-border);
 }
 
+.nsaa-dashboard-page {
+  max-width: 1180px;
+}
+
+.nsaa-dashboard-header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.nsaa-dashboard-header .nsaa-muted {
+  max-width: 58ch;
+}
+
+.nsaa-dashboard-board,
+.nsaa-dashboard-workspace {
+  display: grid;
+  gap: 1rem;
+}
+
+.nsaa-dashboard-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.nsaa-dashboard-metric {
+  display: grid;
+  align-content: start;
+  gap: 0.22rem;
+  min-height: 6.4rem;
+  padding: 0.95rem;
+  background: rgba(36, 31, 26, 0.035);
+  border: 1px solid var(--nsaa-border);
+  border-radius: 4px;
+}
+
+.nsaa-dashboard-metric span,
+.nsaa-dashboard-fact-list span {
+  color: var(--nsaa-ink-muted);
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.nsaa-dashboard-metric strong {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--nsaa-ink);
+  font-family: var(--nsaa-font-display);
+  font-size: 1.35rem;
+  font-weight: 800;
+  line-height: 1.05;
+}
+
+.nsaa-dashboard-metric small {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--nsaa-ink-faint);
+  font-size: 0.78rem;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nsaa-dashboard-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  padding: 0.35rem;
+  background: rgba(36, 31, 26, 0.035);
+  border: 1px solid var(--nsaa-border);
+  border-radius: 6px;
+}
+
+.nsaa-dashboard-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: 2.55rem;
+  padding: 0.62rem 0.78rem;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--nsaa-ink-muted);
+  font-size: 0.88rem;
+  font-weight: 750;
+  line-height: 1;
+  transition:
+    background-color 0.16s var(--nsaa-ease-out),
+    border-color 0.16s var(--nsaa-ease-out),
+    color 0.16s var(--nsaa-ease-out),
+    transform 0.12s var(--nsaa-ease-out);
+}
+
+.nsaa-dashboard-tab i {
+  font-size: 1rem;
+}
+
+.nsaa-dashboard-tab strong {
+  display: inline-grid;
+  min-width: 1.45rem;
+  min-height: 1.45rem;
+  place-items: center;
+  padding: 0 0.35rem;
+  background: var(--nsaa-paper-surface);
+  border: 1px solid var(--nsaa-border);
+  border-radius: 4px;
+  color: var(--nsaa-ink-muted);
+  font-size: 0.75rem;
+  line-height: 1;
+}
+
+.nsaa-dashboard-tab:hover,
+.nsaa-dashboard-tab:focus-visible {
+  background: rgba(255, 138, 0, 0.08);
+  border-color: rgba(255, 138, 0, 0.24);
+  color: var(--nsaa-ink);
+}
+
+.nsaa-dashboard-tab:active {
+  transform: scale(0.98);
+}
+
+.nsaa-dashboard-tab.active {
+  background: var(--nsaa-paper-surface);
+  border-color: rgba(255, 138, 0, 0.32);
+  color: var(--nsaa-ink);
+  box-shadow: inset 0 -2px 0 var(--nsaa-coral);
+}
+
+.nsaa-dashboard-tab.active strong {
+  background: rgba(255, 138, 0, 0.12);
+  border-color: rgba(255, 138, 0, 0.3);
+  color: var(--nsaa-ink);
+}
+
+.nsaa-dashboard-tabs--workspace {
+  position: sticky;
+  top: 76px;
+  z-index: 8;
+  background: #fff8ec;
+}
+
+.nsaa-dashboard-event-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.nsaa-dashboard-event-row {
+  display: grid;
+  grid-template-columns: 3.75rem minmax(0, 1fr) auto;
+  gap: 0.9rem;
+  align-items: center;
+  min-height: 6.4rem;
+  padding: 0.8rem 0.95rem;
+  background: var(--nsaa-paper-soft);
+  border: 1px solid var(--nsaa-border);
+  border-radius: 4px;
+  color: var(--nsaa-ink);
+  text-decoration: none;
+  transition:
+    background-color 0.16s var(--nsaa-ease-out),
+    border-color 0.16s var(--nsaa-ease-out),
+    transform 0.16s var(--nsaa-ease-out);
+}
+
+.nsaa-dashboard-event-row:hover,
+.nsaa-dashboard-event-row:focus-visible {
+  background: #fff7ea;
+  border-color: rgba(255, 138, 0, 0.32);
+  color: var(--nsaa-ink);
+  transform: translateY(-1px);
+}
+
+.nsaa-dashboard-date {
+  display: grid;
+  place-items: center;
+  width: 3.25rem;
+  min-height: 4rem;
+  background: var(--nsaa-paper-surface);
+  border: 1px solid var(--nsaa-border);
+  border-radius: 4px;
+  text-align: center;
+}
+
+.nsaa-dashboard-date strong {
+  color: var(--nsaa-ink);
+  font-family: var(--nsaa-font-display);
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.nsaa-dashboard-date small {
+  color: var(--nsaa-ink-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.nsaa-dashboard-event-main {
+  display: grid;
+  min-width: 0;
+}
+
+.nsaa-dashboard-event-main strong {
+  overflow: hidden;
+  color: var(--nsaa-ink);
+  font-size: 1rem;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nsaa-dashboard-event-main small {
+  overflow: hidden;
+  color: var(--nsaa-ink-muted);
+  font-size: 0.86rem;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nsaa-dashboard-event-action,
+.nsaa-dashboard-status-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.nsaa-dashboard-event-action {
+  color: var(--nsaa-ink-muted);
+  font-size: 0.86rem;
+  font-weight: 750;
+}
+
+.nsaa-dashboard-workspace-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.1rem 1.25rem;
+  background: var(--nsaa-paper-soft);
+  border: 1px solid var(--nsaa-border);
+  border-radius: 4px;
+}
+
+.nsaa-dashboard-workspace-head h2 {
+  max-width: 68ch;
+  text-wrap: balance;
+}
+
+.nsaa-dashboard-tab-panel {
+  display: grid;
+  gap: 1rem;
+}
+
+.nsaa-dashboard-tab-panel[hidden] {
+  display: none;
+}
+
+.nsaa-dashboard-sales-panel,
+.nsaa-dashboard-facts-panel {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.nsaa-dashboard-fact-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.nsaa-dashboard-fact-list > div {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--nsaa-border);
+}
+
+.nsaa-dashboard-fact-list strong,
+.nsaa-dashboard-fact-list a {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--nsaa-ink);
+  font-size: 0.94rem;
+  font-weight: 750;
+}
+
+.nsaa-dashboard-fact-list a {
+  color: var(--nsaa-coral-ink);
+  text-decoration-color: rgba(255, 138, 0, 0.45);
+  text-underline-offset: 0.18em;
+}
+
 .nsaa-onboarding-header {
   display: flex;
   align-items: end;
@@ -2477,6 +2776,20 @@ a:hover {
     flex-direction: column;
   }
 
+  .nsaa-dashboard-header,
+  .nsaa-dashboard-workspace-head {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .nsaa-dashboard-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .nsaa-dashboard-tabs--workspace {
+    top: 62px;
+  }
+
   .nsaa-onboarding-steps {
     justify-content: flex-start;
   }
@@ -2540,6 +2853,35 @@ a:hover {
     display: grid;
     grid-template-columns: 1fr;
     width: 100%;
+  }
+
+  .nsaa-dashboard-summary-grid,
+  .nsaa-dashboard-fact-list {
+    grid-template-columns: 1fr;
+  }
+
+  .nsaa-dashboard-tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .nsaa-dashboard-tab {
+    justify-content: flex-start;
+  }
+
+  .nsaa-dashboard-event-row {
+    grid-template-columns: 3.4rem minmax(0, 1fr);
+  }
+
+  .nsaa-dashboard-event-action {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .nsaa-dashboard-event-main strong,
+  .nsaa-dashboard-event-main small,
+  .nsaa-dashboard-metric small {
+    white-space: normal;
   }
 
   .nsaa-wordmark {

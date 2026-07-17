@@ -116,12 +116,20 @@ export async function sendBrevoEmail(params: {
   htmlContent: string;
   attachment?: { name: string; content: string }[];
 }): Promise<void> {
+  const apiKey = process.env.BREVO_API_KEY?.trim();
+  if (!apiKey || apiKey === "REPLACE_ME") {
+    console.error(
+      `Brevo email skipped: BREVO_API_KEY is not configured for "${params.subject}" to ${params.to.map((recipient) => recipient.email).join(", ")}`,
+    );
+    return;
+  }
+
   try {
     const response = await fetch("https://api.brevo.com/v3/smtp/email", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "api-key": process.env.BREVO_API_KEY ?? "",
+        "api-key": apiKey,
       },
       body: JSON.stringify(params),
     });
