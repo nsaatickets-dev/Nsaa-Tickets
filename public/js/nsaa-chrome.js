@@ -13,6 +13,55 @@
 // defaults to whichever context matches the current page.
 
 const NAV_CONTEXT_KEY = "nsaa:navContext";
+const SITE_ORIGIN = "https://nsaatickets.com";
+
+// Sitewide Organization schema - lets Google associate every page with the
+// same business entity (logo, support contact, service area) regardless of
+// which page a crawler lands on first. Individual event pages layer their
+// own Event schema on top via convex/http.ts's /seo/event bridge; this is
+// the one constant across the whole site, so it lives in the shared chrome
+// rather than being repeated per page.
+function organizationJsonLd() {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: "Nsaa Tickets",
+    alternateName: "Nsaa",
+    url: SITE_ORIGIN,
+    logo: `${SITE_ORIGIN}/logo.jpeg`,
+    image: `${SITE_ORIGIN}/og-image.png`,
+    description:
+      "Ghana-first event ticketing with itemized fees, guest checkout, and signed one-time-use QR entry.",
+    address: {
+      "@type": "PostalAddress",
+      addressLocality: "Accra",
+      addressCountry: "GH",
+    },
+    areaServed: "GH",
+    // No telephone here on purpose - the number on /contact today
+    // (+233 24 000 0000) is a placeholder, and shipping a fake number in
+    // structured data risks Google surfacing a dead line in search
+    // results. Add a `telephone` field once there's a real support line.
+    contactPoint: [
+      {
+        "@type": "ContactPoint",
+        contactType: "customer service",
+        email: "support@nsaatickets.com",
+        areaServed: "GH",
+        availableLanguage: ["English"],
+      },
+    ],
+  };
+}
+
+function injectOrganizationSchema() {
+  if (document.getElementById("nsaa-org-schema")) return;
+  const script = document.createElement("script");
+  script.type = "application/ld+json";
+  script.id = "nsaa-org-schema";
+  script.textContent = JSON.stringify(organizationJsonLd());
+  document.head.appendChild(script);
+}
 
 function currentPage() {
   return window.location.pathname || "/";
@@ -55,8 +104,12 @@ function footerHtml() {
             <p class="nsaa-faint small text-uppercase mb-3">Use Nsaa</p>
             <ul class="list-unstyled d-grid gap-2 mb-0">
               <li><a href="/" class="nsaa-muted text-decoration-none">Events</a></li>
+              <li><a href="/venues" class="nsaa-muted text-decoration-none">Venues</a></li>
+              <li><a href="/organizers" class="nsaa-muted text-decoration-none">Organizers</a></li>
               <li><a href="/pricing" class="nsaa-muted text-decoration-none">Pricing</a></li>
               <li><a href="/faq" class="nsaa-muted text-decoration-none">Help center</a></li>
+              <li><a href="/about" class="nsaa-muted text-decoration-none">About</a></li>
+              <li><a href="/blog" class="nsaa-muted text-decoration-none">News</a></li>
             </ul>
           </div>
           <div class="col-6 col-lg-2">
@@ -74,6 +127,14 @@ function footerHtml() {
               <li><a href="/privacy-policy" class="nsaa-muted text-decoration-none">Privacy</a></li>
               <li><a href="/terms-of-service" class="nsaa-muted text-decoration-none">Terms</a></li>
               <li><a href="/refund-and-cancellation-policy" class="nsaa-muted text-decoration-none">Refunds</a></li>
+              <li><a href="/cookie-policy" class="nsaa-muted text-decoration-none">Cookies</a></li>
+              <li>
+                <button
+                  type="button"
+                  class="btn btn-link p-0 nsaa-muted text-decoration-none"
+                  onclick="window.NSAA &amp;&amp; window.NSAA.openCookiePreferences &amp;&amp; window.NSAA.openCookiePreferences()"
+                >Cookie preferences</button>
+              </li>
               <li><a href="/sitemap" class="nsaa-muted text-decoration-none">All pages</a></li>
             </ul>
           </div>
@@ -273,3 +334,4 @@ function render() {
 showPreloader();
 render();
 applyRoleGating();
+injectOrganizationSchema();

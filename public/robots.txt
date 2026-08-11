@@ -1,4 +1,23 @@
 User-agent: *
 Allow: /
 
+# Account-gated, transactional, or otherwise per-visitor pages - nothing
+# here is useful as a search result, and indexing them just dilutes
+# crawl budget away from the event/marketing pages that should rank.
+Disallow: /checkout
+Disallow: /wallet
+Disallow: /order-status
+Disallow: /organizer-dashboard
+Disallow: /organizer-onboarding
+Disallow: /organizer-signup
+Disallow: /admin-ops
+Disallow: /scan
+Disallow: /embed
+Disallow: /signin
+Disallow: /signup
+Disallow: /sso-callback
+Disallow: /welcome
+Disallow: /category
+Disallow: /search-results
+
 Sitemap: https://nsaatickets.com/sitemap.xml

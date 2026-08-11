@@ -7,6 +7,12 @@
     <link rel="icon" type="image/jpeg" href="/fav.jpg" />
     <link rel="apple-touch-icon" href="/fav.jpg" />
     <title>Page not found | Nsaa Tickets</title>
+    <meta name="robots" content="noindex, follow" />
+    <meta
+      name="description"
+      content="This page doesn't exist on Nsaa Tickets. Search events, browse categories, or head back to the homepage."
+    />
+    <script type="module" src="js/nsaa-chrome.js"></script>
     <link
       href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
       rel="stylesheet"
@@ -14,35 +20,81 @@
     <link href="css/nsaa.css" rel="stylesheet" />
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
   </head>
-  <body class="checkout-body">
-    <nav class="navbar nsaa-navbar">
-      <div class="container">
-        <a
-          class="nsaa-brand-lockup"
-          href="/"
-          aria-label="Nsaa Tickets home"
-        >
-          <img class="nsaa-brand-mark" src="/logo.jpeg" alt="" width="38" height="38" />
-          <span class="visually-hidden">Nsaa Tickets</span>
-        </a>
-      </div>
-    </nav>
+  <body>
+    <div id="nsaa-chrome-nav"></div>
 
-    <main class="container py-5" style="max-width: 720px">
-      <section class="nsaa-card nsaa-empty p-5">
+    <script src="js/clerk-config.js"></script>
+    <script src="js/clerk-loader.js"></script>
+
+    <main class="container py-5" style="max-width: 760px">
+      <section class="nsaa-card nsaa-empty p-5 text-center mb-4">
         <div>
+          <span class="nsaa-chip mb-3">404</span>
           <h1 class="nsaa-page-title mb-3">This page is off the bill.</h1>
           <p class="lead nsaa-muted mb-4">
             The link may be wrong, expired, or moved. Discovery is still open.
           </p>
+          <form id="notfound-search-form" class="nsaa-search-shell mb-4 mx-auto" style="max-width: 480px;">
+            <div class="d-flex align-items-center gap-2">
+              <div class="flex-grow-1 position-relative text-start">
+                <i class="ph ph-magnifying-glass position-absolute top-50 translate-middle-y text-muted" style="left: 1.25rem; z-index: 5;"></i>
+                <input
+                  id="notfound-search"
+                  name="q"
+                  class="form-control form-control-nsaa border-0 bg-transparent"
+                  type="search"
+                  placeholder="Search artist, venue, city, or event"
+                  style="padding-left: 2.75rem; box-shadow: none;"
+                />
+              </div>
+              <button class="btn btn-nsaa px-4" type="submit">Search</button>
+            </div>
+          </form>
           <div class="d-grid d-sm-flex justify-content-center gap-2">
             <a class="btn btn-nsaa" href="/">Back to homepage</a>
-            <a class="btn btn-outline-nsaa" href="/#browse"
-              >Search events</a
-            >
+            <a class="btn btn-outline-nsaa" href="/#browse">Browse events</a>
           </div>
         </div>
       </section>
+
+      <section class="nsaa-panel mb-4">
+        <p class="nsaa-faint small text-uppercase mb-3">Popular categories</p>
+        <div id="notfound-category-row" class="d-flex flex-wrap gap-2"></div>
+      </section>
+
+      <section class="nsaa-panel">
+        <p class="nsaa-faint small text-uppercase mb-3">Or try one of these</p>
+        <div class="row g-3">
+          <div class="col-6 col-md-3"><a class="nsaa-muted text-decoration-none" href="/pricing">Pricing</a></div>
+          <div class="col-6 col-md-3"><a class="nsaa-muted text-decoration-none" href="/faq">Help center</a></div>
+          <div class="col-6 col-md-3"><a class="nsaa-muted text-decoration-none" href="/venues">Venues</a></div>
+          <div class="col-6 col-md-3"><a class="nsaa-muted text-decoration-none" href="/organizers">Organizers</a></div>
+          <div class="col-6 col-md-3"><a class="nsaa-muted text-decoration-none" href="/about">About Nsaa</a></div>
+          <div class="col-6 col-md-3"><a class="nsaa-muted text-decoration-none" href="/contact">Contact us</a></div>
+          <div class="col-6 col-md-3"><a class="nsaa-muted text-decoration-none" href="/organizer-signup">Sell tickets</a></div>
+          <div class="col-6 col-md-3"><a class="nsaa-muted text-decoration-none" href="/sitemap">All pages</a></div>
+        </div>
+      </section>
     </main>
+
+    <div id="nsaa-chrome-footer"></div>
+
+    <script src="js/convex-config.js"></script>
+    <script src="js/nsaa.js"></script>
+    <script>
+      document.getElementById("notfound-category-row").innerHTML = NSAA.categories
+        .map(
+          (category) =>
+            `<a class="nsaa-chip nsaa-chip-filter" data-tone="${NSAA.escapeAttr(category.tone)}" href="/?category=${NSAA.escapeAttr(category.value)}">${NSAA.escapeHtml(category.label)}</a>`,
+        )
+        .join("");
+
+      document.getElementById("notfound-search-form").addEventListener("submit", (event) => {
+        event.preventDefault();
+        const q = document.getElementById("notfound-search").value.trim();
+        window.location.href = q ? `/?q=${encodeURIComponent(q)}` : "/";
+      });
+    </script>
+    <script src="js/clerk-nav.js"></script>
   </body>
 </html>

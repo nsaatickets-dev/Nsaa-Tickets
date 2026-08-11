@@ -492,36 +492,117 @@
     return html;
   }
 
-  function initCookieBanner() {
-    const STORAGE_KEY = "nsaa:cookieConsent";
-    let alreadyConsented = true;
-    try {
-      alreadyConsented = Boolean(window.localStorage.getItem(STORAGE_KEY));
-    } catch (err) {
-      return; // localStorage unavailable - don't block rendering over it
-    }
-    if (alreadyConsented) return;
+  // GA4 is off by default - drop your Measurement ID in here (looks like
+  // "G-XXXXXXXXXX", from analytics.google.com) once you have a property.
+  // Until then isAnalyticsConfigured() is false and loadGoogleAnalytics()
+  // is a no-op, same "REPLACE_ME" convention as CONVEX_URL/isConvexConfigured.
+  const GA_MEASUREMENT_ID = "G-REPLACE_ME";
 
-    document.addEventListener("DOMContentLoaded", () => {
-      const banner = document.createElement("div");
-      banner.id = "nsaa-cookie-banner";
-      banner.className = "nsaa-cookie-banner";
-      banner.innerHTML = `
-        <div class="container d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-3 py-3">
-          <p class="nsaa-muted small mb-0">We use essential cookies and local storage to keep checkout and sign-in working. <a href="/cookie-policy">Learn more</a>.</p>
-          <button id="nsaa-cookie-accept" class="btn btn-nsaa btn-sm flex-shrink-0" type="button">Got it</button>
+  function isAnalyticsConfigured() {
+    return Boolean(GA_MEASUREMENT_ID && !GA_MEASUREMENT_ID.includes("REPLACE_ME"));
+  }
+
+  // Only ever called after the visitor has accepted analytics cookies (see
+  // the consent banner below) - gtag.js is never fetched otherwise.
+  function loadGoogleAnalytics() {
+    if (!isAnalyticsConfigured() || window.__nsaaGaLoaded) return;
+    window.__nsaaGaLoaded = true;
+
+    const script = document.createElement("script");
+    script.async = true;
+    script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(GA_MEASUREMENT_ID)}`;
+    document.head.appendChild(script);
+
+    window.dataLayer = window.dataLayer || [];
+    window.gtag = function gtag() {
+      window.dataLayer.push(arguments);
+    };
+    window.gtag("js", new Date());
+    // No ad-personalization signals - this is a first-party pageview/traffic
+    // count, not ad targeting.
+    window.gtag("consent", "default", { ad_storage: "denied", analytics_storage: "granted" });
+    window.gtag("config", GA_MEASUREMENT_ID, { anonymize_ip: true });
+  }
+
+  const CONSENT_STORAGE_KEY = "nsaa:cookieConsent";
+
+  function readConsent() {
+    try {
+      const raw = window.localStorage.getItem(CONSENT_STORAGE_KEY);
+      if (!raw) return null;
+      // Pre-existing visitors from before the accept/decline banner stored a
+      // bare timestamp string meaning "dismissed the essential-cookies
+      // notice" - treat that as "necessary only" rather than silently
+      // opting them into analytics they never agreed to.
+      if (/^\d+$/.test(raw)) return { status: "declined", ts: Number(raw) };
+      const parsed = JSON.parse(raw);
+      return parsed && parsed.status ? parsed : null;
+    } catch (err) {
+      return null;
+    }
+  }
+
+  function writeConsent(status) {
+    try {
+      window.localStorage.setItem(
+        CONSENT_STORAGE_KEY,
+        JSON.stringify({ status, ts: Date.now() }),
+      );
+    } catch (err) {
+      // ignore - consent still applies for this page view
+    }
+  }
+
+  function applyConsent(status) {
+    if (status === "accepted") loadGoogleAnalytics();
+  }
+
+  function renderCookieBanner() {
+    if (document.getElementById("nsaa-cookie-banner")) return;
+
+    const banner = document.createElement("div");
+    banner.id = "nsaa-cookie-banner";
+    banner.className = "nsaa-cookie-banner";
+    banner.setAttribute("role", "region");
+    banner.setAttribute("aria-label", "Cookie consent");
+    banner.innerHTML = `
+      <div class="container d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-3 py-3">
+        <p class="nsaa-muted small mb-0">
+          We use essential cookies to keep checkout and sign-in working, and, only with your OK,
+          analytics cookies to see which events people find. <a href="/cookie-policy">Learn more</a>.
+        </p>
+        <div class="d-flex gap-2 flex-shrink-0">
+          <button id="nsaa-cookie-decline" class="btn btn-outline-nsaa btn-sm" type="button">Necessary only</button>
+          <button id="nsaa-cookie-accept" class="btn btn-nsaa btn-sm" type="button">Accept all</button>
         </div>
-      `;
-      document.body.appendChild(banner);
-      document.getElementById("nsaa-cookie-accept").addEventListener("click", () => {
-        try {
-          window.localStorage.setItem(STORAGE_KEY, String(Date.now()));
-        } catch (err) {
-          // ignore - banner still dismisses for this page view
-        }
-        banner.remove();
-      });
+      </div>
+    `;
+    document.body.appendChild(banner);
+
+    document.getElementById("nsaa-cookie-accept").addEventListener("click", () => {
+      writeConsent("accepted");
+      applyConsent("accepted");
+      banner.remove();
     });
+    document.getElementById("nsaa-cookie-decline").addEventListener("click", () => {
+      writeConsent("declined");
+      banner.remove();
+    });
+  }
+
+  function openCookiePreferences() {
+    renderCookieBanner();
+  }
+
+  function initCookieBanner() {
+    const consent = readConsent();
+    if (consent) {
+      applyConsent(consent.status);
+      return;
+    }
+
+    document.addEventListener("DOMContentLoaded", renderCookieBanner);
+    if (document.readyState !== "loading") renderCookieBanner();
   }
 
   initCookieBanner();
@@ -722,6 +803,8 @@
     formatDate,
     getClerk,
     isConvexConfigured,
+    isAnalyticsConfigured,
+    openCookiePreferences,
     loading,
     money,
     setupNotice,

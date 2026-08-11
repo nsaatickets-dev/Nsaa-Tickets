@@ -3081,6 +3081,18 @@ a:hover {
   color: var(--nsaa-coral);
 }
 
+.nsaa-cookie-banner .btn-outline-nsaa {
+  color: var(--nsaa-on-charcoal);
+  border-color: var(--nsaa-on-charcoal-border-strong);
+}
+
+.nsaa-cookie-banner .btn-outline-nsaa:hover,
+.nsaa-cookie-banner .btn-outline-nsaa:focus {
+  background-color: rgba(247, 241, 230, 0.08);
+  border-color: var(--nsaa-on-charcoal);
+  color: var(--nsaa-on-charcoal);
+}
+
 .nsaa-navbar .btn-nsaa {
   border-color: rgba(36, 31, 26, 0.22);
   box-shadow: none;
@@ -3181,4 +3193,99 @@ a:hover {
   .nsaa-upload-preview-media {
     max-width: 14rem;
   }
+}
+
+/* Breadcrumb trail - thin, quiet, sits just under the sticky navbar on
+   inner pages. Doubles as internal-link surface area, not just orientation. */
+.nsaa-breadcrumbs {
+  padding: 0.85rem 0;
+  font-size: 0.82rem;
+}
+
+.nsaa-breadcrumbs .container {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.nsaa-breadcrumbs a {
+  color: var(--nsaa-ink-muted);
+  text-decoration: none;
+}
+
+.nsaa-breadcrumbs a:hover {
+  color: var(--nsaa-coral);
+}
+
+.nsaa-breadcrumb-current {
+  color: var(--nsaa-ink-faint);
+}
+
+.nsaa-breadcrumb-sep {
+  color: var(--nsaa-ink-faint);
+  font-size: 0.65rem;
+  margin: 0 0.1rem;
+  position: relative;
+  top: 1px;
+}
+
+/* Sticky mobile CTA - fixed action bar on small screens only, so the
+   primary conversion action (buy tickets / browse / list an event) never
+   scrolls out of reach on a phone. Desktop already keeps CTAs on-screen via
+   normal page layout, so this stays hidden above the mobile breakpoint. */
+.nsaa-sticky-cta {
+  display: none;
+}
+
+@media (max-width: 767.98px) {
+  .nsaa-sticky-cta {
+    display: block;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1050;
+    background: var(--nsaa-charcoal);
+    border-top: 1px solid var(--nsaa-on-charcoal-border);
+    padding: 0.7rem 1rem calc(0.7rem + env(safe-area-inset-bottom, 0px));
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.18);
+  }
+
+  body.nsaa-has-sticky-cta {
+    padding-bottom: 4.75rem;
+  }
+}
+
+.nsaa-sticky-cta-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  max-width: 100%;
+}
+
+.nsaa-sticky-cta-copy {
+  color: var(--nsaa-on-charcoal);
+  font-size: 0.82rem;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.nsaa-sticky-cta-copy strong {
+  display: block;
+  font-family: var(--nsaa-font-display);
+  font-size: 0.95rem;
+  color: var(--nsaa-on-charcoal);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nsaa-sticky-cta-copy span {
+  color: var(--nsaa-on-charcoal-muted);
+}
+
+.nsaa-sticky-cta .btn-nsaa {
+  flex-shrink: 0;
 }

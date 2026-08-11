@@ -7,7 +7,7 @@ import { escapeHtml } from "./email";
 const http = httpRouter();
 
 const SITE_ORIGIN = "https://nsaatickets.com";
-const DEFAULT_OG_IMAGE = `${SITE_ORIGIN}/logo.jpeg`;
+const DEFAULT_OG_IMAGE = `${SITE_ORIGIN}/og-image.png`;
 
 // Shared shell for both the "found" and "not found" cases below - same
 // markup/scripts as public/event.html, just with the <head> filled in
@@ -22,7 +22,7 @@ function renderEventShellHtml(params: {
   canonicalUrl: string;
   ogImage: string;
   noindex?: boolean;
-  jsonLd?: unknown;
+  jsonLd?: unknown | unknown[];
 }): string {
   const { title, description, canonicalUrl, ogImage, noindex, jsonLd } = params;
   return `<!doctype html>
@@ -46,7 +46,13 @@ function renderEventShellHtml(params: {
     <meta name="twitter:title" content="${escapeHtml(title)}" />
     <meta name="twitter:description" content="${escapeHtml(description)}" />
     <meta name="twitter:image" content="${escapeHtml(ogImage)}" />
-    ${jsonLd ? `<script type="application/ld+json">${JSON.stringify(jsonLd)}</script>` : ""}
+    ${
+      jsonLd
+        ? (Array.isArray(jsonLd) ? jsonLd : [jsonLd])
+            .map((item) => `<script type="application/ld+json">${JSON.stringify(item)}</script>`)
+            .join("\n    ")
+        : ""
+    }
     <script type="module" src="/js/nsaa-chrome.js"></script>
     <link
       href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
@@ -155,13 +161,32 @@ http.route({
         : {}),
     };
 
+    // Paired with the client-side breadcrumb event-page.js renders into
+    // #event-root for real browsers - this static copy is what link-unfurl
+    // bots (WhatsApp, Facebook, Twitter) and non-JS crawlers actually see,
+    // since they read the initial response and never run event-page.js.
+    const breadcrumbJsonLd = {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        { "@type": "ListItem", position: 1, name: "Home", item: `${SITE_ORIGIN}/` },
+        {
+          "@type": "ListItem",
+          position: 2,
+          name: event.category,
+          item: `${SITE_ORIGIN}/?category=${encodeURIComponent(event.category)}`,
+        },
+        { "@type": "ListItem", position: 3, name: event.title },
+      ],
+    };
+
     return new Response(
       renderEventShellHtml({
         title: `${event.title} | Nsaa Tickets`,
         description,
         canonicalUrl,
         ogImage,
-        jsonLd,
+        jsonLd: [jsonLd, breadcrumbJsonLd],
       }),
       { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } },
     );

@@ -58,8 +58,54 @@ async function handleShareClick(button, event) {
   }
 }
 
+// Breadcrumb trail is rebuilt per event (Home > Category > Event title) and
+// paired with its own BreadcrumbList JSON-LD - this page is fully
+// client-rendered, so both the visible nav and the schema have to be built
+// here rather than statically like the rest of the site's inner pages (see
+// NSAA's static breadcrumb blocks on about/faq/pricing/etc).
+function renderBreadcrumb(event, meta) {
+  const trail = [
+    { label: "Home", href: "/" },
+    { label: meta.label, href: `/?category=${encodeURIComponent(event.category || "")}` },
+    { label: event.title },
+  ];
+
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: trail.map((item, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      name: item.label,
+      ...(item.href ? { item: `${window.location.origin}${item.href}` } : {}),
+    })),
+  };
+
+  let schemaScript = document.getElementById("event-breadcrumb-schema");
+  if (!schemaScript) {
+    schemaScript = document.createElement("script");
+    schemaScript.type = "application/ld+json";
+    schemaScript.id = "event-breadcrumb-schema";
+    document.head.appendChild(schemaScript);
+  }
+  schemaScript.textContent = JSON.stringify(jsonLd);
+
+  const trailHtml = trail
+    .map((item, index) => {
+      const isLast = index === trail.length - 1;
+      if (isLast || !item.href) {
+        return `<span class="nsaa-breadcrumb-current" aria-current="page">${NSAA.escapeHtml(item.label)}</span>`;
+      }
+      return `<a href="${NSAA.escapeAttr(item.href)}">${NSAA.escapeHtml(item.label)}</a>`;
+    })
+    .join('<i class="ph ph-caret-right nsaa-breadcrumb-sep" aria-hidden="true"></i>');
+
+  return `<nav class="nsaa-breadcrumbs" aria-label="Breadcrumb"><div class="container">${trailHtml}</div></nav>`;
+}
+
 function renderEvent(event) {
   if (!event) {
+    document.body.classList.remove("nsaa-has-sticky-cta");
     root.innerHTML = `<section class="container py-5">${NSAA.emptyState("Event not found", "The event may have been removed or the link may be incomplete.", '<a class="btn btn-nsaa" href="/">Back to discovery</a>')}</section>`;
     return;
   }
@@ -82,6 +128,7 @@ function renderEvent(event) {
   document.title = `${event.title} | Nsaa Tickets`;
 
   root.innerHTML = `
+  ${renderBreadcrumb(event, meta)}
   <header class="nsaa-event-detail-hero" style="background-image: url('${NSAA.escapeAttr(image)}');">
     <div class="container py-5">
       <span class="nsaa-chip mb-3" data-tone="${NSAA.escapeAttr(meta.tone)}">${NSAA.escapeHtml(meta.shortLabel)}</span>
@@ -144,12 +191,24 @@ function renderEvent(event) {
       <aside class="col-lg-5">
         <div class="nsaa-panel position-sticky" style="top: 88px;">
           <h2 class="h4 mb-3">Choose a ticket type</h2>
-          <div id="ticket-types">${NSAA.skeletonTickets(2)}</div>
+          <div id="ticket-types" style="scroll-margin-top: 96px;">${NSAA.skeletonTickets(2)}</div>
         </div>
       </aside>
     </div>
   </section>
+
+  <div class="nsaa-sticky-cta" id="event-sticky-cta">
+    <div class="nsaa-sticky-cta-inner">
+      <div class="nsaa-sticky-cta-copy">
+        <strong>${NSAA.escapeHtml(event.title)}</strong>
+        <span>${NSAA.escapeHtml(NSAA.formatDate(event.startsAt))}</span>
+      </div>
+      <a class="btn btn-nsaa" href="#ticket-types">Buy tickets</a>
+    </div>
+  </div>
 `;
+
+  document.body.classList.add("nsaa-has-sticky-cta");
 
   document.getElementById("event-share-btn")?.addEventListener("click", (evt) => {
     handleShareClick(evt.currentTarget, event);
