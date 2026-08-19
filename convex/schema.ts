@@ -76,6 +76,16 @@ export default defineSchema({
     clerkUserId: v.optional(v.string()), // set if buyer is signed in
     referralCode: v.optional(v.string()), // organizer/promoter attribution from event links
 
+    // Set when this order originated from the WhatsApp bot (convex/whatsapp.ts)
+    // rather than the web checkout page directly. Absent/undefined means
+    // "web", same as every pre-existing order. whatsappPhone is the Meta
+    // wa_id the confirmation/reminder gets sent back to - it's collected
+    // separately from buyerPhone since the buyer still types their own
+    // Ghanaian MoMo number into the checkout form.
+    source: v.optional(v.union(v.literal("web"), v.literal("whatsapp"))),
+    whatsappPhone: v.optional(v.string()),
+    reminderSentAt: v.optional(v.number()), // set once the WhatsApp event reminder has gone out
+
     ticketSubtotalGHS: v.number(), // priceGHS * quantity
     serviceFeeGHS: v.number(), // NON-REFUNDABLE, always retained
     totalGHS: v.number(),
@@ -395,4 +405,16 @@ export default defineSchema({
     completedAt: v.optional(v.number()),
     createdAt: v.number(),
   }).index("by_clerk_user", ["clerkUserId"]),
+
+  // Dedupes Meta's WhatsApp webhook, which can and does redeliver the same
+  // inbound message more than once - mirrors the idempotency guard already
+  // used for Moolre's webhook (see moolre.ts:applyVerifiedStatus). Also
+  // used as the write that a rate-limit check rides along on (see
+  // convex/whatsapp.ts:recordInboundIfNew), so this table exists even
+  // though nothing ever reads it back besides that one lookup.
+  whatsappInboundLog: defineTable({
+    messageId: v.string(), // Meta's wamid, unique per inbound message
+    waPhone: v.string(),
+    createdAt: v.number(),
+  }).index("by_message_id", ["messageId"]),
 });

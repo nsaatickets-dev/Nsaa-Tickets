@@ -26,4 +26,9 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
   // Scan attempts per scanner key - generous, since a busy door scans
   // fast, but still bounds a misbehaving/compromised device.
   scansByKey: { kind: "token bucket", rate: 120, period: MINUTE, capacity: 30 },
+
+  // Inbound WhatsApp messages per phone number - generous enough for a
+  // real back-and-forth conversation, bounds a single number hammering
+  // the webhook (see convex/whatsapp.ts:recordInboundIfNew).
+  whatsappInboundByPhone: { kind: "fixed window", rate: 30, period: MINUTE },
 });

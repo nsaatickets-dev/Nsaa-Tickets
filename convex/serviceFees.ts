@@ -477,7 +477,17 @@ export const listOrdersNeedingServiceFeeTransfer = internalQuery({
     limit: v.number(),
   },
   handler: async (ctx, { minAmountGHS, failedRetryBefore, limit }) => {
-    const orders = (await ctx.db.query("orders").collect())
+    // Was an unindexed .collect() over every order ever created (every
+    // reserved/expired/failed/refunded row too, not just paid ones) -
+    // scoped to status="paid" via the existing by_reserved_until index,
+    // whose leading column (status) already serves pure status-equality
+    // lookups as a prefix (see schema.ts's note on that index).
+    const orders = (
+      await ctx.db
+        .query("orders")
+        .withIndex("by_reserved_until", (q) => q.eq("status", "paid"))
+        .collect()
+    )
       .filter((order) => {
         if (order.paidAt === undefined || order.refundStatus === "pending") return false;
         return retainedServiceFeeGHS(order) >= minAmountGHS;

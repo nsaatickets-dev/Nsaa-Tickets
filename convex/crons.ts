@@ -13,19 +13,31 @@ crons.interval(
 
 // Safety-net payout sweep in case an event-end scheduled payout was missed
 // during a deploy, edit race, or legacy event migration. New/updated events
-// schedule their own exact end-time payout from events.ts.
+// schedule their own exact end-time payout from events.ts - this is only
+// a backstop, so it doesn't need minute-level precision. Was running every
+// 1 minute (1,440x/day) against every published+started event forever;
+// 20 minutes still catches a missed payout promptly while cutting that by
+// 20x.
 crons.interval(
   "auto payout ended events",
-  { minutes: 1 },
+  { minutes: 20 },
   internal.payouts.autoPayoutEndedEvents,
 );
 
 // Moves retained Nsaa service fees from the Moolre wallet into the
 // configured GCB instant bank account, and backfills paid orders created
-// before the account env var was configured.
+// before the account env var was configured. The real-time path already
+// fires per-order right after payment (moolre.ts's applyVerifiedStatus
+// schedules serviceFees.sweepServiceFeeForOrder immediately) - this is
+// just a catch-up net for whatever that misses, and its query re-scans
+// every paid order that's ever existed on each run (see
+// listOrdersNeedingServiceFeeTransfer's comment), so a growing paid-order
+// history makes this more expensive over time regardless of interval.
+// 20 minutes instead of 5 cuts that recurring cost 4x with no real
+// impact on how quickly a missed transfer gets caught.
 crons.interval(
   "sweep service fees to GCB",
-  { minutes: 5 },
+  { minutes: 20 },
   internal.serviceFees.sweepUntransferredServiceFees,
 );
 
@@ -35,6 +47,14 @@ crons.interval(
   "verify service fee transfers",
   { minutes: 10 },
   internal.serviceFees.verifyPendingServiceFeeTransfers,
+);
+
+// Safety-net sweep in case an individual scheduled WhatsApp event reminder
+// (set at payment-confirmation time in moolre.ts) was somehow missed.
+crons.interval(
+  "sweep missed WhatsApp event reminders",
+  { minutes: 15 },
+  internal.whatsapp.sweepMissedEventReminders,
 );
 
 export default crons;

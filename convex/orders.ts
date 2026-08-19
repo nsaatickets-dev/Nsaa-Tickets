@@ -93,6 +93,12 @@ export const createReservation = mutation({
     buyerEmail: v.string(),
     clerkUserId: v.optional(v.string()),
     referralCode: v.optional(v.string()),
+    // Set by checkout.html when it was reached via the WhatsApp bot's
+    // checkout link (convex/whatsapp.ts:sendCheckoutLinkForReply), so the
+    // paid-order pipeline knows to also push a WhatsApp confirmation - see
+    // moolre.ts:applyVerifiedStatus. Optional/backward-compatible: every
+    // existing web order simply omits it and stays source "web".
+    waPhone: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -100,6 +106,7 @@ export const createReservation = mutation({
     const buyerPhone = requireValidGhanaPhone(args.buyerPhone);
     const buyerEmail = requireValidEmail(args.buyerEmail);
     const referralCode = optionalTrimmed(args.referralCode, 80);
+    const waPhone = optionalTrimmed(args.waPhone, 32);
 
     if (await isBuyerBlocked(ctx, buyerPhone, buyerEmail)) {
       throw new Error("This account is not able to purchase tickets. Contact support.");
@@ -163,6 +170,7 @@ export const createReservation = mutation({
       buyerEmail,
       clerkUserId: identity?.subject,
       referralCode,
+      ...(waPhone ? { source: "whatsapp" as const, whatsappPhone: waPhone } : {}),
       ticketSubtotalGHS,
       serviceFeeGHS,
       totalGHS,
@@ -617,6 +625,31 @@ export const recordMoolreReference = internalMutation({
       moolreStatus,
       moolreFailureReason,
     });
+  },
+});
+
+// Marks a WhatsApp-sourced order as reminded so the scheduled call and the
+// cron safety-net sweep (convex/whatsapp.ts:sweepMissedEventReminders)
+// can't both send the same reminder twice.
+export const markReminderSent = internalMutation({
+  args: { orderId: v.id("orders") },
+  handler: async (ctx, { orderId }) => {
+    await ctx.db.patch(orderId, { reminderSentAt: Date.now() });
+  },
+});
+
+// Used by the reminder safety-net sweep to find WhatsApp-sourced paid
+// orders for a given event that haven't had a reminder sent yet.
+export const whatsappOrdersNeedingReminder = internalQuery({
+  args: { eventId: v.id("events") },
+  handler: async (ctx, { eventId }) => {
+    const orders = await ctx.db
+      .query("orders")
+      .withIndex("by_event", (q) => q.eq("eventId", eventId))
+      .collect();
+    return orders.filter(
+      (order) => order.status === "paid" && order.source === "whatsapp" && !order.reminderSentAt,
+    );
   },
 });
 

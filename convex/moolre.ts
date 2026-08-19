@@ -5,6 +5,7 @@ import { issueTickets } from "./tickets";
 import { escapeHtml, sendBrevoEmail, SENDERS, renderEmailLayout, paragraph, ticketBlock } from "./email";
 import { alertCritical } from "./alerts";
 import { requireMoolreEnv } from "./moolreConfig";
+import { REMINDER_LEAD_MS } from "./whatsapp";
 
 function isMoolreSuccess(value: unknown): boolean {
   return Number(value) === 1 || String(value ?? "").trim() === "1";
@@ -118,6 +119,23 @@ export const applyVerifiedStatus = internalMutation({
     await ctx.scheduler.runAfter(0, internal.serviceFees.sweepServiceFeeForOrder, {
       orderId: order._id,
     });
+
+    // WhatsApp-originated order (see orders.ts:createReservation's waPhone
+    // arg) - additive on top of the SMS/email confirmation above, never a
+    // replacement for it.
+    if (order.source === "whatsapp" && order.whatsappPhone) {
+      await ctx.scheduler.runAfter(0, internal.whatsapp.sendTicketConfirmation, {
+        orderId: order._id,
+      });
+
+      const event = await ctx.db.get(order.eventId);
+      if (event && event.startsAt > Date.now()) {
+        const fireAt = Math.max(Date.now(), event.startsAt - REMINDER_LEAD_MS);
+        await ctx.scheduler.runAt(fireAt, internal.whatsapp.sendEventReminder, {
+          orderId: order._id,
+        });
+      }
+    }
   },
 });
 

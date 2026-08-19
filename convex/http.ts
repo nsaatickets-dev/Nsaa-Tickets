@@ -3,6 +3,7 @@ import { httpAction } from "./_generated/server";
 import { internal, api } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { escapeHtml } from "./email";
+import { verifyMetaSignature } from "./whatsapp";
 
 const http = httpRouter();
 
@@ -293,6 +294,65 @@ http.route({
         "Cache-Control": "public, max-age=31536000, immutable",
       },
     });
+  }),
+});
+
+// Meta calls this once (and again whenever the webhook config is re-saved)
+// to verify we control this URL before it'll deliver anything to it. Must
+// echo back hub.challenge as plain text - returning JSON or the wrong
+// status fails verification in the Meta dashboard.
+http.route({
+  path: "/whatsapp/webhook",
+  method: "GET",
+  handler: httpAction(async (_ctx, request) => {
+    const url = new URL(request.url);
+    const mode = url.searchParams.get("hub.mode");
+    const token = url.searchParams.get("hub.verify_token");
+    const challenge = url.searchParams.get("hub.challenge");
+    const expected = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN;
+
+    if (mode === "subscribe" && expected && token === expected && challenge) {
+      return new Response(challenge, { status: 200, headers: { "Content-Type": "text/plain" } });
+    }
+    return new Response("Forbidden", { status: 403 });
+  }),
+});
+
+// Meta POSTs here for every inbound WhatsApp message and status update.
+// Unlike /moolre/webhook above (which has no documented signature scheme
+// and so treats its body as an untrusted "check now" nudge), Meta signs
+// every request with X-Hub-Signature-256 and that signature IS verified
+// here - see convex/whatsapp.ts:verifyMetaSignature. The body is read as
+// raw text first because the signature is computed over the exact bytes
+// Meta sent, not over a re-serialized JSON.parse(...) of it.
+http.route({
+  path: "/whatsapp/webhook",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const rawBody = await request.text();
+    const valid = await verifyMetaSignature(rawBody, request.headers.get("x-hub-signature-256"));
+    if (!valid) {
+      return new Response("Invalid signature", { status: 401 });
+    }
+
+    let body: any;
+    try {
+      body = JSON.parse(rawBody);
+    } catch (_err) {
+      return new Response("Invalid JSON", { status: 400 });
+    }
+
+    for (const entry of body?.entry ?? []) {
+      for (const change of entry?.changes ?? []) {
+        for (const message of change?.value?.messages ?? []) {
+          await ctx.runAction(internal.whatsapp.handleInboundMessage, { message });
+        }
+        // change.value.statuses (delivery/read receipts) are intentionally
+        // ignored - nothing in this app currently needs them.
+      }
+    }
+
+    return new Response("ok", { status: 200 });
   }),
 });
 

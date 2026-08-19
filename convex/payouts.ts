@@ -358,16 +358,25 @@ export const autoPayoutEndedEvents = internalAction({
   },
 });
 
+// Was an unindexed .collect() over the entire events table, run every
+// minute - the single largest constant (traffic-independent) source of
+// Convex bandwidth usage in this app. Only a published event can ever
+// have real paid orders to pay out (a draft/other-status event has never
+// been sellable), and (endsAt ?? startsAt) <= now always implies
+// startsAt <= now (endsAt, when set, is never before startsAt) - so
+// scoping to status="published" and startsAt<=now via the existing
+// by_status_startsAt index is a safe narrowing, not just a performance
+// tweak: nothing that could actually be due for payout falls outside it.
 export const listEventsDueForAutoPayout = internalQuery({
   args: {},
   handler: async (ctx) => {
-    const events = await ctx.db.query("events").collect();
     const now = Date.now();
+    const events = await ctx.db
+      .query("events")
+      .withIndex("by_status_startsAt", (q) => q.eq("status", "published").lte("startsAt", now))
+      .collect();
     return events.filter(
-      (event) =>
-        event.status !== "cancelled" &&
-        Boolean(event.organizerPayoutPhone) &&
-        (event.endsAt ?? event.startsAt) <= now,
+      (event) => Boolean(event.organizerPayoutPhone) && (event.endsAt ?? event.startsAt) <= now,
     );
   },
 });

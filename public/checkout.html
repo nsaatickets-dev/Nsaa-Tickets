@@ -52,6 +52,10 @@
       const eventId = params.get("eventId");
       const ticketTypeId = params.get("ticketTypeId");
       const referralCode = params.get("ref") || "";
+      // Present when this checkout was reached via the WhatsApp bot's
+      // checkout link (convex/whatsapp.ts:sendCheckoutLinkForReply) - tags
+      // the order so its paid-confirmation also goes back to WhatsApp.
+      const waPhone = params.get("waPhone") || "";
       const root = document.getElementById("checkout-root");
       const checkoutRedirectUrl = `${window.location.pathname}${window.location.search}`;
       document.getElementById("checkout-signin-link").href =
@@ -459,6 +463,7 @@
             buyerPhone,
             buyerEmail,
             referralCode: referralCode || undefined,
+            waPhone: waPhone || undefined,
           });
 
           currentOrderId = result.orderId;

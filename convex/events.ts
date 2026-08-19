@@ -436,6 +436,19 @@ export const listPublished = query({
   },
 });
 
+// Used by the WhatsApp reminder safety-net sweep (convex/whatsapp.ts:
+// sweepMissedEventReminders) to find events starting soon, without
+// scanning every order in the system.
+export const listPublishedStartingBefore = internalQuery({
+  args: { before: v.number() },
+  handler: async (ctx, { before }) => {
+    return await ctx.db
+      .query("events")
+      .withIndex("by_status_startsAt", (q) => q.eq("status", "published").lt("startsAt", before))
+      .collect();
+  },
+});
+
 export const listByCategory = query({
   args: { category: v.string() },
   handler: async (ctx, { category }) => {
@@ -648,17 +661,42 @@ export const searchPublishedPage = query({
         .includes(term);
     });
 
-    const enriched = await enrichEventsWithTicketSummary(ctx, filteredByEventFields);
-    const filtered = enriched.filter((event) => {
-      if (args.price === "free" && !event.isFree) return false;
-      if (args.price === "paid" && !event.hasPaidTickets) return false;
-      if (args.availability === "selling_fast" && !event.isSellingFast) return false;
-      return true;
-    });
+    // price/availability filtering depends on per-event ticket summaries
+    // (isFree/hasPaidTickets/isSellingFast), computed from a ticketTypes
+    // read per candidate - so only fetch those summaries for every
+    // candidate when such a filter is actually active. The common case
+    // (default homepage/browse load, no price or "selling fast" filter)
+    // used to enrich all up to ~400 candidates just to display one 18-48
+    // item page; this reactive query is held open by every visitor's
+    // browser tab and re-fires on every ticketTypes write platform-wide
+    // (every reservation/payment anywhere), so that N+1 fan-out was a
+    // major bandwidth multiplier. Slicing to the page first when no
+    // computed filter is needed cuts it from ~400 ticketTypes reads to
+    // ~pageSize.
+    const needsComputedFilter =
+      (args.price !== undefined && args.price !== "all") || args.availability === "selling_fast";
 
-    const total = filtered.length;
+    let items: Awaited<ReturnType<typeof enrichEventsWithTicketSummary>>;
+    let total: number;
     const start = (page - 1) * pageSize;
-    const items = filtered.slice(start, start + pageSize);
+
+    if (needsComputedFilter) {
+      const enriched = await enrichEventsWithTicketSummary(ctx, filteredByEventFields);
+      const filtered = enriched.filter((event) => {
+        if (args.price === "free" && !event.isFree) return false;
+        if (args.price === "paid" && !event.hasPaidTickets) return false;
+        if (args.availability === "selling_fast" && !event.isSellingFast) return false;
+        return true;
+      });
+      total = filtered.length;
+      items = filtered.slice(start, start + pageSize);
+    } else {
+      total = filteredByEventFields.length;
+      items = await enrichEventsWithTicketSummary(
+        ctx,
+        filteredByEventFields.slice(start, start + pageSize),
+      );
+    }
 
     return {
       items,
