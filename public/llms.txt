@@ -1,0 +1,24 @@
+# Nsaa Tickets
+
+> Guest-first, fee-transparent, fraud-resistant event ticketing marketplace for Ghana. Browse concerts, nightlife, conferences, sports, weddings, comedy, theatre, religious events, and workshops; buy with an itemized platform fee shown before payment; enter with a signed, one-time-use QR ticket.
+
+Tickets are non-transferable and non-resellable by design. Guest checkout requires only a name and phone number, no account wall, and completes within a 10-minute inventory hold. Payment is by Mobile Money or card via Moolre. Organizer platform fees: 0% on free events, from 4.5% on paid events, held below the 5% local benchmark.
+
+## Buy tickets
+- [Browse events](https://nsaatickets.com/): search and filter by city, date, category, price, and age rating
+- [Venues](https://nsaatickets.com/venues): venue directory derived from published events
+- [Organizers](https://nsaatickets.com/organizers): organizer directory derived from published events
+- [FAQ](https://nsaatickets.com/faq): fees, payments, and entry explained
+
+## Sell tickets
+- [How selling works](https://nsaatickets.com/organizer-inquiry): fees, the distribution kit, and assisted setup
+- [Pricing](https://nsaatickets.com/pricing): Free, Standard (4.5%), and Priority (4.9%) tiers
+
+## Policies
+- [Terms of Service](https://nsaatickets.com/terms-of-service)
+- [Privacy Policy](https://nsaatickets.com/privacy-policy)
+- [Refund and Cancellation Policy](https://nsaatickets.com/refund-and-cancellation-policy)
+
+## About
+- [About Nsaa Tickets](https://nsaatickets.com/about)
+- [Contact](https://nsaatickets.com/contact)
