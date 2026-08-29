@@ -28,7 +28,7 @@
           <h1 class="nsaa-section-title mb-1">Admin console</h1>
           <p class="nsaa-muted mb-0">God Mode: every action below is logged with your name and a reason.</p>
         </div>
-        <nav id="admin-tabs" class="d-flex flex-wrap gap-2"></nav>
+        <nav id="admin-tabs" class="nsaa-dashboard-tabs nsaa-dashboard-tabs--scroll" role="tablist" aria-label="Admin console section"></nav>
       </div>
       <div id="admin-result" class="mb-3"></div>
       <div id="admin-root"></div>
@@ -38,6 +38,7 @@
 
     <script src="js/convex-config.js"></script>
     <script src="js/nsaa.js"></script>
+    <script src="js/nsaa-modal.js"></script>
     <script type="module">
       import { ConvexClient } from "https://esm.sh/convex/browser";
 
@@ -46,15 +47,15 @@
       const tabsEl = document.getElementById("admin-tabs");
 
       const TABS = [
-        ["overview", "Overview"],
-        ["events", "Events"],
-        ["orders", "Orders"],
-        ["tickets", "Tickets"],
-        ["organizers", "Organizers"],
-        ["payouts", "Payouts"],
-        ["serviceFees", "Fees"],
-        ["blocklist", "Blocklist"],
-        ["audit", "Audit log"],
+        ["overview", "Overview", "ph-gauge"],
+        ["events", "Events", "ph-calendar-blank"],
+        ["orders", "Orders", "ph-receipt"],
+        ["tickets", "Tickets", "ph-ticket"],
+        ["organizers", "Organizers", "ph-users-three"],
+        ["payouts", "Payouts", "ph-bank"],
+        ["serviceFees", "Fees", "ph-percent"],
+        ["blocklist", "Blocklist", "ph-shield-slash"],
+        ["audit", "Audit log", "ph-list-magnifying-glass"],
       ];
 
       let client = null;
@@ -66,18 +67,15 @@
       }
 
       // Every destructive God Mode action requires a reason before it's
-      // sent - this is the one shared gate for all of them, native
-      // browser prompt rather than a custom modal (matches the
-      // window.confirm pattern this page already used for cancellation).
-      function reasonPrompt(actionLabel) {
-        const value = window.prompt(`Reason for: ${actionLabel}\n\nThis is recorded in the audit log.`);
-        if (value === null) return null;
-        const trimmed = value.trim();
-        if (!trimmed) {
-          window.alert("A reason is required - action cancelled.");
-          return null;
-        }
-        return trimmed;
+      // sent - this is the one shared gate for all of them.
+      async function reasonPrompt(actionLabel, { tone = "default" } = {}) {
+        return NSAA.promptDialog({
+          title: actionLabel,
+          body: "This is recorded in the audit log.",
+          label: "Reason",
+          required: true,
+          tone,
+        });
       }
 
       function showError(err) {
@@ -101,13 +99,17 @@
       // ---- Tab bar ----
       function renderTabs() {
         tabsEl.innerHTML = TABS.map(
-          ([key, label]) =>
-            `<button type="button" class="btn btn-nsaa btn-sm admin-tab-btn ${key === activeTab ? "active" : ""}" data-tab="${key}">${label}</button>`,
+          ([key, label, icon]) => `
+            <button type="button" class="nsaa-dashboard-tab ${key === activeTab ? "active" : ""}" role="tab" aria-selected="${key === activeTab ? "true" : "false"}" data-tab="${key}">
+              <i class="ph ${icon}" aria-hidden="true"></i>
+              <span>${label}</span>
+            </button>
+          `,
         ).join("");
       }
 
       tabsEl.addEventListener("click", (event) => {
-        const button = event.target.closest(".admin-tab-btn");
+        const button = event.target.closest(".nsaa-dashboard-tab");
         if (!button) return;
         activeTab = button.dataset.tab;
         resultEl.innerHTML = "";
@@ -242,7 +244,7 @@
                       <input id="moolre-rate" class="form-control form-control-nsaa form-control-sm" style="width: 90px" type="number" min="0" step="0.01" value="${moolreRatePercent}" />
                     </div>
                   </div>
-                  <div class="table-responsive">
+                  <div class="table-responsive nsaa-table-scroll-hint">
                     <table class="table align-middle mb-0">
                       <thead>
                         <tr>
@@ -251,7 +253,7 @@
                           <th class="text-end">Ticket subtotal (organizer)</th>
                           <th class="text-end">Service fees (gross)</th>
                           <th class="text-end">Total collected</th>
-                          <th class="text-end">Est. Moolre cut</th>
+                          <th class="text-end nsaa-table-col-optional">Est. Moolre cut</th>
                           <th class="text-end">Est. net to Nsaa</th>
                         </tr>
                       </thead>
@@ -267,7 +269,7 @@
                               <td class="text-end">${NSAA.money(w.ticketSubtotalGHS)}</td>
                               <td class="text-end">${NSAA.money(w.serviceFeeGHS)}</td>
                               <td class="text-end">${NSAA.money(w.totalGHS)}</td>
-                              <td class="text-end moolre-cut-cell" data-total="${w.totalGHS}">${NSAA.money(moolreCut)}</td>
+                              <td class="text-end moolre-cut-cell nsaa-table-col-optional" data-total="${w.totalGHS}">${NSAA.money(moolreCut)}</td>
                               <td class="text-end fw-semibold net-cell" data-total="${w.totalGHS}" data-fee="${w.serviceFeeGHS}">${NSAA.money(net)}</td>
                             </tr>
                           `;
@@ -346,14 +348,14 @@
       function eventRowHtml(event, editing) {
         return `
           <tr data-event-id="${NSAA.escapeAttr(event._id)}">
-            <td>
+            <td data-label="Event">
               <strong>${NSAA.escapeHtml(event.title)}</strong>
               <div class="nsaa-muted small">${NSAA.escapeHtml(event.venue)}, ${NSAA.escapeHtml(event.city)}</div>
             </td>
-            <td>${statusChip(event.status)}</td>
-            <td>${NSAA.escapeHtml(event.organizerName)}</td>
-            <td>${NSAA.escapeHtml(NSAA.formatDate(event.startsAt))}</td>
-            <td class="text-end">
+            <td data-label="Status">${statusChip(event.status)}</td>
+            <td data-label="Organizer">${NSAA.escapeHtml(event.organizerName)}</td>
+            <td data-label="Date">${NSAA.escapeHtml(NSAA.formatDate(event.startsAt))}</td>
+            <td class="text-end" data-label="Actions">
               <div class="btn-group btn-group-sm flex-wrap">
                 <button class="btn btn-nsaa admin-event-action" data-action="publish" type="button">Publish</button>
                 <button class="btn btn-nsaa admin-event-action" data-action="draft" type="button">Draft</button>
@@ -373,8 +375,8 @@
         return `
           <div class="nsaa-panel">
             <h2 class="h5 mb-3">Event moderation and payouts</h2>
-            <div class="table-responsive">
-              <table class="table align-middle mb-0">
+            <div class="table-responsive nsaa-table-scroll-hint">
+              <table class="table align-middle mb-0 nsaa-table-stack">
                 <thead>
                   <tr><th>Event</th><th>Status</th><th>Organizer</th><th>Date</th><th class="text-end">Actions</th></tr>
                 </thead>
@@ -421,7 +423,7 @@
         if (saveBtn) {
           const row = saveBtn.closest("[data-event-id]");
           const eventId = row.dataset.eventId;
-          const reason = reasonPrompt("Edit event fields");
+          const reason = await reasonPrompt("Edit event fields");
           if (!reason) return;
           saveBtn.disabled = true;
           try {
@@ -463,19 +465,30 @@
               });
             }
             if (actionBtn.dataset.action === "cancel") {
-              const reason = reasonPrompt("Cancel event and mark paid orders refunded/void tickets");
+              const confirmed = await NSAA.confirmDialog({
+                title: "Cancel this event?",
+                body: "Paid orders will be marked refunded and their tickets voided.",
+                confirmLabel: "Cancel event",
+                tone: "danger",
+              });
+              if (!confirmed) return;
+              const reason = await reasonPrompt("Cancel event and mark paid orders refunded/void tickets", { tone: "danger" });
               if (!reason) return;
-              if (!window.confirm("Cancel this event and mark paid orders as refunded/void tickets?")) return;
               await client.mutation("ops:cancelEventAndMarkRefunded", { eventId, reason });
             }
             if (actionBtn.dataset.action === "payout") {
-              const overrideRaw = window.prompt("Override payout amount in GHS (leave blank to use the computed eligible amount):");
+              const overrideRaw = await NSAA.promptDialog({
+                title: "Override payout amount",
+                body: "Leave blank to use the computed eligible amount.",
+                label: "Amount (GHS)",
+                required: false,
+                validate: (value) =>
+                  value && (!Number.isFinite(Number(value)) || Number(value) <= 0)
+                    ? "Enter an amount greater than 0, or leave it blank."
+                    : null,
+              });
               if (overrideRaw === null) return;
               const overrideAmountGHS = overrideRaw.trim() ? Number(overrideRaw.trim()) : undefined;
-              if (overrideAmountGHS !== undefined && (!Number.isFinite(overrideAmountGHS) || overrideAmountGHS <= 0)) {
-                window.alert("Enter a payout amount greater than 0, or leave it blank.");
-                return;
-              }
               await client.mutation("payouts:queueOrganizerPayout", { eventId, overrideAmountGHS });
               showSuccess("Payout queued. The transfer now runs server-side; check the Payouts tab for status.");
             }
@@ -516,23 +529,23 @@
         }
         return `
           <tr data-order-id="${NSAA.escapeAttr(order._id)}" data-total="${order.totalGHS}" data-subtotal="${order.ticketSubtotalGHS}">
-            <td>
+            <td data-label="Order / Buyer">
               <div class="small nsaa-faint">${NSAA.escapeHtml(order._id)}</div>
               <strong>${NSAA.escapeHtml(order.buyerName)}</strong>
               <div class="nsaa-muted small">${NSAA.escapeHtml(order.buyerPhone)} &middot; ${NSAA.escapeHtml(order.buyerEmail)}</div>
             </td>
-            <td>${NSAA.escapeHtml(ticketType?.name || "-")} &times; ${order.quantity}</td>
-            <td>${statusChip(order.status)}${order.refundStatus ? `<div class="small nsaa-faint mt-1">refund: ${NSAA.escapeHtml(order.refundStatus)}</div>` : ""}</td>
-            <td class="text-end">${NSAA.money(order.totalGHS)}</td>
-            <td class="text-end"><div class="btn-group btn-group-sm flex-wrap">${actions.join("") || '<span class="nsaa-faint small">-</span>'}</div></td>
+            <td data-label="Tickets">${NSAA.escapeHtml(ticketType?.name || "-")} &times; ${order.quantity}</td>
+            <td data-label="Status">${statusChip(order.status)}${order.refundStatus ? `<div class="small nsaa-faint mt-1">refund: ${NSAA.escapeHtml(order.refundStatus)}</div>` : ""}</td>
+            <td class="text-end" data-label="Total">${NSAA.money(order.totalGHS)}</td>
+            <td class="text-end" data-label="Actions"><div class="btn-group btn-group-sm flex-wrap">${actions.join("") || '<span class="nsaa-faint small">-</span>'}</div></td>
           </tr>
         `;
       }
 
       function ordersTableHtml(entries) {
         return `
-          <div class="table-responsive">
-            <table class="table align-middle mb-0">
+          <div class="table-responsive nsaa-table-scroll-hint">
+            <table class="table align-middle mb-0 nsaa-table-stack">
               <thead><tr><th>Order / Buyer</th><th>Tickets</th><th>Status</th><th class="text-end">Total</th><th class="text-end">Actions</th></tr></thead>
               <tbody>${entries.length ? entries.map(orderRowHtml).join("") : '<tr><td colspan="5" class="nsaa-muted">No orders found.</td></tr>'}</tbody>
             </table>
@@ -589,32 +602,38 @@
 
         try {
           if (action === "forcePaid") {
-            const reason = reasonPrompt("Force-mark this order as paid");
+            const reason = await reasonPrompt("Force-mark this order as paid");
             if (!reason) return;
             actionBtn.disabled = true;
             await client.mutation("ordersAdmin:adminForceMarkOrderPaid", { orderId, reason });
             showSuccess("Order marked paid and tickets issued.");
           } else if (action === "forceExpire") {
-            const reason = reasonPrompt("Force-expire this reservation");
+            const reason = await reasonPrompt("Force-expire this reservation");
             if (!reason) return;
             actionBtn.disabled = true;
             await client.mutation("ordersAdmin:adminForceExpireOrder", { orderId, reason });
             showSuccess("Reservation expired and inventory released.");
           } else if (action === "refund") {
-            const defaultAmount = row.dataset.subtotal;
-            const amountRaw = window.prompt(
-              `Refund amount in GHS (ticket subtotal only, by policy - the service fee stays with the platform). Max ${row.dataset.total} GHS.`,
-              defaultAmount,
-            );
+            const amountRaw = await NSAA.promptDialog({
+              title: "Refund amount",
+              body: `Ticket subtotal only, by policy - the service fee stays with the platform. Max ${row.dataset.total} GHS.`,
+              label: "Amount (GHS)",
+              defaultValue: row.dataset.subtotal,
+              tone: "danger",
+              validate: (value) =>
+                !Number.isFinite(Number(value)) || Number(value) <= 0 ? "Enter a valid amount greater than 0." : null,
+            });
             if (amountRaw === null) return;
             const amountGHS = Number(amountRaw.trim());
-            if (!Number.isFinite(amountGHS) || amountGHS <= 0) {
-              window.alert("Enter a valid amount.");
-              return;
-            }
-            const reason = reasonPrompt(`Refund ${amountGHS} GHS to buyer`);
+            const reason = await reasonPrompt(`Refund ${amountGHS} GHS to buyer`, { tone: "danger" });
             if (!reason) return;
-            if (!window.confirm(`Send a real Moolre transfer of GHS ${amountGHS} to this buyer?`)) return;
+            const confirmed = await NSAA.confirmDialog({
+              title: "Send refund transfer?",
+              body: `A real Moolre transfer of GHS ${amountGHS} will be sent to this buyer.`,
+              confirmLabel: "Send transfer",
+              tone: "danger",
+            });
+            if (!confirmed) return;
             actionBtn.disabled = true;
             await client.action("ordersAdmin:adminRefundOrder", { orderId, amountGHS, reason });
             showSuccess("Refund transfer initiated - it will confirm once Moolre verifies it.");
@@ -698,7 +717,7 @@
         const ticketId = panel.dataset.ticketId;
         const action = actionBtn.dataset.action;
         const labels = { void: "Void this ticket", reissue: "Reissue this ticket's QR code", unscan: "Undo this ticket's scan" };
-        const reason = reasonPrompt(labels[action]);
+        const reason = await reasonPrompt(labels[action], { tone: action === "void" ? "danger" : "default" });
         if (!reason) return;
         actionBtn.disabled = true;
         try {
@@ -747,7 +766,7 @@
           root.innerHTML = `
             <div class="nsaa-panel">
               <h2 class="h5 mb-3">Organizers</h2>
-              <div class="table-responsive">
+              <div class="table-responsive nsaa-table-scroll-hint">
                 <table class="table align-middle mb-0">
                   <thead><tr><th>Organizer</th><th>Events</th><th>Fee tier</th><th class="text-end">Actions</th></tr></thead>
                   <tbody>${organizers.map(organizerRowHtml).join("") || '<tr><td colspan="4" class="nsaa-muted">No organizers yet.</td></tr>'}</tbody>
@@ -778,7 +797,9 @@
         if (!button) return;
         const organizerClerkUserId = button.closest("[data-organizer-id]").dataset.organizerId;
         const suspending = button.dataset.suspend === "1";
-        const reason = reasonPrompt(suspending ? "Suspend this organizer" : "Unsuspend this organizer");
+        const reason = await reasonPrompt(suspending ? "Suspend this organizer" : "Unsuspend this organizer", {
+          tone: suspending ? "danger" : "default",
+        });
         if (!reason) return;
         button.disabled = true;
         try {
@@ -824,7 +845,7 @@
             <div class="nsaa-panel">
               <h2 class="h5 mb-3">Payouts</h2>
               <p class="nsaa-muted small">Payouts are scheduled automatically for the event end time, with a one-minute safety sweep. Moolre transfers the organizer's cut and the service fee stays with Nsaa. Use the Events tab only to queue an exceptional on-demand retry, and the override actions below only for out-of-band settlement.</p>
-              <div class="table-responsive">
+              <div class="table-responsive nsaa-table-scroll-hint">
                 <table class="table align-middle mb-0">
                   <thead><tr><th>Event</th><th>Payout phone</th><th class="text-end">Amount</th><th>Status</th><th>Date</th><th class="text-end">Override</th></tr></thead>
                   <tbody>${data.payouts.map(payoutRowHtml).join("") || '<tr><td colspan="6" class="nsaa-muted">No payouts yet.</td></tr>'}</tbody>
@@ -843,7 +864,7 @@
         if (!button) return;
         const payoutId = button.closest("[data-payout-id]").dataset.payoutId;
         const status = button.dataset.action;
-        const reason = reasonPrompt(`Manually mark this payout as ${status}`);
+        const reason = await reasonPrompt(`Manually mark this payout as ${status}`);
         if (!reason) return;
         button.disabled = true;
         try {
@@ -917,7 +938,7 @@
             <td class="text-end">${NSAA.money(transfer.amountGHS)}</td>
             <td>${statusChip(transfer.status)}</td>
             <td>${NSAA.escapeHtml(NSAA.formatDate(transfer.createdAt))}</td>
-            <td>${NSAA.escapeHtml(transfer.externalRef || "-")}</td>
+            <td class="nsaa-table-col-optional">${NSAA.escapeHtml(transfer.externalRef || "-")}</td>
             <td class="text-end"><div class="btn-group btn-group-sm">${actions.join("") || "-"}</div></td>
           </tr>
         `;
@@ -936,9 +957,9 @@
             ${serviceFeeSummaryHtml(summary)}
             <div class="nsaa-panel">
               <h2 class="h5 mb-3">Service fee transfers</h2>
-              <div class="table-responsive">
+              <div class="table-responsive nsaa-table-scroll-hint">
                 <table class="table align-middle mb-0">
-                  <thead><tr><th>Order</th><th>Event</th><th>Destination</th><th class="text-end">Amount</th><th>Status</th><th>Created</th><th>Reference</th><th class="text-end">Action</th></tr></thead>
+                  <thead><tr><th>Order</th><th>Event</th><th>Destination</th><th class="text-end">Amount</th><th>Status</th><th>Created</th><th class="nsaa-table-col-optional">Reference</th><th class="text-end">Action</th></tr></thead>
                   <tbody>${data.serviceFeeTransfers.map(serviceFeeTransferRowHtml).join("") || '<tr><td colspan="8" class="nsaa-muted">No service fee transfers yet.</td></tr>'}</tbody>
                 </table>
               </div>
@@ -991,10 +1012,11 @@
                 <div class="col-md-4"><input class="form-control form-control-nsaa form-control-sm" id="block-email" placeholder="Email (optional)" /></div>
                 <div class="col-md-4"><button class="btn btn-nsaa btn-sm w-100" type="submit">Block</button></div>
               </form>
+              <div id="block-form-result" class="mt-2"></div>
             </div>
             <div class="nsaa-panel">
               <h2 class="h5 mb-3">Blocked buyers</h2>
-              <div class="table-responsive">
+              <div class="table-responsive nsaa-table-scroll-hint">
                 <table class="table align-middle mb-0">
                   <thead><tr><th>Phone</th><th>Email</th><th>Reason</th><th>Blocked</th><th class="text-end">Actions</th></tr></thead>
                   <tbody>${entries.map(blocklistRowHtml).join("") || '<tr><td colspan="5" class="nsaa-muted">No blocked buyers.</td></tr>'}</tbody>
@@ -1005,13 +1027,15 @@
 
           document.getElementById("block-form").addEventListener("submit", async (event) => {
             event.preventDefault();
+            const blockFormResultEl = document.getElementById("block-form-result");
+            blockFormResultEl.innerHTML = "";
             const phone = document.getElementById("block-phone").value.trim();
             const email = document.getElementById("block-email").value.trim();
             if (!phone && !email) {
-              window.alert("Enter a phone number or email.");
+              blockFormResultEl.innerHTML = NSAA.errorState("Missing details", "Enter a phone number or email.");
               return;
             }
-            const reason = reasonPrompt("Block this buyer");
+            const reason = await reasonPrompt("Block this buyer", { tone: "danger" });
             if (!reason) return;
             try {
               await client.mutation("buyerBlocklist:adminBlockBuyer", {
@@ -1053,7 +1077,7 @@
           root.innerHTML = `
             <div class="nsaa-panel">
               <h2 class="h5 mb-3">Audit log</h2>
-              <div class="table-responsive">
+              <div class="table-responsive nsaa-table-scroll-hint">
                 <table class="table align-middle mb-0">
                   <thead><tr><th>When</th><th>Admin</th><th>Action</th><th>Target</th><th>Reason</th></tr></thead>
                   <tbody>

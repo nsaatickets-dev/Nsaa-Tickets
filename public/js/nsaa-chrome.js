@@ -116,6 +116,7 @@ function footerHtml() {
             <p class="nsaa-faint small text-uppercase mb-3">For hosts</p>
             <ul class="list-unstyled d-grid gap-2 mb-0">
               <li><a href="/organizer-signup" class="nsaa-muted text-decoration-none">Sell tickets</a></li>
+              <li><a href="/organizer-inquiry" class="nsaa-muted text-decoration-none">Assisted setup</a></li>
               <li><a href="/organizer-dashboard" class="nsaa-muted text-decoration-none">Dashboard</a></li>
               <li><a href="/scan" class="nsaa-muted text-decoration-none">Door scanner</a></li>
               <li><a href="/contact" class="nsaa-muted text-decoration-none">Contact sales</a></li>

@@ -78,6 +78,7 @@ function renderEventShellHtml(params: {
 
     <script src="/js/convex-config.js"></script>
     <script src="/js/nsaa.js"></script>
+    <script src="/js/nsaa-modal.js"></script>
     <script type="module" src="/js/event-page.js"></script>
     <script src="/js/clerk-nav.js"></script>
   </body>

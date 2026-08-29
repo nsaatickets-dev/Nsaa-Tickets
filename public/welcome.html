@@ -45,6 +45,16 @@
       const redirectUrl = params.get("redirect_url") || "/";
       const root = document.getElementById("welcome-root");
 
+      // Anyone arriving here from the organizer-signup path already told us
+      // their intent by clicking "Sell tickets" - re-asking "what best
+      // describes you?" is a non-sequitur that costs a tap for no reason.
+      // Skip that question and record the role automatically; still ask
+      // referral source, since that's real marketing-attribution data worth
+      // keeping even for organizer signups. Buyer flow (redirectUrl doesn't
+      // match) is completely unchanged.
+      const isOrganizerFlow = redirectUrl.includes("/organizer-onboarding");
+      const ORGANIZER_ROLE = "I organize events";
+
       const REFERRAL_OPTIONS = [
         "Instagram",
         "TikTok",
@@ -84,8 +94,8 @@
       function renderSurvey() {
         root.innerHTML = `
           <div class="text-center mb-4">
-            <h1 class="h3 mb-2">Welcome to Nsaa Tickets</h1>
-            <p class="nsaa-muted small mb-0">Two quick questions - this helps us build the right thing for you.</p>
+            <h1 class="h3 mb-2">${isOrganizerFlow ? "Let's set up your organizer profile." : "Welcome to Nsaa Tickets"}</h1>
+            <p class="nsaa-muted small mb-0">${isOrganizerFlow ? "One quick question first." : "Two quick questions - this helps us build the right thing for you."}</p>
           </div>
           <div class="nsaa-panel">
             <form id="welcome-form">
@@ -93,10 +103,16 @@
                 <label class="form-label fw-semibold mb-2">Where did you hear about Nsaa Tickets?</label>
                 ${choiceGroupHtml("referralSource", REFERRAL_OPTIONS)}
               </div>
-              <div class="mb-4">
-                <label class="form-label fw-semibold mb-2">What best describes you?</label>
-                ${choiceGroupHtml("role", ROLE_OPTIONS)}
-              </div>
+              ${
+                isOrganizerFlow
+                  ? ""
+                  : `
+                    <div class="mb-4">
+                      <label class="form-label fw-semibold mb-2">What best describes you?</label>
+                      ${choiceGroupHtml("role", ROLE_OPTIONS)}
+                    </div>
+                  `
+              }
               <div id="welcome-error"></div>
               <button id="welcome-submit" class="btn btn-nsaa w-100 mt-2" type="submit" disabled>Continue</button>
             </form>
@@ -106,7 +122,7 @@
           </div>
         `;
 
-        const state = { referralSource: "", role: "" };
+        const state = { referralSource: "", role: isOrganizerFlow ? ORGANIZER_ROLE : "" };
         const submitBtn = document.getElementById("welcome-submit");
         const errorEl = document.getElementById("welcome-error");
 

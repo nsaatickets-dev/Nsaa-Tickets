@@ -26,7 +26,7 @@ rounded:
   media: "4px"
   qr-shell: "8px"
 typography:
-  family: "Instrument Sans"
+  family: "Archivo (display) + IBM Plex Sans (body)"
   display: "850 weight, tight line-height, max 4.2rem"
   product: "single-family sans scale, compact labels, readable forms"
 ---

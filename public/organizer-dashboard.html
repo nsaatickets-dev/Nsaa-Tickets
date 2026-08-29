@@ -312,18 +312,31 @@
           ? new Date(event.endsAt).toISOString().slice(0, 16)
           : "";
         const organizerName = event?.organizerName || organizerProfile?.displayName || "";
+        const organizerNameInherited = !event && Boolean(organizerProfile?.displayName);
         const payoutPhone =
           event?.organizerPayoutPhone ||
           organizerProfile?.payoutPhone ||
           organizerProfile?.contactPhone ||
           "";
+        // Only true when we're creating a new event and the value shown is
+        // inherited from the organizer's own profile, not typed for this
+        // event specifically - lets the field explain itself instead of
+        // feeling like the same onboarding question asked twice.
+        const payoutPhoneInherited =
+          !event && Boolean(organizerProfile?.payoutPhone || organizerProfile?.contactPhone);
         return `
         <form id="event-form">
           <section class="nsaa-form-section">
-            <div class="d-flex align-items-center gap-2 mb-3">
-              <span class="nsaa-form-step">1</span>
-              <h3 class="h6 mb-0">Event details</h3>
-            </div>
+            ${
+              event
+                ? ""
+                : `
+                  <div class="d-flex align-items-center gap-2 mb-3">
+                    <span class="nsaa-form-step">1</span>
+                    <h3 class="h6 mb-0">Event details</h3>
+                  </div>
+                `
+            }
           <div class="row g-3">
             <div class="col-md-6">
               <label class="form-label nsaa-muted small" for="ef-title">Event title</label>
@@ -387,10 +400,12 @@
             <div class="col-md-6">
               <label class="form-label nsaa-muted small" for="ef-organizer-name">Organizer display name</label>
               <input id="ef-organizer-name" class="form-control form-control-nsaa" type="text" value="${NSAA.escapeAttr(organizerName)}" required />
+              ${organizerNameInherited ? `<p class="nsaa-faint small mt-1 mb-0">Pre-filled from your organizer profile. Change it if this event should show a different name to buyers.</p>` : ""}
             </div>
             <div class="col-md-6">
               <label class="form-label nsaa-muted small" for="ef-payout-phone">Payout Mobile Money number optional</label>
               <input id="ef-payout-phone" class="form-control form-control-nsaa" type="tel" value="${NSAA.escapeAttr(payoutPhone)}" placeholder="024 000 0000" />
+              ${payoutPhoneInherited ? `<p class="nsaa-faint small mt-1 mb-0">Pre-filled from your organizer profile. Only change it if this event should pay out to a different number.</p>` : ""}
             </div>
           </div>
           </section>
@@ -410,7 +425,8 @@
             <p class="mb-0 fw-semibold">${NSAA.escapeHtml(t.name)}</p>
             <p class="nsaa-muted small mb-0">${NSAA.money(t.priceGHS)} &middot; ${t.quantityAvailable} of ${t.quantityTotal} available &middot; ${t.quantitySold} sold</p>
           </div>
-          <button class="btn btn-nsaa btn-sm delete-ticket-type" type="button" ${t.quantitySold + t.quantityReserved > 0 ? "disabled title=\"Can't delete a ticket type with sold or reserved tickets\"" : ""}>
+          <button class="btn btn-outline-nsaa btn-danger-nsaa btn-sm delete-ticket-type" type="button" ${t.quantitySold + t.quantityReserved > 0 ? "disabled title=\"Can't delete a ticket type with sold or reserved tickets\"" : ""}>
+            <i class="ph ph-trash" aria-hidden="true"></i>
             Remove
           </button>
         </div>
@@ -432,9 +448,9 @@
               <strong>${summary.ticketsSold}</strong>
               <small>Confirmed tickets</small>
             </div>
-            <div class="nsaa-dashboard-metric">
+            <div class="nsaa-dashboard-metric nsaa-dashboard-metric--gold">
               <span>Gross revenue</span>
-              <strong style="color: var(--nsaa-gold);">${NSAA.money(summary.grossRevenueGHS)}</strong>
+              <strong>${NSAA.money(summary.grossRevenueGHS)}</strong>
               <small>Paid order total</small>
             </div>
             <div class="nsaa-dashboard-metric">
@@ -487,11 +503,17 @@
               <label class="form-label nsaa-muted small" for="campaign-code">Campaign or promoter code</label>
               <div class="d-flex gap-2">
                 <input id="campaign-code" class="form-control form-control-nsaa" type="text" value="main" />
-                <button id="copy-campaign-link" class="btn btn-nsaa" type="button">Copy</button>
+                <button id="copy-campaign-link" class="btn btn-outline-nsaa" type="button">
+                  <i class="ph ph-copy" aria-hidden="true"></i>
+                  Copy
+                </button>
               </div>
               <div class="d-grid gap-2 mt-2">
                 <a id="whatsapp-campaign-link" class="btn btn-nsaa" target="_blank" rel="noreferrer" href="https://wa.me/">Share on WhatsApp</a>
-                <button id="copy-embed-code" class="btn btn-nsaa" type="button">Copy embed</button>
+                <button id="copy-embed-code" class="btn btn-outline-nsaa" type="button">
+                  <i class="ph ph-copy" aria-hidden="true"></i>
+                  Copy embed
+                </button>
               </div>
               <textarea id="embed-code" class="form-control form-control-nsaa mt-2" rows="3" readonly></textarea>
             </div>
@@ -591,7 +613,10 @@
                 <p class="mb-0 fw-semibold">${NSAA.escapeHtml(staff.name)} <span class="nsaa-chip ms-1">${NSAA.escapeHtml(staff.role)}</span></p>
                 <p class="nsaa-muted small mb-0">${NSAA.escapeHtml(staff.gateLabel)} · token ends ${NSAA.escapeHtml(staff.tokenPreview)} · ${NSAA.escapeHtml(staff.status)}</p>
               </div>
-              <button class="btn btn-nsaa btn-sm revoke-scanner-staff" type="button" ${staff.status === "revoked" ? "disabled" : ""}>Revoke</button>
+              <button class="btn btn-outline-nsaa btn-danger-nsaa btn-sm revoke-scanner-staff" type="button" ${staff.status === "revoked" ? "disabled" : ""}>
+                <i class="ph ph-prohibit" aria-hidden="true"></i>
+                Revoke
+              </button>
             </div>
           `,
           )
@@ -622,7 +647,8 @@
 
         slot.innerHTML = `
           <div class="nsaa-panel mb-4">
-            <h2 class="h5 mb-3">Recent scan log</h2>
+            <h2 class="h5 mb-1">Recent scan log</h2>
+            <p class="nsaa-muted small mb-3">Live results from every gate as tickets are scanned.</p>
             ${rows}
           </div>
         `;
@@ -653,7 +679,10 @@
                 <p class="mb-2">This full token is shown once. Share the link only with door staff.</p>
                 <div class="d-flex gap-2">
                   <input class="form-control form-control-nsaa" value="${NSAA.escapeAttr(scanUrl)}" readonly />
-                  <button id="copy-scanner-link" class="btn btn-nsaa" type="button">Copy</button>
+                  <button id="copy-scanner-link" class="btn btn-outline-nsaa" type="button">
+                    <i class="ph ph-copy" aria-hidden="true"></i>
+                    Copy
+                  </button>
                 </div>
               </div>
             `;
@@ -899,7 +928,7 @@
 
       function editorTabsHtml(activeKey) {
         return `
-          <div class="nsaa-dashboard-tabs nsaa-dashboard-tabs--workspace" role="tablist" aria-label="Event workspace">
+          <div class="nsaa-dashboard-tabs nsaa-dashboard-tabs--workspace nsaa-dashboard-tabs--scroll" role="tablist" aria-label="Event workspace">
             ${EDITOR_TABS.map(
               (tab) => `
                 <button class="nsaa-dashboard-tab ${activeKey === tab.key ? "active" : ""}" type="button" role="tab" aria-selected="${activeKey === tab.key ? "true" : "false"}" data-dashboard-panel-tab="${NSAA.escapeAttr(tab.key)}">
@@ -1100,7 +1129,7 @@
         // Publish / unpublish toggle
         const statusSlot = document.getElementById("status-slot");
         const toggleBtn = document.createElement("button");
-        toggleBtn.className = "btn btn-nsaa btn-sm ms-2";
+        toggleBtn.className = "btn btn-outline-nsaa btn-sm ms-2";
         toggleBtn.type = "button";
         toggleBtn.textContent =
           existingEvent.status === "published" ? "Unpublish" : "Publish";
@@ -1151,7 +1180,8 @@
         const slot = document.getElementById("ticket-types-slot");
         slot.innerHTML = `
         <div class="nsaa-panel">
-          <h2 class="h5 mb-3">Ticket types</h2>
+          <h2 class="h5 mb-1">Ticket types</h2>
+          <p class="nsaa-muted small mb-3">Price tiers and inventory buyers see at checkout.</p>
           <div id="ticket-type-list">
             ${ticketTypes.length ? ticketTypes.map(ticketTypeRowHtml).join("") : '<p class="nsaa-muted small mb-3">No ticket types yet.</p>'}
           </div>
@@ -1169,7 +1199,10 @@
               <input id="tt-quantity" class="form-control form-control-nsaa" type="number" min="1" placeholder="100" required />
             </div>
             <div class="col-sm-2">
-              <button class="btn btn-nsaa w-100" type="submit">Add</button>
+              <button class="btn btn-outline-nsaa w-100" type="submit">
+                <i class="ph ph-plus" aria-hidden="true"></i>
+                Add
+              </button>
             </div>
           </form>
           <div id="ticket-type-result" class="mt-2"></div>

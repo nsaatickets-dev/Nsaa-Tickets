@@ -303,13 +303,29 @@
     return "Tickets";
   }
 
+  // Day/month stub for the card's image corner - same "ticket counter"
+  // read as the organizer dashboard's date badge, just scaled for a photo
+  // overlay. Kept separate from formatDate() below the image: the stub is
+  // a glance-anchor (day + month only), the text line stays the source of
+  // truth for time, which the stub deliberately omits.
+  function dateStubParts(startsAt) {
+    if (!startsAt) return { day: "TBA", month: "" };
+    const date = new Date(startsAt);
+    return {
+      day: date.toLocaleDateString(undefined, { day: "2-digit" }),
+      month: date.toLocaleDateString(undefined, { month: "short" }),
+    };
+  }
+
   function eventCard(event, options = {}) {
     const meta = categoryMeta(event.category);
     const image = eventImage(event);
     const date = formatDate(event.startsAt);
+    const stub = dateStubParts(event.startsAt);
     const href =
       options.href || eventHref(event, options.extraParams || {});
     const cityLine = [event.venue, event.city].filter(Boolean).join(", ");
+    const metaLine = [cityLine, date].filter(Boolean).join(" · ");
     const staggerIndex = Number.isFinite(options.index) ? options.index : 0;
     const availabilityBadge = event.isSellingFast
       ? '<span class="nsaa-badge-gold">Selling fast</span>'
@@ -321,17 +337,23 @@
       <div class="${escapeAttr(options.colClass || "col-md-6 col-xl-4")} nsaa-stagger-item" style="--stagger-index: ${staggerIndex};">
         <a class="text-decoration-none d-block h-100" href="${escapeAttr(href)}">
           <article class="nsaa-card nsaa-event-card h-100">
-            <div class="nsaa-event-media" style="background-image: linear-gradient(180deg, rgba(15,14,17,0.02), rgba(15,14,17,0.42)), url('${escapeAttr(image)}');">
-              ${featuredBadge}
-            </div>
-            <div class="nsaa-event-body">
-              <div class="d-flex align-items-center justify-content-between gap-2 mb-3">
+            <div class="nsaa-event-media">
+              <div class="nsaa-event-media-img" style="background-image: linear-gradient(180deg, rgba(15,14,17,0.02), rgba(15,14,17,0.42)), url('${escapeAttr(image)}');"></div>
+              <div class="nsaa-event-media-top">
+                ${featuredBadge}
+                <span class="nsaa-event-date-stub" aria-hidden="true">
+                  <strong>${escapeHtml(stub.day)}</strong>
+                  <small>${escapeHtml(stub.month)}</small>
+                </span>
+              </div>
+              <div class="nsaa-event-media-bottom">
                 <span class="nsaa-chip" data-tone="${escapeAttr(meta.tone)}">${escapeHtml(meta.shortLabel)}</span>
                 ${availabilityBadge}
               </div>
+            </div>
+            <div class="nsaa-event-body">
               <h3 class="h5 mb-2">${escapeHtml(event.title)}</h3>
-              <p class="nsaa-muted small mb-2">${escapeHtml(cityLine)}</p>
-              <p class="nsaa-faint small mb-0">${escapeHtml(date)}</p>
+              <p class="nsaa-muted small mb-0">${escapeHtml(metaLine)}</p>
             </div>
           </article>
         </a>
@@ -452,13 +474,8 @@
           <div class="nsaa-card nsaa-event-card-skeleton">
             <div class="skeleton-image skeleton-shimmer"></div>
             <div class="nsaa-event-body">
-              <div class="d-flex align-items-center justify-content-between mb-3">
-                <div class="skeleton-chip skeleton-shimmer"></div>
-                <div class="skeleton-text-short skeleton-shimmer"></div>
-              </div>
               <div class="skeleton-title skeleton-shimmer mb-2"></div>
-              <div class="skeleton-text-medium skeleton-shimmer mb-2"></div>
-              <div class="skeleton-text-short skeleton-shimmer"></div>
+              <div class="skeleton-text-medium skeleton-shimmer"></div>
             </div>
           </div>
         </div>

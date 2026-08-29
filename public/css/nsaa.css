@@ -837,6 +837,149 @@ a:hover {
   transform: scale(0.97);
 }
 
+/* Destructive-utility modifier, stacked on .btn-outline-nsaa (remove,
+   revoke - actions that undo/discard rather than create/save). Reuses
+   the existing danger token rather than introducing a new color; kept
+   quiet (outline, not solid) so it doesn't compete with coral's
+   "create/save/send" primary-action role per DESIGN.md. */
+.btn-outline-nsaa.btn-danger-nsaa {
+  border-color: rgba(196, 61, 61, 0.4);
+  color: var(--nsaa-danger);
+}
+
+.btn-outline-nsaa.btn-danger-nsaa:hover,
+.btn-outline-nsaa.btn-danger-nsaa:focus {
+  background-color: var(--nsaa-danger-bg);
+  border-color: var(--nsaa-danger);
+  color: var(--nsaa-danger);
+}
+
+/* Modal/dialog - the one shared confirm/prompt/alert surface, replacing
+   native window.confirm/prompt/alert wherever a page needs a reason or a
+   confirmation (see NSAA.confirmDialog/promptDialog/alertDialog in
+   nsaa-modal.js). Flat, hairline border, 4px radius, no blur - same
+   language as .nsaa-panel, not a separate visual system. z-index sits
+   above the mobile nav drawer (1100, see .nsaa-nav-links) since a dialog
+   can be triggered from within it. */
+.nsaa-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(36, 31, 26, 0.45);
+  opacity: 0;
+  transition: opacity 0.18s var(--nsaa-ease-out);
+}
+
+.nsaa-modal-overlay.is-open {
+  opacity: 1;
+}
+
+.nsaa-modal {
+  width: 100%;
+  max-width: 26rem;
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+  background: var(--nsaa-paper-surface);
+  border: 1px solid var(--nsaa-border);
+  border-radius: 4px;
+  box-shadow: 0 16px 48px rgba(36, 31, 26, 0.18);
+  transform: translateY(6px);
+  transition: transform 0.18s var(--nsaa-ease-out);
+}
+
+.nsaa-modal-overlay.is-open .nsaa-modal {
+  transform: translateY(0);
+}
+
+.nsaa-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.1rem 1.25rem;
+  border-bottom: 1px solid var(--nsaa-border);
+}
+
+.nsaa-modal-header h2 {
+  margin: 0;
+}
+
+.nsaa-modal-close {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--nsaa-ink-muted);
+  font-size: 1.1rem;
+  transition:
+    background-color 0.15s var(--nsaa-ease-out),
+    border-color 0.15s var(--nsaa-ease-out),
+    color 0.15s var(--nsaa-ease-out);
+}
+
+.nsaa-modal-close:hover,
+.nsaa-modal-close:focus-visible {
+  background: rgba(255, 138, 0, 0.08);
+  border-color: rgba(255, 138, 0, 0.28);
+  color: var(--nsaa-ink);
+}
+
+.nsaa-modal-body {
+  padding: 1.25rem;
+  display: grid;
+  gap: 0.75rem;
+  color: var(--nsaa-ink);
+}
+
+.nsaa-modal-body p {
+  color: var(--nsaa-ink-muted);
+}
+
+.nsaa-modal-error {
+  color: var(--nsaa-danger);
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.nsaa-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 1rem 1.25rem 1.25rem;
+  flex-wrap: wrap-reverse;
+}
+
+.nsaa-modal[data-tone="danger"] .nsaa-modal-confirm {
+  background-color: var(--nsaa-danger);
+  border-color: var(--nsaa-danger);
+  color: #fff;
+}
+
+body.nsaa-modal-open {
+  overflow: hidden;
+}
+
+@media (max-width: 575.98px) {
+  .nsaa-modal-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .nsaa-modal {
+    max-width: none;
+    border-radius: 4px 4px 0 0;
+  }
+}
+
 .form-control-nsaa,
 .form-select-nsaa {
   background-color: var(--nsaa-paper-surface);
@@ -947,6 +1090,10 @@ a:hover {
   line-height: 1.05;
 }
 
+.nsaa-dashboard-metric--gold strong {
+  color: var(--nsaa-gold);
+}
+
 .nsaa-dashboard-metric small {
   min-width: 0;
   overflow: hidden;
@@ -1035,6 +1182,99 @@ a:hover {
   top: 76px;
   z-index: 8;
   background: #fff8ec;
+}
+
+/* Scroll variant - for a tab bar with too many tabs to fit a 2-column
+   mobile grid without towering (admin console's 9 sections; the
+   workspace tab bar above, which is sticky and would otherwise eat a
+   large chunk of the viewport). Horizontal scroll-snap strip instead of
+   wrapping, on every width, not just mobile - a 9-tab row would also
+   wrap on a narrow desktop window otherwise. */
+.nsaa-dashboard-tabs--scroll {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+}
+
+.nsaa-dashboard-tabs--scroll .nsaa-dashboard-tab {
+  flex: none;
+  scroll-snap-align: start;
+}
+
+/* Admin console: mobile table treatments - pragmatic fixes for dense
+   data tables, not a redesign (see DESIGN.md's admin guidance: "dense,
+   predictable, table-friendly"). */
+
+/* Fade cue on the trailing edge of a horizontally-scrolling table so a
+   phone user notices there's more to scroll to. */
+.nsaa-table-scroll-hint {
+  position: relative;
+}
+
+.nsaa-table-scroll-hint::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 1.5rem;
+  pointer-events: none;
+  background: linear-gradient(90deg, rgba(36, 31, 26, 0), rgba(36, 31, 26, 0.08));
+}
+
+@media (max-width: 575.98px) {
+  /* Secondary/estimated columns (Est. Moolre cut, Reference) - drop them
+     first on a phone so the primary figures stay reachable without
+     scrolling. */
+  .nsaa-table-col-optional {
+    display: none;
+  }
+
+  /* CSS-only responsive table: each row becomes a bordered card with its
+     header repeated as a label per cell, for the two highest-traffic
+     admin tables (Events, Orders) only. */
+  .nsaa-table-stack thead {
+    display: none;
+  }
+
+  .nsaa-table-stack,
+  .nsaa-table-stack tbody,
+  .nsaa-table-stack tr,
+  .nsaa-table-stack td {
+    display: block;
+    width: 100%;
+  }
+
+  .nsaa-table-stack tr {
+    border: 1px solid var(--nsaa-border);
+    border-radius: 4px;
+    margin-bottom: 0.65rem;
+    padding: 0.75rem;
+  }
+
+  .nsaa-table-stack tr:last-child {
+    margin-bottom: 0;
+  }
+
+  .nsaa-table-stack td {
+    border: 0;
+    padding: 0.3rem 0;
+    text-align: left;
+  }
+
+  .nsaa-table-stack td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 650;
+    color: var(--nsaa-ink-muted);
+    text-transform: uppercase;
+  }
+
+  .nsaa-table-stack td.text-end {
+    text-align: left;
+  }
 }
 
 .nsaa-dashboard-event-list {
@@ -1900,16 +2140,26 @@ a:hover {
 .nsaa-event-media {
   aspect-ratio: 16 / 10;
   background-color: var(--nsaa-paper-soft);
-  background-position: center;
-  background-size: cover;
   border-radius: 6px;
   overflow: hidden;
   position: relative;
+  isolation: isolate;
   border: 1px solid var(--nsaa-border);
   transition:
     border-color 0.35s var(--nsaa-ease-out),
     transform 0.35s var(--nsaa-ease-out),
     box-shadow 0.35s var(--nsaa-ease-out);
+}
+
+/* Image lives in its own layer so it can zoom on hover while the frame
+   (border/radius/lift) stays put - same split the hero's .nsaa-stage-card
+   uses for its ::before image layer. */
+.nsaa-event-media-img {
+  position: absolute;
+  inset: 0;
+  background-position: center;
+  background-size: cover;
+  transition: transform 0.5s var(--nsaa-ease-out);
 }
 
 .nsaa-event-card:hover .nsaa-event-media {
@@ -1918,16 +2168,80 @@ a:hover {
   box-shadow: 0 12px 28px rgba(36, 31, 26, 0.14);
 }
 
-/* Pro-tier organizer perk: marks their event cards wherever eventCard()
-   renders (listings, this-month, venue/organizer profiles). Corner
-   placement over the media keeps it out of the way of the existing
-   category/availability chip row in the card body. */
-.nsaa-featured-badge {
+.nsaa-event-card:hover .nsaa-event-media-img {
+  transform: scale(1.045);
+}
+
+/* Overlay rows on the image itself - top row: featured badge (left,
+   optional) plus the date stub, pinned right via margin-left:auto so it
+   holds position whether or not the badge is present; bottom row:
+   category + availability/price, sitting on the media's own scrim
+   gradient for legibility over any photo. Keeps the card image-led per
+   DESIGN.md while the title stays off-image, in ink, below. */
+.nsaa-event-media-top,
+.nsaa-event-media-bottom {
   position: absolute;
-  top: 0.6rem;
   left: 0.6rem;
+  right: 0.6rem;
   z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.nsaa-event-media-top {
+  top: 0.6rem;
+  align-items: flex-start;
+}
+
+.nsaa-event-media-bottom {
+  bottom: 0.6rem;
+  justify-content: space-between;
+}
+
+/* Solid, not the ambient translucent .nsaa-chip look - it has to read
+   over an arbitrary photo, not the paper page background. */
+.nsaa-event-media-bottom .nsaa-chip {
+  background: var(--nsaa-paper-surface);
+  border-color: transparent;
+  box-shadow: 0 2px 8px rgba(36, 31, 26, 0.16);
+}
+
+/* Pro-tier organizer perk: marks their event cards wherever eventCard()
+   renders (listings, this-month, venue/organizer profiles). */
+.nsaa-featured-badge {
   box-shadow: 0 4px 12px rgba(36, 31, 26, 0.18);
+}
+
+.nsaa-event-date-stub {
+  margin-left: auto;
+  display: grid;
+  place-items: center;
+  min-width: 2.6rem;
+  padding: 0.3rem 0.5rem;
+  background: var(--nsaa-paper-surface);
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(36, 31, 26, 0.18);
+  text-align: center;
+  line-height: 1;
+}
+
+.nsaa-event-date-stub strong {
+  display: block;
+  color: var(--nsaa-ink);
+  font-family: var(--nsaa-font-display);
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+.nsaa-event-date-stub small {
+  display: block;
+  margin-top: 0.15rem;
+  color: var(--nsaa-ink-muted);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
 }
 
 .nsaa-event-body {
@@ -2860,13 +3174,24 @@ a:hover {
     grid-template-columns: 1fr;
   }
 
-  .nsaa-dashboard-tabs {
+  .nsaa-dashboard-tabs:not(.nsaa-dashboard-tabs--scroll) {
     display: grid;
     grid-template-columns: 1fr 1fr;
   }
 
   .nsaa-dashboard-tab {
     justify-content: flex-start;
+  }
+
+  .nsaa-dashboard-tabs--scroll .nsaa-dashboard-tab {
+    justify-content: center;
+  }
+
+  /* A ticket-type name plus its price/remove-button can crowd a 375px
+     row otherwise (organizer-dashboard.html's ticketTypeRowHtml). */
+  .nsaa-meta-item.d-flex {
+    flex-wrap: wrap;
+    gap: 0.5rem;
   }
 
   .nsaa-dashboard-event-row {

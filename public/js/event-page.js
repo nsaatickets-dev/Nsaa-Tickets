@@ -54,7 +54,15 @@ async function handleShareClick(button, event) {
       button.innerHTML = original;
     }, 2000);
   } catch (err) {
-    window.prompt("Copy this link:", url);
+    await NSAA.promptDialog({
+      title: "Copy this link",
+      label: "Event link",
+      defaultValue: url,
+      readonly: true,
+      required: false,
+      confirmLabel: "Done",
+      cancelLabel: "Close",
+    });
   }
 }
 
