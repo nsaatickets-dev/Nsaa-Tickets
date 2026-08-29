@@ -66,9 +66,10 @@
       const root = document.getElementById("scanner-root");
 
       // Staff devices are set up once with a scanner token generated from
-      // the organizer dashboard. Older ?key= links still work as a legacy
-      // fallback because the backend accepts both tokenized staff links and
-      // the deployment-level shared scanner key.
+      // the organizer dashboard. The ?key= parameter name is kept only as
+      // an alias for old bookmarked links - every scan now resolves to one
+      // specific, revocable staff token on the backend; there's no
+      // shared-key bypass anymore (see validateScan in convex/tickets.ts).
       const KEY_STORAGE = "nsaa:scannerToken";
       const urlKey =
         new URLSearchParams(window.location.search).get("token") ||

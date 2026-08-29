@@ -294,22 +294,19 @@ export const scanLogsForEvent = query({
 // scanning the same screenshotted code within the same second cannot
 // both succeed - whichever mutation commits first wins, the second
 // reliably sees status "used" and is rejected.
-// Gated by a shared scanner key (SCANNER_KEY), not the QR signature alone
-// - without this, anyone who observed or leaked a single valid ticket's
+// Gated by a per-staff scanner token, not the QR signature alone -
+// without this, anyone who observed or leaked a single valid ticket's
 // raw token (e.g. a photographed QR code before doors open) could call
 // this directly to pre-emptively mark it "used" and deny the real
 // holder entry, without ever needing to physically scan anything.
+// (A deployment-wide shared-key fallback used to exist here alongside the
+// per-staff system - removed once SCANNER_KEY was confirmed unset in
+// production, so every scan now resolves to one specific, revocable
+// staff token with no bypass.)
 export const validateScan = mutation({
   args: { qrToken: v.string(), scannedBy: v.optional(v.string()), scannerKey: v.string() },
   handler: async (ctx, { qrToken, scannedBy, scannerKey }) => {
-    const expectedScannerKey = process.env.SCANNER_KEY;
-    const isLegacyKey = Boolean(expectedScannerKey && timingSafeEqual(scannerKey, expectedScannerKey));
-    // Computed unconditionally (even for the legacy-key path) so it's
-    // always a stable rate-limit key - see the rate-limit check
-    // immediately below, which must run before any auth decision so a
-    // bad/guessed key can't skip it entirely.
     const scannerKeyHash = await scannerTokenHash(scannerKey);
-    const rateLimitKey = isLegacyKey ? "legacy-shared-scanner-key" : scannerKeyHash;
 
     const logScan = async (
       outcome: "accepted" | "rejected",
@@ -330,29 +327,24 @@ export const validateScan = mutation({
     };
 
     // Rate-limited (and logged) before the scanner is even authorized -
-    // otherwise a garbage/guessed key would hit the early "not
-    // authorized" return below with an unlimited, invisible retry budget,
-    // since the limiter was previously only consulted for keys that had
-    // already passed the auth check.
-    const scanLimit = await rateLimiter.limit(ctx, "scansByKey", { key: rateLimitKey });
+    // otherwise a garbage/guessed key would hit the "not authorized"
+    // return below with an unlimited, invisible retry budget.
+    const scanLimit = await rateLimiter.limit(ctx, "scansByKey", { key: scannerKeyHash });
     if (!scanLimit.ok) {
       await logScan("rejected", "Scanning too fast - wait a moment and try again");
       return { ok: false, reason: "Scanning too fast - wait a moment and try again" };
     }
 
-    let scannerStaff: Doc<"scannerStaff"> | null = null;
-    if (!isLegacyKey) {
-      const staff = await ctx.db
-        .query("scannerStaff")
-        .withIndex("by_token_hash", (q) => q.eq("tokenHash", scannerKeyHash))
-        .unique();
+    const staff = await ctx.db
+      .query("scannerStaff")
+      .withIndex("by_token_hash", (q) => q.eq("tokenHash", scannerKeyHash))
+      .unique();
 
-      if (!staff || staff.status !== "active") {
-        await logScan("rejected", "Scanner not authorized");
-        return { ok: false, reason: "Scanner not authorized" };
-      }
-      scannerStaff = staff;
+    if (!staff || staff.status !== "active") {
+      await logScan("rejected", "Scanner not authorized");
+      return { ok: false, reason: "Scanner not authorized" };
     }
+    const scannerStaff: Doc<"scannerStaff"> = staff;
 
     const reject = async (reason: string, ticket?: Doc<"tickets">) => {
       await logScan("rejected", reason, ticket, scannerStaff);
