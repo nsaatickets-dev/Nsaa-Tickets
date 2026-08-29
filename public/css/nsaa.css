@@ -1177,6 +1177,16 @@ body.nsaa-modal-open {
   color: var(--nsaa-ink);
 }
 
+/* Ambient "needs attention" count - same shape as the ordinary tab count
+   badge, but danger-toned and wins over .active so a real problem still
+   reads as a problem even on the currently-selected tab. */
+.nsaa-tab-attention-badge,
+.nsaa-dashboard-tab.active .nsaa-tab-attention-badge {
+  background: var(--nsaa-danger-bg);
+  border-color: rgba(196, 61, 61, 0.35);
+  color: var(--nsaa-danger);
+}
+
 .nsaa-dashboard-tabs--workspace {
   position: sticky;
   top: 76px;

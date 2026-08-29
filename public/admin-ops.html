@@ -62,6 +62,25 @@
       let activeTab = "overview";
       let moolreRatePercent = Number(window.localStorage.getItem("nsaa:moolreRatePercent")) || 0;
 
+      // Ambient "needs attention" counts, kept live for the whole session
+      // (not just while the Overview tab happens to be open) so a tab
+      // badge can flag a problem before an admin ever clicks into it.
+      // Derived entirely from ops:overview, which every render path
+      // already fetches - no extra backend query.
+      let attentionCounts = { payouts: 0, serviceFees: 0, overview: 0 };
+
+      function computeAttentionCounts(overviewData) {
+        const failedPayouts = overviewData.payouts.filter((p) => p.status === "failed").length;
+        const failedServiceFees = overviewData.serviceFeeTransfers.filter((t) => t.status === "failed").length;
+        const newInquiries = overviewData.organizerInquiries.filter((i) => i.status === "new").length;
+        const newMessages = overviewData.contactMessages.filter((m) => m.status === "new").length;
+        return {
+          payouts: failedPayouts,
+          serviceFees: failedServiceFees,
+          overview: newInquiries + newMessages,
+        };
+      }
+
       function round2(value) {
         return Math.round(value * 100) / 100;
       }
@@ -98,14 +117,16 @@
 
       // ---- Tab bar ----
       function renderTabs() {
-        tabsEl.innerHTML = TABS.map(
-          ([key, label, icon]) => `
+        tabsEl.innerHTML = TABS.map(([key, label, icon]) => {
+          const count = attentionCounts[key] || 0;
+          return `
             <button type="button" class="nsaa-dashboard-tab ${key === activeTab ? "active" : ""}" role="tab" aria-selected="${key === activeTab ? "true" : "false"}" data-tab="${key}">
               <i class="ph ${icon}" aria-hidden="true"></i>
               <span>${label}</span>
+              ${count > 0 ? `<strong class="nsaa-tab-attention-badge">${count}</strong>` : ""}
             </button>
-          `,
-        ).join("");
+          `;
+        }).join("");
       }
 
       tabsEl.addEventListener("click", (event) => {
@@ -158,6 +179,72 @@
       function supportNeedsHtml(item) {
         if (!item.supportNeeds || item.supportNeeds.length === 0) return "";
         return `<div class="d-flex flex-wrap gap-1 mb-2">${item.supportNeeds.map((need) => `<span class="nsaa-chip">${NSAA.escapeHtml(need)}</span>`).join("")}</div>`;
+      }
+
+      // Same signals as computeAttentionCounts, but as a labeled,
+      // jump-to-tab list rather than bare tab-bar numbers - this is the
+      // "read it once at the top, don't go hunting through 9 tabs" view.
+      function attentionItemsFromOverview(overviewData) {
+        const items = [
+          {
+            tab: "payouts",
+            icon: "ph-bank",
+            label: "Failed payout",
+            count: overviewData.payouts.filter((p) => p.status === "failed").length,
+          },
+          {
+            tab: "serviceFees",
+            icon: "ph-percent",
+            label: "Failed service fee transfer",
+            count: overviewData.serviceFeeTransfers.filter((t) => t.status === "failed").length,
+          },
+          {
+            tab: "overview",
+            icon: "ph-handshake",
+            label: "Organizer signup awaiting a reply",
+            count: overviewData.organizerInquiries.filter((i) => i.status === "new").length,
+          },
+          {
+            tab: "overview",
+            icon: "ph-chat-circle-text",
+            label: "Support message awaiting a reply",
+            count: overviewData.contactMessages.filter((m) => m.status === "new").length,
+          },
+        ];
+        return items.filter((item) => item.count > 0);
+      }
+
+      function attentionPanelHtml(overviewData) {
+        const items = attentionItemsFromOverview(overviewData);
+        if (items.length === 0) {
+          return `
+            <div class="nsaa-status-box success d-flex align-items-center gap-2">
+              <i class="ph ph-check-circle" aria-hidden="true"></i>
+              <p class="mb-0">Nothing needs attention right now.</p>
+            </div>
+          `;
+        }
+        return `
+          <div class="nsaa-panel">
+            <h2 class="h6 mb-3">Needs attention</h2>
+            <div class="d-grid gap-2">
+              ${items
+                .map(
+                  (item) => `
+                    <div class="d-flex align-items-center justify-content-between gap-3 py-1">
+                      <span class="d-flex align-items-center gap-2">
+                        <i class="ph ${item.icon} nsaa-trust-icon" aria-hidden="true"></i>
+                        <span class="nsaa-chip" data-tone="rose">${item.count}</span>
+                        <span>${NSAA.escapeHtml(item.label)}${item.count === 1 ? "" : "s"}</span>
+                      </span>
+                      <button type="button" class="btn btn-outline-nsaa btn-sm admin-attention-jump" data-jump-tab="${item.tab}">View</button>
+                    </div>
+                  `,
+                )
+                .join("")}
+            </div>
+          </div>
+        `;
       }
 
       function renderTriagePanels(data) {
@@ -213,6 +300,9 @@
 
           root.innerHTML = `
             <div class="row g-4">
+              <div class="col-12">
+                ${attentionPanelHtml(overviewData)}
+              </div>
               <div class="col-12">
                 <div class="row g-3">
                   <div class="col-md-4">
@@ -304,6 +394,15 @@
           const moolreCut = round2(Number(cell.dataset.total) * (moolreRatePercent / 100));
           cell.textContent = NSAA.money(round2(Number(cell.dataset.fee) - moolreCut));
         });
+      });
+
+      root.addEventListener("click", (event) => {
+        const jumpBtn = event.target.closest(".admin-attention-jump");
+        if (!jumpBtn) return;
+        activeTab = jumpBtn.dataset.jumpTab;
+        resultEl.innerHTML = "";
+        renderTabs();
+        renderActiveTab();
       });
 
       // ---- Events ----
@@ -1153,6 +1252,15 @@
         }
 
         renderActiveTab();
+
+        // Ambient attention tracking - stays subscribed for the whole
+        // session (not just while Overview is the active tab), so a
+        // failed payout or transfer shows up on the tab bar the moment it
+        // happens, even if the admin is deep in another tab.
+        client.onUpdate("ops:overview", {}, (overviewData) => {
+          attentionCounts = computeAttentionCounts(overviewData);
+          renderTabs();
+        });
       }
 
       boot();
