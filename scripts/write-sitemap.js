@@ -19,7 +19,6 @@ const STATIC_PAGES = [
   "/venues",
   "/blog",
   "/contact",
-  "/organizer-signup",
   "/organizer-inquiry",
   "/privacy-policy",
   "/terms-of-service",
