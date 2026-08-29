@@ -13,7 +13,7 @@
 // defaults to whichever context matches the current page.
 
 const NAV_CONTEXT_KEY = "nsaa:navContext";
-const SITE_ORIGIN = "https://nsaatickets.com";
+const SITE_ORIGIN = "https://www.nsaatickets.com";
 
 // Sitewide Organization schema - lets Google associate every page with the
 // same business entity (logo, support contact, service area) regardless of

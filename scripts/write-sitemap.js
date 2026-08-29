@@ -8,7 +8,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const SITE_ORIGIN = "https://nsaatickets.com";
+const SITE_ORIGIN = "https://www.nsaatickets.com";
 
 const STATIC_PAGES = [
   "/",

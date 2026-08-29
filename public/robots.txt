@@ -20,4 +20,4 @@ Disallow: /welcome
 Disallow: /category
 Disallow: /search-results
 
-Sitemap: https://nsaatickets.com/sitemap.xml
+Sitemap: https://www.nsaatickets.com/sitemap.xml

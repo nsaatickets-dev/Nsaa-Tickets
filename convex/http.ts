@@ -7,7 +7,7 @@ import { verifyMetaSignature } from "./whatsapp";
 
 const http = httpRouter();
 
-const SITE_ORIGIN = "https://nsaatickets.com";
+const SITE_ORIGIN = "https://www.nsaatickets.com";
 const DEFAULT_OG_IMAGE = `${SITE_ORIGIN}/og-image.png`;
 
 // Shared shell for both the "found" and "not found" cases below - same
