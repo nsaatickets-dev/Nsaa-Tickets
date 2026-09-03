@@ -78,13 +78,15 @@ export const overview = query({
   handler: async (ctx) => {
     await requireAdmin(ctx);
 
-    const [organizerInquiries, contactMessages, events, payouts, serviceFeeTransfers] = await Promise.all([
-      ctx.db.query("organizerInquiries").collect(),
-      ctx.db.query("contactMessages").collect(),
-      ctx.db.query("events").collect(),
-      ctx.db.query("payouts").collect(),
-      ctx.db.query("serviceFeeTransfers").collect(),
-    ]);
+    const [organizerInquiries, contactMessages, events, payouts, serviceFeeTransfers, payoutRequests] =
+      await Promise.all([
+        ctx.db.query("organizerInquiries").collect(),
+        ctx.db.query("contactMessages").collect(),
+        ctx.db.query("events").collect(),
+        ctx.db.query("payouts").collect(),
+        ctx.db.query("serviceFeeTransfers").collect(),
+        ctx.db.query("payoutRequests").collect(),
+      ]);
 
     return {
       organizerInquiries: organizerInquiries.sort((a, b) => b.createdAt - a.createdAt).slice(0, 80),
@@ -92,6 +94,7 @@ export const overview = query({
       events: events.sort((a, b) => b.createdAt - a.createdAt).slice(0, 120),
       payouts: payouts.sort((a, b) => b.createdAt - a.createdAt).slice(0, 120),
       serviceFeeTransfers: serviceFeeTransfers.sort((a, b) => b.createdAt - a.createdAt).slice(0, 120),
+      payoutRequests: payoutRequests.sort((a, b) => b.requestedAt - a.requestedAt).slice(0, 120),
     };
   },
 });

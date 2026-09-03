@@ -279,7 +279,41 @@ export default defineSchema({
     moolreReference: v.optional(v.string()), // Moolre's transactionid once confirmed
     createdAt: v.number(),
     paidAt: v.optional(v.number()),
+    // Set on rows created via the interim-payout-request approval path;
+    // left unset (implicitly "final") on every existing creation path -
+    // the automatic end-of-event sweep and admin manual overrides.
+    kind: v.optional(v.union(v.literal("interim"), v.literal("final"))),
   }).index("by_event", ["eventId"]),
+
+  // Organizer-initiated request for an interim/milestone payout while an
+  // event's sales are still running (Pro/Custom tier perk) - a separate
+  // state machine (pending/approved/rejected) from the payouts table's
+  // own pending/paid/failed money-movement lifecycle. An approval doesn't
+  // move money itself; it creates a normal `payouts` row (tagged
+  // kind:"interim") via the same sendOrganizerPayoutTransfer used
+  // everywhere else, so eligiblePayoutAmount's existing
+  // already-accounted-for math nets it out with no changes needed there.
+  payoutRequests: defineTable({
+    eventId: v.id("events"),
+    organizerClerkUserId: v.string(),
+    organizerPayoutPhone: v.string(), // snapshotted at request time
+    amountGHS: v.number(),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("approved"),
+      v.literal("rejected"),
+    ),
+    eligibleGHSAtRequest: v.number(), // context for the admin reviewing the request
+    requestedAt: v.number(),
+    decidedAt: v.optional(v.number()),
+    decidedByAdminId: v.optional(v.string()),
+    decidedByAdminLabel: v.optional(v.string()),
+    rejectionReason: v.optional(v.string()),
+    payoutId: v.optional(v.id("payouts")), // set on approval, links to the real transfer
+  })
+    .index("by_event", ["eventId"])
+    .index("by_status", ["status"])
+    .index("by_event_status", ["eventId", "status"]),
 
   // Nsaa service-fee sweep ledger. Customer payments arrive into the
   // Moolre wallet as ticket subtotal + service fee; organizer payouts

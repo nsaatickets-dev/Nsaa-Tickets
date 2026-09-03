@@ -12,16 +12,18 @@ import {
   requirePositiveInteger,
 } from "./validation";
 
-// Organizer pricing tiers. The standard paid rate is a flat 4.5%:
-// enough room for Moolre's processing share plus Nsaa's margin, while
-// every self-serve paid tier stays strictly below the 5% local Essential
-// benchmark. No flat add-on means low-priced tickets stay competitive too.
-// "custom" has no listed rate; an admin sets customFeePercent per
-// organizer via setOrganizerTierAdmin.
+// Organizer pricing tiers. Essential is a flat 4.5% - enough room for
+// Moolre's processing share plus Nsaa's margin, while staying at/below the
+// 5% local benchmark. Pro sits at the 5% benchmark itself, and unlocks
+// interim/milestone payout requests while an event's sales are still
+// running (see convex/payouts.ts's requestInterimPayout) instead of only
+// after the event ends. No flat add-on means low-priced tickets stay
+// competitive too. "custom" has no listed rate; an admin sets
+// customFeePercent per organizer via setOrganizerTierAdmin.
 export const TIER_FEE_PERCENT: Record<string, number> = {
   free: 0,
   essential: 0.045,
-  pro: 0.049,
+  pro: 0.05,
 };
 
 export function slugify(value: string): string {
@@ -1046,7 +1048,7 @@ export const salesSummaryForEvent = query({
   },
 });
 
-async function requireOwnedEvent(ctx: MutationCtx, eventId: Id<"events">) {
+export async function requireOwnedEvent(ctx: MutationCtx, eventId: Id<"events">) {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) throw new Error("Sign in required.");
 

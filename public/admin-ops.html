@@ -53,6 +53,7 @@
         ["tickets", "Tickets", "ph-ticket"],
         ["organizers", "Organizers", "ph-users-three"],
         ["payouts", "Payouts", "ph-bank"],
+        ["payoutRequests", "Payout requests", "ph-hourglass-medium"],
         ["serviceFees", "Fees", "ph-percent"],
         ["blocklist", "Blocklist", "ph-shield-slash"],
         ["audit", "Audit log", "ph-list-magnifying-glass"],
@@ -67,15 +68,17 @@
       // badge can flag a problem before an admin ever clicks into it.
       // Derived entirely from ops:overview, which every render path
       // already fetches - no extra backend query.
-      let attentionCounts = { payouts: 0, serviceFees: 0, overview: 0 };
+      let attentionCounts = { payouts: 0, payoutRequests: 0, serviceFees: 0, overview: 0 };
 
       function computeAttentionCounts(overviewData) {
         const failedPayouts = overviewData.payouts.filter((p) => p.status === "failed").length;
+        const pendingPayoutRequests = overviewData.payoutRequests.filter((r) => r.status === "pending").length;
         const failedServiceFees = overviewData.serviceFeeTransfers.filter((t) => t.status === "failed").length;
         const newInquiries = overviewData.organizerInquiries.filter((i) => i.status === "new").length;
         const newMessages = overviewData.contactMessages.filter((m) => m.status === "new").length;
         return {
           payouts: failedPayouts,
+          payoutRequests: pendingPayoutRequests,
           serviceFees: failedServiceFees,
           overview: newInquiries + newMessages,
         };
@@ -146,6 +149,7 @@
           tickets: renderTicketsTab,
           organizers: renderOrganizersTab,
           payouts: renderPayoutsTab,
+          payoutRequests: renderPayoutRequestsTab,
           serviceFees: renderServiceFeesTab,
           blocklist: renderBlocklistTab,
           audit: renderAuditTab,
@@ -191,6 +195,12 @@
             icon: "ph-bank",
             label: "Failed payout",
             count: overviewData.payouts.filter((p) => p.status === "failed").length,
+          },
+          {
+            tab: "payoutRequests",
+            icon: "ph-hourglass-medium",
+            label: "Interim payout request awaiting review",
+            count: overviewData.payoutRequests.filter((r) => r.status === "pending").length,
           },
           {
             tab: "serviceFees",
@@ -973,6 +983,91 @@
           showError(err);
         } finally {
           button.disabled = false;
+        }
+      });
+
+      // ---- Payout requests ----
+      function payoutRequestRowHtml(request) {
+        const actions =
+          request.status === "pending"
+            ? [
+                `<button class="btn btn-nsaa admin-payout-request-action" data-action="approve" type="button">Approve</button>`,
+                `<button class="btn btn-outline-nsaa btn-danger-nsaa admin-payout-request-action" data-action="reject" type="button">Reject</button>`,
+              ]
+            : [];
+        const note =
+          request.status === "rejected" && request.rejectionReason
+            ? `<p class="nsaa-muted small mb-0">${NSAA.escapeHtml(request.rejectionReason)}</p>`
+            : "";
+        return `
+          <tr data-request-id="${NSAA.escapeAttr(request._id)}">
+            <td>${NSAA.escapeHtml(request.eventId)}</td>
+            <td class="text-end">${NSAA.money(request.amountGHS)}</td>
+            <td class="text-end">${NSAA.money(request.eligibleGHSAtRequest)}</td>
+            <td>${statusChip(request.status)}${note}</td>
+            <td>${NSAA.escapeHtml(NSAA.formatDate(request.requestedAt))}</td>
+            <td class="text-end"><div class="btn-group btn-group-sm">${actions.join("") || "-"}</div></td>
+          </tr>
+        `;
+      }
+
+      async function renderPayoutRequestsTab() {
+        root.innerHTML = NSAA.loading("Loading payout requests");
+        try {
+          const data = await client.query("ops:overview", {});
+          root.innerHTML = `
+            <div class="nsaa-panel">
+              <h2 class="h5 mb-3">Payout requests</h2>
+              <p class="nsaa-muted small">Pro/Custom plan organizers can request part of their accrued ticket revenue while sales are still running. Approving transfers the amount immediately via Moolre (same rails as a scheduled payout); rejecting just records a reason - no money moves.</p>
+              <div class="table-responsive nsaa-table-scroll-hint">
+                <table class="table align-middle mb-0">
+                  <thead><tr><th>Event</th><th class="text-end">Requested</th><th class="text-end">Eligible at request</th><th>Status</th><th>Date</th><th class="text-end">Review</th></tr></thead>
+                  <tbody>${data.payoutRequests.map(payoutRequestRowHtml).join("") || '<tr><td colspan="6" class="nsaa-muted">No payout requests yet.</td></tr>'}</tbody>
+                </table>
+              </div>
+            </div>
+          `;
+        } catch (err) {
+          root.innerHTML = "";
+          showError(err);
+        }
+      }
+
+      root.addEventListener("click", async (event) => {
+        const button = event.target.closest(".admin-payout-request-action");
+        if (!button) return;
+        const requestId = button.closest("[data-request-id]").dataset.requestId;
+        const action = button.dataset.action;
+        if (action === "approve") {
+          const confirmed = await NSAA.confirmDialog({
+            title: "Approve this interim payout?",
+            body: "The requested amount will be transferred to the organizer's Mobile Money number now.",
+            confirmLabel: "Approve",
+            tone: "default",
+          });
+          if (!confirmed) return;
+          button.disabled = true;
+          try {
+            await client.mutation("payouts:approvePayoutRequest", { requestId });
+            showSuccess("Payout approved and queued. Check the Payouts tab for transfer status.");
+            await renderPayoutRequestsTab();
+          } catch (err) {
+            showError(err);
+          } finally {
+            button.disabled = false;
+          }
+        } else if (action === "reject") {
+          const reason = await reasonPrompt("Reject this payout request", { tone: "danger" });
+          if (!reason) return;
+          button.disabled = true;
+          try {
+            await client.mutation("payouts:rejectPayoutRequest", { requestId, reason });
+            await renderPayoutRequestsTab();
+          } catch (err) {
+            showError(err);
+          } finally {
+            button.disabled = false;
+          }
         }
       });
 

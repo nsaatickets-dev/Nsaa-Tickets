@@ -2,6 +2,7 @@ import { action, mutation, internalAction, internalMutation, internalQuery, quer
 import { internal, api } from "./_generated/api";
 import { v } from "convex/values";
 import { requireAdmin, logAdminAction, type AdminIdentity } from "./admin";
+import { requireOwnedEvent } from "./events";
 import { alertCritical } from "./alerts";
 import { requireMoolreEnv } from "./moolreConfig";
 import { sendBrevoEmail, SENDERS, renderEmailLayout, paragraph, escapeHtml } from "./email";
@@ -77,6 +78,88 @@ export const payoutsForEvent = query({
   },
 });
 
+// Organizer-facing: their own interim-payout request history for one of
+// their events (pending/approved/rejected) - read-only, so this repeats
+// requireOwnedEvent's identity/ownership check inline rather than
+// importing it (that helper is typed for MutationCtx, not QueryCtx).
+export const payoutRequestsForEvent = query({
+  args: { eventId: v.id("events") },
+  handler: async (ctx, { eventId }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Sign in required.");
+    const event = await ctx.db.get(eventId);
+    if (!event) throw new Error("Event not found.");
+    if (event.organizerClerkUserId !== identity.subject) {
+      throw new Error("You do not have access to this event.");
+    }
+    return await ctx.db
+      .query("payoutRequests")
+      .withIndex("by_event", (q) => q.eq("eventId", eventId))
+      .collect();
+  },
+});
+
+// Organizer-facing: Pro/Custom tier perk - request an interim payout of
+// accrued ticket revenue while sales are still running, instead of
+// waiting for the event to end. Never moves money itself - it only
+// creates a request row for an admin to approve/reject (see
+// approvePayoutRequest/rejectPayoutRequest below), matching this app's
+// existing all-admin-gated design for anything that actually transfers
+// money out.
+export const requestInterimPayout = mutation({
+  args: { eventId: v.id("events"), amountGHS: v.number() },
+  handler: async (ctx, { eventId, amountGHS }) => {
+    const { identity, event } = await requireOwnedEvent(ctx, eventId);
+
+    const profile = await ctx.db
+      .query("organizerProfiles")
+      .withIndex("by_organizer", (q) => q.eq("organizerClerkUserId", identity.subject))
+      .unique();
+    if (!profile || (profile.tier !== "pro" && profile.tier !== "custom")) {
+      throw new Error("Interim payouts are a Pro/Custom plan perk. Upgrade your plan to request one.");
+    }
+    if (profile.suspended) {
+      throw new Error("This organizer account is suspended. Contact support.");
+    }
+    if (event.status === "cancelled") {
+      throw new Error("Event is cancelled - there's no revenue to pay out.");
+    }
+    const cutoff = event.endsAt ?? event.startsAt;
+    if (Date.now() >= cutoff) {
+      throw new Error("This event has already ended - its payout happens automatically now.");
+    }
+    if (!event.organizerPayoutPhone) {
+      throw new Error("Add a payout phone number to this event before requesting a payout.");
+    }
+
+    const existingPending = await ctx.db
+      .query("payoutRequests")
+      .withIndex("by_event_status", (q) => q.eq("eventId", eventId).eq("status", "pending"))
+      .first();
+    if (existingPending) {
+      throw new Error("You already have a pending payout request for this event.");
+    }
+
+    const eligibleGHS: number = await ctx.runQuery(api.payouts.eligiblePayoutAmount, { eventId });
+    if (amountGHS <= 0) {
+      throw new Error("Requested amount must be greater than 0.");
+    }
+    if (amountGHS > eligibleGHS) {
+      throw new Error(`Amount exceeds your eligible balance of GHS ${eligibleGHS}.`);
+    }
+
+    return await ctx.db.insert("payoutRequests", {
+      eventId,
+      organizerClerkUserId: identity.subject,
+      organizerPayoutPhone: event.organizerPayoutPhone,
+      amountGHS,
+      status: "pending",
+      eligibleGHSAtRequest: eligibleGHS,
+      requestedAt: Date.now(),
+    });
+  },
+});
+
 // Shared by both the admin-triggered action below and the automatic cron
 // job (autoPayoutEndedEvents) - creates the pending payout record and
 // fires the real Moolre transfer. Never throws on a Moolre-side rejection
@@ -85,14 +168,20 @@ export const payoutsForEvent = query({
 // rejected, rather than the whole cron run aborting.
 async function sendOrganizerPayoutTransfer(
   ctx: any,
-  params: { eventId: any; organizerPayoutPhone: string; amountGHS: number },
+  params: {
+    eventId: any;
+    organizerPayoutPhone: string;
+    amountGHS: number;
+    kind?: "interim" | "final";
+  },
 ): Promise<{ payoutId: any; accepted: boolean; failureReason?: string }> {
-  const { eventId, organizerPayoutPhone, amountGHS } = params;
+  const { eventId, organizerPayoutPhone, amountGHS, kind } = params;
 
   const payoutId = await ctx.runMutation(internal.payouts.createPendingPayout, {
     eventId,
     organizerPayoutPhone,
     amountGHS,
+    kind,
   });
 
   // Same prefixing scheme as orders.ts - lets the shared webhook tell a
@@ -313,6 +402,140 @@ export const runQueuedOrganizerPayout = internalAction({
   },
 });
 
+// Admin God Mode: review an organizer's interim-payout request. Approving
+// doesn't move money synchronously - it queues the real transfer as a
+// server-side action (same "browser-safe" shape as queueOrganizerPayout
+// below) via the shared sendOrganizerPayoutTransfer, tagged kind:"interim"
+// so it's distinguishable from an automatic/admin end-of-event payout in
+// the Payouts tab.
+export const approvePayoutRequest = mutation({
+  args: { requestId: v.id("payoutRequests") },
+  handler: async (ctx, { requestId }) => {
+    const admin = await requireAdmin(ctx);
+    const request = await ctx.db.get(requestId);
+    if (!request) throw new Error("Payout request not found.");
+    if (request.status !== "pending") {
+      throw new Error("This request has already been decided.");
+    }
+
+    // Defensive re-check - the eligible balance could have shifted since
+    // the organizer submitted the request (e.g. an order was refunded).
+    const eligibleGHS: number = await ctx.runQuery(api.payouts.eligiblePayoutAmount, {
+      eventId: request.eventId,
+    });
+    if (request.amountGHS > eligibleGHS) {
+      throw new Error(
+        `Requested amount (GHS ${request.amountGHS}) now exceeds the event's eligible balance (GHS ${eligibleGHS}).`,
+      );
+    }
+
+    await ctx.scheduler.runAfter(0, internal.payouts.runApprovedInterimPayout, {
+      requestId,
+      adminSubject: admin.subject,
+      adminLabel: admin.label,
+    });
+
+    await logAdminAction(ctx, admin, {
+      action: "payoutRequest.approve",
+      targetType: "payoutRequest",
+      targetId: requestId,
+      details: { eventId: request.eventId, amountGHS: request.amountGHS },
+    });
+
+    return { status: "queued" };
+  },
+});
+
+export const runApprovedInterimPayout = internalAction({
+  args: {
+    requestId: v.id("payoutRequests"),
+    adminSubject: v.string(),
+    adminLabel: v.string(),
+  },
+  handler: async (ctx, { requestId, adminSubject, adminLabel }) => {
+    const request = await ctx.runQuery(internal.payouts.getPayoutRequestInternal, { requestId });
+    if (!request || request.status !== "pending") return;
+
+    // Bypasses payoutEventIfDue entirely on purpose - this is an explicit,
+    // one-off admin-approved transfer for an in-flight event, not the
+    // automatic end-of-event sweep, so neither the endsAt cutoff nor the
+    // recent-failure backoff apply here.
+    const result = await sendOrganizerPayoutTransfer(ctx, {
+      eventId: request.eventId,
+      organizerPayoutPhone: request.organizerPayoutPhone,
+      amountGHS: request.amountGHS,
+      kind: "interim",
+    });
+
+    await ctx.runMutation(internal.payouts.applyPayoutRequestApproval, {
+      requestId,
+      payoutId: result.payoutId,
+      adminSubject,
+      adminLabel,
+    });
+
+    if (!result.accepted) {
+      await alertCritical(
+        "Interim payout approved but transfer failed",
+        `Request ${requestId} (event ${request.eventId}): ${result.failureReason || "Payout could not be started."}`,
+      );
+    }
+  },
+});
+
+export const getPayoutRequestInternal = internalQuery({
+  args: { requestId: v.id("payoutRequests") },
+  handler: async (ctx, { requestId }) => ctx.db.get(requestId),
+});
+
+export const applyPayoutRequestApproval = internalMutation({
+  args: {
+    requestId: v.id("payoutRequests"),
+    payoutId: v.id("payouts"),
+    adminSubject: v.string(),
+    adminLabel: v.string(),
+  },
+  handler: async (ctx, { requestId, payoutId, adminSubject, adminLabel }) => {
+    await ctx.db.patch(requestId, {
+      status: "approved",
+      payoutId,
+      decidedAt: Date.now(),
+      decidedByAdminId: adminSubject,
+      decidedByAdminLabel: adminLabel,
+    });
+  },
+});
+
+export const rejectPayoutRequest = mutation({
+  args: { requestId: v.id("payoutRequests"), reason: v.string() },
+  handler: async (ctx, { requestId, reason }) => {
+    const admin = await requireAdmin(ctx);
+    const trimmedReason = reason.trim();
+    if (!trimmedReason) throw new Error("A reason is required.");
+
+    const request = await ctx.db.get(requestId);
+    if (!request) throw new Error("Payout request not found.");
+    if (request.status !== "pending") {
+      throw new Error("This request has already been decided.");
+    }
+
+    await ctx.db.patch(requestId, {
+      status: "rejected",
+      rejectionReason: trimmedReason,
+      decidedAt: Date.now(),
+      decidedByAdminId: admin.subject,
+      decidedByAdminLabel: admin.label,
+    });
+
+    await logAdminAction(ctx, admin, {
+      action: "payoutRequest.reject",
+      targetType: "payoutRequest",
+      targetId: requestId,
+      reason: trimmedReason,
+    });
+  },
+});
+
 export const autoPayoutSingleEvent = internalAction({
   args: { eventId: v.id("events") },
   handler: async (ctx, { eventId }) => {
@@ -425,6 +648,7 @@ export const createPendingPayout = internalMutation({
     eventId: v.id("events"),
     organizerPayoutPhone: v.string(),
     amountGHS: v.number(),
+    kind: v.optional(v.union(v.literal("interim"), v.literal("final"))),
   },
   handler: async (ctx, args) => {
     return await ctx.db.insert("payouts", {

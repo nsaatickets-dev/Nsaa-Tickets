@@ -899,7 +899,7 @@
       const PLAN_OPTIONS = [
         { tier: "free", label: "Free", fee: "0%", blurb: "Non-ticketed or free events." },
         { tier: "essential", label: "Standard", fee: "4.5%", blurb: "Flat under-cut rate for paid events." },
-        { tier: "pro", label: "Priority", fee: "4.9%", blurb: "More support, still strictly below 5%." },
+        { tier: "pro", label: "Priority", fee: "5%", blurb: "More support, plus interim payouts while sales are running." },
       ];
 
       function organizerPlanSummaryHtml(organizerProfile) {
@@ -923,8 +923,78 @@
         { key: "setup", label: "Event setup", icon: "ph-note-pencil" },
         { key: "distribution", label: "Distribution", icon: "ph-share-network" },
         { key: "tickets", label: "Tickets", icon: "ph-ticket" },
+        { key: "payouts", label: "Payouts", icon: "ph-bank" },
         { key: "door", label: "Door", icon: "ph-scan" },
       ];
+
+      // Interim-payout request form + history for the Payouts tab -
+      // Pro/Custom tier perk only (see convex/payouts.ts:requestInterimPayout).
+      // Kept as one render function fed by two independent onUpdate
+      // subscriptions (eligible amount + request list) so either can
+      // refresh the panel without needing to know about the other.
+      function payoutPanelHtml(organizerProfile, eligibleGHS, requests) {
+        const tier = organizerProfile?.tier;
+        if (tier !== "pro" && tier !== "custom") {
+          return `
+            <div class="nsaa-panel">
+              <h2 class="h5 mb-2">Payouts</h2>
+              <p class="nsaa-muted small mb-3">Interim payouts - requesting part of your ticket revenue while sales are still running - are a Priority (Pro) plan perk.</p>
+              <a class="btn btn-outline-nsaa btn-sm" href="/organizer-onboarding?edit=1">Upgrade to Priority</a>
+            </div>
+          `;
+        }
+
+        const pending = (requests || []).find((r) => r.status === "pending");
+        const sorted = [...(requests || [])].sort((a, b) => b.requestedAt - a.requestedAt);
+
+        const formHtml = pending
+          ? `<p class="nsaa-muted small mb-0">You have a pending request for ${NSAA.money(pending.amountGHS)} - it'll show up here once an admin reviews it.</p>`
+          : `
+            <form id="payout-request-form" class="d-flex flex-wrap align-items-end gap-2">
+              <div>
+                <label class="form-label small mb-1" for="payout-request-amount">Amount to request (GHS)</label>
+                <input class="form-control" type="number" min="0.01" max="${eligibleGHS}" step="0.01" id="payout-request-amount" ${eligibleGHS <= 0 ? "disabled" : ""} />
+              </div>
+              <button class="btn btn-nsaa" type="submit" ${eligibleGHS <= 0 ? "disabled" : ""}>Request payout</button>
+            </form>
+            <div id="payout-request-result"></div>
+          `;
+
+        const historyHtml = sorted.length
+          ? `
+            <div class="table-responsive mt-3">
+              <table class="table align-middle mb-0">
+                <thead><tr><th>Amount</th><th>Status</th><th>Date</th></tr></thead>
+                <tbody>
+                  ${sorted
+                    .map(
+                      (r) => `
+                    <tr>
+                      <td>${NSAA.money(r.amountGHS)}</td>
+                      <td>
+                        <span class="nsaa-chip"${r.status === "approved" ? ' data-tone="green"' : r.status === "rejected" ? ' data-tone="rose"' : ""}>${NSAA.escapeHtml(r.status)}</span>
+                        ${r.status === "rejected" && r.rejectionReason ? `<p class="nsaa-muted small mb-0">${NSAA.escapeHtml(r.rejectionReason)}</p>` : ""}
+                      </td>
+                      <td>${NSAA.escapeHtml(NSAA.formatDate(r.requestedAt))}</td>
+                    </tr>
+                  `,
+                    )
+                    .join("")}
+                </tbody>
+              </table>
+            </div>
+          `
+          : `<p class="nsaa-muted small mt-3 mb-0">No payout requests yet.</p>`;
+
+        return `
+          <div class="nsaa-panel">
+            <h2 class="h5 mb-1">Payouts</h2>
+            <p class="nsaa-muted small mb-3">Eligible for payout now: <strong>${NSAA.money(eligibleGHS)}</strong>. Requests are reviewed by an admin before the transfer goes out.</p>
+            ${formHtml}
+            ${historyHtml}
+          </div>
+        `;
+      }
 
       function editorTabsHtml(activeKey) {
         return `
@@ -1033,6 +1103,9 @@
                 </div>
                 <div class="nsaa-dashboard-tab-panel" data-dashboard-panel="tickets">
                   <div id="ticket-types-slot"></div>
+                </div>
+                <div class="nsaa-dashboard-tab-panel" data-dashboard-panel="payouts">
+                  <div id="payout-slot"><p class="nsaa-muted mb-0">Loading payout info...</p></div>
                 </div>
                 <div class="nsaa-dashboard-tab-panel" data-dashboard-panel="door">
                   <div id="scanner-staff-slot"></div>
@@ -1174,6 +1247,50 @@
             renderTicketTypes(client, existingEvent._id, summary.ticketTypes);
           },
         );
+
+        // Payouts tab (reactive) - eligible amount and request history are
+        // independent subscriptions, so either can refresh the panel; the
+        // form-submit listener is rebound after every render since the
+        // form itself is replaced each time.
+        let latestEligibleGHS = 0;
+        let latestPayoutRequests = [];
+        function renderPayoutSlot() {
+          const slot = document.getElementById("payout-slot");
+          if (!slot) return;
+          slot.innerHTML = payoutPanelHtml(organizerProfile, latestEligibleGHS, latestPayoutRequests);
+          const payoutForm = document.getElementById("payout-request-form");
+          if (!payoutForm) return;
+          payoutForm.addEventListener("submit", async (evt) => {
+            evt.preventDefault();
+            const resultSlot = document.getElementById("payout-request-result");
+            const amountInput = document.getElementById("payout-request-amount");
+            const submitBtn = payoutForm.querySelector("button[type=submit]");
+            const amountGHS = Number(amountInput.value);
+            if (!Number.isFinite(amountGHS) || amountGHS <= 0) {
+              resultSlot.innerHTML = NSAA.errorState("Check the amount", "Enter an amount greater than 0.");
+              return;
+            }
+            submitBtn.disabled = true;
+            try {
+              await client.mutation("payouts:requestInterimPayout", {
+                eventId: existingEvent._id,
+                amountGHS,
+              });
+              resultSlot.innerHTML = `<div class="nsaa-status-box success"><p class="mb-0">Payout request submitted - an admin will review it shortly.</p></div>`;
+            } catch (err) {
+              resultSlot.innerHTML = NSAA.errorState("Could not submit request", err.message || "Please try again.");
+              submitBtn.disabled = false;
+            }
+          });
+        }
+        client.onUpdate("payouts:eligiblePayoutAmount", { eventId: existingEvent._id }, (eligibleGHS) => {
+          latestEligibleGHS = eligibleGHS ?? 0;
+          renderPayoutSlot();
+        });
+        client.onUpdate("payouts:payoutRequestsForEvent", { eventId: existingEvent._id }, (requests) => {
+          latestPayoutRequests = requests || [];
+          renderPayoutSlot();
+        });
       }
 
       function renderTicketTypes(client, eventId, ticketTypes) {
