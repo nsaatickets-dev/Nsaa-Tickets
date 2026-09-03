@@ -166,6 +166,12 @@ async function payoutEventIfDue(
   const eligibleGHS: number = await ctx.runQuery(api.payouts.eligiblePayoutAmount, { eventId });
   const amountGHS = overrideAmountGHS ?? eligibleGHS;
   if (amountGHS <= 0) {
+    // Only settle off of the real eligible figure, not an admin override -
+    // an override of 0 while eligibleGHS is still positive means real money
+    // is still owed, just not being paid out right now.
+    if (eligibleGHS <= 0) {
+      await ctx.runMutation(internal.payouts.markPayoutSettledIfUnset, { eventId });
+    }
     return { status: "nothing_due", amountGHS: 0 };
   }
 
@@ -376,8 +382,26 @@ export const listEventsDueForAutoPayout = internalQuery({
       .withIndex("by_status_startsAt", (q) => q.eq("status", "published").lte("startsAt", now))
       .collect();
     return events.filter(
-      (event) => Boolean(event.organizerPayoutPhone) && (event.endsAt ?? event.startsAt) <= now,
+      (event) =>
+        event.payoutSettledAt === undefined &&
+        Boolean(event.organizerPayoutPhone) &&
+        (event.endsAt ?? event.startsAt) <= now,
     );
+  },
+});
+
+// Marks an event as having nothing left to pay out, so the sweep above
+// stops re-scanning its full orders/payouts history on every run. This was
+// the single largest source of Convex Database I/O in the app: the sweep
+// re-checked every published+started event's revenue forever, even ones
+// paid out months ago. Idempotent (checked, not just overwritten) so a
+// concurrent settle doesn't reset the timestamp pointlessly.
+export const markPayoutSettledIfUnset = internalMutation({
+  args: { eventId: v.id("events") },
+  handler: async (ctx, { eventId }) => {
+    const event = await ctx.db.get(eventId);
+    if (!event || event.payoutSettledAt !== undefined) return;
+    await ctx.db.patch(eventId, { payoutSettledAt: Date.now() });
   },
 });
 

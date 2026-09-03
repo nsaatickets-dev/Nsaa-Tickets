@@ -108,6 +108,14 @@ export const applyVerifiedStatus = internalMutation({
 
     await issueTickets(ctx, order._id);
 
+    // A paid order landing after the event was marked settled (see
+    // payouts.ts's markPayoutSettledIfUnset) means there's new revenue to
+    // pay out after all - un-settle it so the payout sweep picks it back up.
+    const event = await ctx.db.get(order.eventId);
+    if (event?.payoutSettledAt !== undefined) {
+      await ctx.db.patch(event._id, { payoutSettledAt: undefined });
+    }
+
     await ctx.scheduler.runAfter(0, internal.moolre.sendConfirmation, {
       orderId: order._id,
     });
@@ -128,7 +136,6 @@ export const applyVerifiedStatus = internalMutation({
         orderId: order._id,
       });
 
-      const event = await ctx.db.get(order.eventId);
       if (event && event.startsAt > Date.now()) {
         const fireAt = Math.max(Date.now(), event.startsAt - REMINDER_LEAD_MS);
         await ctx.scheduler.runAt(fireAt, internal.whatsapp.sendEventReminder, {

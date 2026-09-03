@@ -41,6 +41,12 @@ export default defineSchema({
     venueSlug: v.optional(v.string()),
     organizerClerkUserId: v.optional(v.string()), // owner for the self-serve dashboard; unset for pre-v1 seeded/manual events
     organizerPayoutPhone: v.optional(v.string()), // Moolre payout target
+    // Set once the automatic payout sweep finds nothing left to pay out for
+    // this event, so it stops being re-scanned on every future sweep.
+    // Cleared if a paid order ever lands after that (see
+    // moolre.ts's applyVerifiedStatus), so a late/edge-case order still
+    // gets picked back up automatically.
+    payoutSettledAt: v.optional(v.number()),
     createdAt: v.number(),
   })
     .index("by_status", ["status"])
