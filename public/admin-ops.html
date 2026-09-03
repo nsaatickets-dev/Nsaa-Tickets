@@ -763,7 +763,12 @@
         const actions = [];
         if (ticket.status !== "void") actions.push(`<button class="btn btn-nsaa admin-ticket-action" data-action="void" type="button">Void</button>`);
         if (ticket.status === "valid") actions.push(`<button class="btn btn-nsaa admin-ticket-action" data-action="reissue" type="button">Reissue QR</button>`);
-        if (ticket.status === "used") actions.push(`<button class="btn btn-nsaa admin-ticket-action" data-action="unscan" type="button">Undo scan</button>`);
+        // A multi-day ticket stays "valid" between days even after a
+        // scan (see convex/tickets.ts:validateScan) - usedDates.length
+        // catches that case, not just the terminal "used" status.
+        if (ticket.status === "used" || (ticket.usedDates && ticket.usedDates.length > 0)) {
+          actions.push(`<button class="btn btn-nsaa admin-ticket-action" data-action="unscan" type="button">Undo scan</button>`);
+        }
 
         return `
           <div class="nsaa-panel" data-ticket-id="${NSAA.escapeAttr(ticket._id)}">

@@ -418,11 +418,39 @@
       `;
       }
 
-      function ticketTypeRowHtml(t) {
+      const DAY_MS = 24 * 60 * 60 * 1000;
+      function dayStartMs(ts) {
+        return Math.floor(ts / DAY_MS) * DAY_MS;
+      }
+      // Every calendar day an event spans, as UTC-midnight timestamps -
+      // mirrors convex/tickets.ts's eventDayList exactly, since both need
+      // to agree on what "Day 2" means for the same event.
+      function eventDayList(event) {
+        const start = dayStartMs(event.startsAt);
+        const end = dayStartMs(event.endsAt ?? event.startsAt);
+        const days = [];
+        for (let day = start; day <= end; day += DAY_MS) days.push(day);
+        return days;
+      }
+
+      function ticketTypeDayLabel(t, eventDays) {
+        if (eventDays.length <= 1) return "";
+        if (!t.validDayTimestamps || t.validDayTimestamps.length === 0) {
+          return '<span class="nsaa-chip">All days</span>';
+        }
+        const indices = t.validDayTimestamps
+          .map((day) => eventDays.indexOf(day) + 1)
+          .filter((n) => n > 0)
+          .sort((a, b) => a - b);
+        const label = indices.length === 1 ? `Day ${indices[0]}` : `Days ${indices.join(", ")}`;
+        return `<span class="nsaa-chip">${NSAA.escapeHtml(label)}</span>`;
+      }
+
+      function ticketTypeRowHtml(t, eventDays) {
         return `
         <div class="nsaa-meta-item d-flex justify-content-between align-items-center mb-2" data-ticket-type-id="${NSAA.escapeAttr(t._id)}">
           <div>
-            <p class="mb-0 fw-semibold">${NSAA.escapeHtml(t.name)}</p>
+            <p class="mb-0 fw-semibold d-flex align-items-center gap-2">${NSAA.escapeHtml(t.name)} ${ticketTypeDayLabel(t, eventDays)}</p>
             <p class="nsaa-muted small mb-0">${NSAA.money(t.priceGHS)} &middot; ${t.quantityAvailable} of ${t.quantityTotal} available &middot; ${t.quantitySold} sold</p>
           </div>
           <button class="btn btn-outline-nsaa btn-danger-nsaa btn-sm delete-ticket-type" type="button" ${t.quantitySold + t.quantityReserved > 0 ? "disabled title=\"Can't delete a ticket type with sold or reserved tickets\"" : ""}>
@@ -1244,7 +1272,7 @@
             document.getElementById("share-toolkit-slot").innerHTML =
               shareToolkitHtml(existingEvent, summary);
             bindShareToolkit(existingEvent, summary);
-            renderTicketTypes(client, existingEvent._id, summary.ticketTypes);
+            renderTicketTypes(client, existingEvent, summary.ticketTypes);
           },
         );
 
@@ -1293,14 +1321,37 @@
         });
       }
 
-      function renderTicketTypes(client, eventId, ticketTypes) {
+      function ticketTypeDaySelectorHtml(eventDays) {
+        if (eventDays.length <= 1) return "";
+        const checkboxes = eventDays
+          .map(
+            (day, index) => `
+              <div class="form-check form-check-inline">
+                <input class="form-check-input tt-day-checkbox" type="checkbox" value="${day}" id="tt-day-${index}" />
+                <label class="form-check-label small" for="tt-day-${index}">Day ${index + 1} (${NSAA.escapeHtml(NSAA.formatDate(day).split(",")[0])})</label>
+              </div>
+            `,
+          )
+          .join("");
+        return `
+          <div class="col-12">
+            <label class="form-label nsaa-muted small mb-1">Which day(s) is this ticket valid for?</label>
+            <div class="d-flex flex-wrap gap-2">${checkboxes}</div>
+            <p class="nsaa-muted small mb-0 mt-1">Leave all unchecked for a full multi-day pass, valid every day of the event.</p>
+          </div>
+        `;
+      }
+
+      function renderTicketTypes(client, event, ticketTypes) {
+        const eventId = event._id;
+        const eventDays = eventDayList(event);
         const slot = document.getElementById("ticket-types-slot");
         slot.innerHTML = `
         <div class="nsaa-panel">
           <h2 class="h5 mb-1">Ticket types</h2>
           <p class="nsaa-muted small mb-3">Price tiers and inventory buyers see at checkout.</p>
           <div id="ticket-type-list">
-            ${ticketTypes.length ? ticketTypes.map(ticketTypeRowHtml).join("") : '<p class="nsaa-muted small mb-3">No ticket types yet.</p>'}
+            ${ticketTypes.length ? ticketTypes.map((t) => ticketTypeRowHtml(t, eventDays)).join("") : '<p class="nsaa-muted small mb-3">No ticket types yet.</p>'}
           </div>
           <form id="ticket-type-form" class="row g-2 align-items-end mt-2">
             <div class="col-sm-4">
@@ -1321,6 +1372,7 @@
                 Add
               </button>
             </div>
+            ${ticketTypeDaySelectorHtml(eventDays)}
           </form>
           <div id="ticket-type-result" class="mt-2"></div>
         </div>
@@ -1358,12 +1410,17 @@
             return;
           }
 
+          const checkedDays = Array.from(slot.querySelectorAll(".tt-day-checkbox:checked")).map((el) =>
+            Number(el.value),
+          );
+
           try {
             await client.mutation("events:createTicketType", {
               eventId,
               name,
               priceGHS,
               quantityTotal,
+              validDayTimestamps: checkedDays.length ? checkedDays : undefined,
             });
             ttForm.reset();
           } catch (err) {

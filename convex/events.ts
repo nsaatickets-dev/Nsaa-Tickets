@@ -3,6 +3,7 @@ import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { requireAdminSecret, requireAdmin, logAdminAction } from "./admin";
+import { dayStartMs } from "./tickets";
 import { escapeHtml, sendBrevoEmail, SENDERS, renderEmailLayout, paragraph } from "./email";
 import {
   requireNonEmpty,
@@ -1094,12 +1095,17 @@ const ticketTypeInput = {
   name: v.string(),
   priceGHS: v.number(),
   quantityTotal: v.number(),
+  // Which day(s) of the event this tier admits entry on (UTC-midnight
+  // timestamps). Omitted/empty = valid every day of the event (a full
+  // multi-day pass) - see convex/tickets.ts:resolveTicketTypeDays.
+  validDayTimestamps: v.optional(v.array(v.number())),
 };
 
 interface RawTicketTypeFields {
   name: string;
   priceGHS: number;
   quantityTotal: number;
+  validDayTimestamps?: number[];
 }
 
 interface RawOrganizerProfileFields {
@@ -1166,17 +1172,47 @@ function sanitizeEventFields(fields: RawEventFields) {
   };
 }
 
-function sanitizeTicketTypeFields(ticketType: RawTicketTypeFields) {
+// Snaps each entry to its calendar day, dedupes/sorts, and rejects any
+// day outside the event's own start/end range - a day-scoped tier can't
+// admit entry on a day the event doesn't run. Returns undefined for an
+// empty list (preserves "unset = full pass").
+function resolveAndValidateTicketTypeDays(
+  rawDays: number[] | undefined,
+  eventDates: { startsAt: number; endsAt?: number },
+): number[] | undefined {
+  if (!rawDays || rawDays.length === 0) return undefined;
+
+  const rangeStart = dayStartMs(eventDates.startsAt);
+  const rangeEnd = dayStartMs(eventDates.endsAt ?? eventDates.startsAt);
+  const days = Array.from(new Set(rawDays.map(dayStartMs))).sort((a, b) => a - b);
+
+  for (const day of days) {
+    if (day < rangeStart || day > rangeEnd) {
+      throw new Error("Ticket type day(s) must fall within the event's own dates.");
+    }
+  }
+
+  return days;
+}
+
+function sanitizeTicketTypeFields(
+  ticketType: RawTicketTypeFields,
+  eventDates: { startsAt: number; endsAt?: number },
+) {
   return {
     name: requireNonEmpty(ticketType.name, "Ticket type name", 80),
     priceGHS: requirePositiveNumber(ticketType.priceGHS, "Price", 100_000),
     quantityTotal: requirePositiveInteger(ticketType.quantityTotal, "Quantity", 100_000),
     quantitySold: 0,
     quantityReserved: 0,
+    validDayTimestamps: resolveAndValidateTicketTypeDays(ticketType.validDayTimestamps, eventDates),
   };
 }
 
-function sanitizeTicketTypes(ticketTypes: RawTicketTypeFields[]) {
+function sanitizeTicketTypes(
+  ticketTypes: RawTicketTypeFields[],
+  eventDates: { startsAt: number; endsAt?: number },
+) {
   if (ticketTypes.length < 1) {
     throw new Error("Add at least one ticket tier.");
   }
@@ -1184,7 +1220,7 @@ function sanitizeTicketTypes(ticketTypes: RawTicketTypeFields[]) {
     throw new Error("Create no more than 12 ticket tiers at a time.");
   }
 
-  return ticketTypes.map(sanitizeTicketTypeFields);
+  return ticketTypes.map((ticketType) => sanitizeTicketTypeFields(ticketType, eventDates));
 }
 
 // Enforcement point for admin God Mode's organizer suspension
@@ -1231,7 +1267,7 @@ export const createEventWithStarterTicket = mutation({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Sign in required to create an event.");
     await requireNotSuspended(ctx, identity.subject);
-    const [starterTicket] = sanitizeTicketTypes([args.starterTicket]);
+    const [starterTicket] = sanitizeTicketTypes([args.starterTicket], args);
     const eventFields = sanitizeEventFields(args);
 
     const eventId = await ctx.db.insert("events", {
@@ -1260,7 +1296,7 @@ export const createEventWithTicketTypes = mutation({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Sign in required to create an event.");
     await requireNotSuspended(ctx, identity.subject);
-    const ticketTypes = sanitizeTicketTypes(args.ticketTypes);
+    const ticketTypes = sanitizeTicketTypes(args.ticketTypes, args);
     const eventFields = sanitizeEventFields(args);
 
     const eventId = await ctx.db.insert("events", {
@@ -1312,10 +1348,11 @@ export const createTicketType = mutation({
     name: v.string(),
     priceGHS: v.number(),
     quantityTotal: v.number(),
+    validDayTimestamps: v.optional(v.array(v.number())),
   },
   handler: async (ctx, args) => {
-    await requireOwnedEvent(ctx, args.eventId);
-    const ticketType = sanitizeTicketTypeFields(args);
+    const { event } = await requireOwnedEvent(ctx, args.eventId);
+    const ticketType = sanitizeTicketTypeFields(args, event);
     return await ctx.db.insert("ticketTypes", {
       eventId: args.eventId,
       ...ticketType,
@@ -1329,15 +1366,17 @@ export const updateTicketType = mutation({
     name: v.string(),
     priceGHS: v.number(),
     quantityTotal: v.number(),
+    validDayTimestamps: v.optional(v.array(v.number())),
   },
   handler: async (ctx, args) => {
     const ticketType = await ctx.db.get(args.ticketTypeId);
     if (!ticketType) throw new Error("Ticket type not found.");
-    await requireOwnedEvent(ctx, ticketType.eventId);
+    const { event } = await requireOwnedEvent(ctx, ticketType.eventId);
 
     const name = requireNonEmpty(args.name, "Ticket type name", 80);
     const priceGHS = requirePositiveNumber(args.priceGHS, "Price", 100_000);
     const quantityTotal = requirePositiveInteger(args.quantityTotal, "Quantity", 100_000);
+    const validDayTimestamps = resolveAndValidateTicketTypeDays(args.validDayTimestamps, event);
 
     if (quantityTotal < ticketType.quantitySold + ticketType.quantityReserved) {
       throw new Error(
@@ -1345,7 +1384,7 @@ export const updateTicketType = mutation({
       );
     }
 
-    await ctx.db.patch(args.ticketTypeId, { name, priceGHS, quantityTotal });
+    await ctx.db.patch(args.ticketTypeId, { name, priceGHS, quantityTotal, validDayTimestamps });
   },
 });
 

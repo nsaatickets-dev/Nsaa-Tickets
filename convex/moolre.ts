@@ -190,6 +190,11 @@ export const sendConfirmation = internalAction({
     if (detailed && detailed.tickets.length > 0) {
       const siteUrl = process.env.CONVEX_SITE_URL ?? "";
       const ticketTypeName = detailed.ticketType?.name ?? "Ticket";
+      const daysTotal = detailed.tickets[0]?.validDayTimestamps?.length;
+      const scanNote =
+        daysTotal && daysTotal > 1
+          ? `each is valid for ${daysTotal} days - one scan admits per day`
+          : "each code can only be scanned once";
       const ticketsHtml = detailed.tickets
         .map((ticket, index) =>
           ticketBlock({
@@ -209,6 +214,7 @@ export const sendConfirmation = internalAction({
           venue: detailed.event?.venue ?? "Venue TBA",
           startsAt: detailed.event?.startsAt,
           ticketTypeName,
+          daysTotal,
           tickets: detailed.tickets.map((ticket, index) => ({
             qrToken: ticket.qrToken,
             ownerName: ticket.ownerName,
@@ -233,7 +239,7 @@ export const sendConfirmation = internalAction({
           bodyHtml:
             paragraph(`Hi ${escapeHtml(order.buyerName)},`) +
             paragraph(
-              `Your order is confirmed. <strong>GHS ${order.totalGHS}</strong> was charged. A printable PDF ticket file is attached, and your ticket${detailed.tickets.length > 1 ? "s are" : " is"} also below - each code can only be scanned once, so keep this email or a screenshot handy at the door.`,
+              `Your order is confirmed. <strong>GHS ${order.totalGHS}</strong> was charged. A printable PDF ticket file is attached, and your ticket${detailed.tickets.length > 1 ? "s are" : " is"} also below - ${scanNote}, so keep this email or a screenshot handy at the door.`,
             ) +
             ticketsHtml,
           footerNote: "This email confirms a ticket purchase on Nsaa Tickets.",

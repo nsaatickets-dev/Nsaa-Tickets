@@ -162,7 +162,9 @@
             });
 
             if (result.ok) {
-              showResult("ok", "VALID", `Welcome ${result.ownerName}${result.gateLabel ? ` · ${result.gateLabel}` : ""}`);
+              const dayNote =
+                result.daysTotal && result.daysTotal > 1 ? ` · Day ${result.daysUsed} of ${result.daysTotal}` : "";
+              showResult("ok", "VALID", `Welcome ${result.ownerName}${result.gateLabel ? ` · ${result.gateLabel}` : ""}${dayNote}`);
             } else {
               showResult(
                 "fail",

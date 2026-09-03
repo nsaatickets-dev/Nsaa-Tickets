@@ -27,6 +27,35 @@ function serviceFee(subtotal) {
   return Math.floor(subtotal * 0.045 * 100) / 100;
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+function dayStartMs(ts) {
+  return Math.floor(ts / DAY_MS) * DAY_MS;
+}
+// Mirrors convex/tickets.ts's eventDayList - every calendar day the event
+// spans, as UTC-midnight timestamps.
+function eventDayList(event) {
+  const start = dayStartMs(event.startsAt);
+  const end = dayStartMs(event.endsAt ?? event.startsAt);
+  const days = [];
+  for (let day = start; day <= end; day += DAY_MS) days.push(day);
+  return days;
+}
+
+// A "Day 2" / "Days 2-3" badge for a day-scoped tier. No badge for a full
+// multi-day pass (unset/empty validDayTimestamps) or an ordinary
+// single-day event - no visual change for the vast majority of events.
+function ticketDayBadgeHtml(ticket, eventDays) {
+  if (eventDays.length <= 1) return "";
+  if (!ticket.validDayTimestamps || ticket.validDayTimestamps.length === 0) return "";
+  const indices = ticket.validDayTimestamps
+    .map((day) => eventDays.indexOf(day) + 1)
+    .filter((n) => n > 0)
+    .sort((a, b) => a - b);
+  if (!indices.length) return "";
+  const label = indices.length === 1 ? `Day ${indices[0]}` : `Days ${indices.join(", ")}`;
+  return `<span class="nsaa-chip" data-tone="gold">${NSAA.escapeHtml(label)}</span>`;
+}
+
 function eventShareUrl(event) {
   return `${window.location.origin}/events/${encodeURIComponent(event.slug || event._id)}`;
 }
@@ -35,7 +64,7 @@ async function handleShareClick(button, event) {
   const url = eventShareUrl(event);
   const shareData = {
     title: event.title,
-    text: `${event.title} — ${NSAA.formatDate(event.startsAt)} at ${event.venue}, ${event.city}`,
+    text: `${event.title} — ${NSAA.formatDateRange(event.startsAt, event.endsAt)} at ${event.venue}, ${event.city}`,
     url,
   };
   if (navigator.share) {
@@ -157,7 +186,7 @@ function renderEvent(event) {
             <span class="nsaa-icon-badge flex-shrink-0"><i class="ph ph-calendar-blank nsaa-trust-icon"></i></span>
             <div>
               <p class="nsaa-faint small mb-1">Date and time</p>
-              <p class="mb-0 fw-semibold">${NSAA.escapeHtml(NSAA.formatDate(event.startsAt, "long"))}</p>
+              <p class="mb-0 fw-semibold">${NSAA.escapeHtml(NSAA.formatDateRange(event.startsAt, event.endsAt, "long"))}</p>
             </div>
           </div>
           <div class="nsaa-meta-item d-flex align-items-center gap-3">
@@ -209,7 +238,7 @@ function renderEvent(event) {
     <div class="nsaa-sticky-cta-inner">
       <div class="nsaa-sticky-cta-copy">
         <strong>${NSAA.escapeHtml(event.title)}</strong>
-        <span>${NSAA.escapeHtml(NSAA.formatDate(event.startsAt))}</span>
+        <span>${NSAA.escapeHtml(NSAA.formatDateRange(event.startsAt, event.endsAt))}</span>
       </div>
       <a class="btn btn-nsaa" href="#ticket-types">Buy tickets</a>
     </div>
@@ -239,6 +268,7 @@ function renderTicketTypes(types) {
   }
 
   const sortedTiers = [...currentTicketTypes].sort((a, b) => b.priceGHS - a.priceGHS);
+  const eventDays = eventDayList(currentEvent);
 
   container.innerHTML = sortedTiers
     .map((ticket, index) => {
@@ -252,13 +282,14 @@ function renderTicketTypes(types) {
           ? `${ticket.quantityAvailable} left`
           : `${ticket.quantityAvailable} available`;
       const presentation = NSAA.tierPresentation(ticket.name, index);
+      const dayBadge = ticketDayBadgeHtml(ticket, eventDays);
 
       return `
     <article class="nsaa-card nsaa-tier-card p-3 mb-3" style="border-left-color: ${NSAA.escapeAttr(presentation.accentHex)};">
       <div class="nsaa-ticket-row">
         <div>
           <div class="d-flex align-items-center justify-content-between gap-3 mb-2">
-            <h3 class="h5 mb-0"><i class="ph ${NSAA.escapeAttr(presentation.icon)} me-2" style="color: ${NSAA.escapeAttr(presentation.accentHex)};"></i>${NSAA.escapeHtml(ticket.name)}</h3>
+            <h3 class="h5 mb-0"><i class="ph ${NSAA.escapeAttr(presentation.icon)} me-2" style="color: ${NSAA.escapeAttr(presentation.accentHex)};"></i>${NSAA.escapeHtml(ticket.name)} ${dayBadge}</h3>
             <span class="nsaa-chip" data-tone="${soldOut ? "rose" : "green"}">${NSAA.escapeHtml(availability)}</span>
           </div>
           <div class="nsaa-price-breakdown p-3">

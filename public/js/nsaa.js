@@ -247,6 +247,26 @@
     return date.toLocaleString(undefined, options);
   }
 
+  // For a multi-day event, renders a date range instead of just the start
+  // date - falls back to formatDate's single-date behavior whenever
+  // endsAt is unset or falls on the same calendar day as startsAt (the
+  // overwhelming majority of events), so there's no visible change for a
+  // normal single-day listing.
+  function formatDateRange(startsAt, endsAt, mode = "short") {
+    if (!startsAt) return "Date to be announced";
+    if (!endsAt) return formatDate(startsAt, mode);
+    const startDate = new Date(startsAt);
+    const endDate = new Date(endsAt);
+    if (startDate.toDateString() === endDate.toDateString()) {
+      return formatDate(startsAt, mode);
+    }
+    const dayOptions = { weekday: "short", month: "short", day: "numeric" };
+    const endOptions = mode === "long" ? { ...dayOptions, year: "numeric" } : dayOptions;
+    const startLabel = startDate.toLocaleDateString(undefined, dayOptions);
+    const endLabel = endDate.toLocaleDateString(undefined, endOptions);
+    return `${startLabel} – ${endLabel}`;
+  }
+
   function categoryMeta(value) {
     return (
       categoryByValue.get(value) ?? {
@@ -320,7 +340,7 @@
   function eventCard(event, options = {}) {
     const meta = categoryMeta(event.category);
     const image = eventImage(event);
-    const date = formatDate(event.startsAt);
+    const date = formatDateRange(event.startsAt, event.endsAt);
     const stub = dateStubParts(event.startsAt);
     const href =
       options.href || eventHref(event, options.extraParams || {});
@@ -818,6 +838,7 @@
     eventImage,
     attachConvexAuth,
     formatDate,
+    formatDateRange,
     getClerk,
     isConvexConfigured,
     isAnalyticsConfigured,

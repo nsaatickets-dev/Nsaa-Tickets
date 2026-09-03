@@ -101,6 +101,10 @@ export const ticketsToPdfBase64 = internalAction({
     venue: v.string(),
     startsAt: v.optional(v.number()),
     ticketTypeName: v.string(),
+    // Number of distinct days this ticket type admits entry on (see
+    // convex/tickets.ts:resolveTicketTypeDays) - undefined/1 means an
+    // ordinary single-day ticket, the "scan once" copy below is correct.
+    daysTotal: v.optional(v.number()),
     tickets: v.array(
       v.object({
         qrToken: v.string(),
@@ -124,6 +128,10 @@ export const ticketsToPdfBase64 = internalAction({
     const ticketTypeName = pdfText(args.ticketTypeName, "Ticket");
     const eventDate = pdfText(formatEventDate(args.startsAt));
     const total = args.tickets.length;
+    const scanCopy =
+      args.daysTotal && args.daysTotal > 1
+        ? `Valid for ${args.daysTotal} days - one scan admits per day. Print this page or show it on your phone.`
+        : "Scan once at entry. Print this page or show it on your phone.";
 
     for (const ticket of args.tickets) {
       const page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
@@ -179,7 +187,7 @@ export const ticketsToPdfBase64 = internalAction({
       page.drawText(wrapText(venue, regular, 12, 190)[0], { x: 320, y: 195, size: 12, font: regular, color: ink });
 
       page.drawLine({ start: { x: 96, y: 158 }, end: { x: 516, y: 158 }, thickness: 1, color: rule });
-      drawCenteredText(page, "Scan once at entry. Print this page or show it on your phone.", regular, 10, 132, muted);
+      drawCenteredText(page, scanCopy, regular, 10, 132, muted);
       drawCenteredText(page, `Ticket ID: ${shortId}`, regular, 9, 112, muted);
       drawCenteredText(page, "nsaatickets.com", bold, 10, 78, ink);
     }

@@ -67,6 +67,11 @@ export default defineSchema({
     quantityTotal: v.number(),
     quantitySold: v.number(), // confirmed, paid
     quantityReserved: v.number(), // held during checkout, not yet paid
+    // Which day(s) of a multi-day event this tier admits entry on, as
+    // UTC-midnight timestamps (see convex/tickets.ts:dayStartMs). Unset/
+    // empty means valid every day of the event - a full multi-day pass.
+    // Set to specific day(s) for a day-scoped tier (e.g. "Day 2 only").
+    validDayTimestamps: v.optional(v.array(v.number())),
   }).index("by_event", ["eventId"]),
 
   // One checkout attempt. An order can produce multiple tickets
@@ -165,13 +170,31 @@ export default defineSchema({
 
     status: v.union(
       v.literal("pending"), // order not yet paid
-      v.literal("valid"), // paid, not yet scanned
-      v.literal("used"), // scanned at the gate
+      // Paid, and still has at least one un-consumed valid day left (see
+      // validDayTimestamps/usedDates below) - for an ordinary single-day
+      // ticket this is exactly "not yet scanned", same as always.
+      v.literal("valid"),
+      // Every valid day has been scanned (a single-day ticket reaches this
+      // after its one scan, same as always; a multi-day pass only reaches
+      // this once its whole run is consumed).
+      v.literal("used"),
       v.literal("void"), // event cancelled or order refunded
     ),
 
     usedAt: v.optional(v.number()),
     scannedBy: v.optional(v.string()), // door staff identifier, optional
+
+    // Snapshot of which day(s) (UTC-midnight timestamps) this specific
+    // ticket admits entry on, resolved from its ticketType at issuance
+    // time (see convex/tickets.ts:issueTickets) - later edits to the
+    // ticketType don't retroactively change already-issued tickets.
+    // Left unset on every ticket issued before this field existed;
+    // validateScan keeps a dedicated fallback for those so old tickets
+    // keep behaving exactly as they always have (single scan, terminal).
+    validDayTimestamps: v.optional(v.array(v.number())),
+    // Day(s) (UTC-midnight timestamps) already consumed by a successful
+    // scan. Only ever populated alongside validDayTimestamps.
+    usedDates: v.optional(v.array(v.number())),
 
     createdAt: v.number(),
   })

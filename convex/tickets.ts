@@ -80,6 +80,41 @@ async function ticketExpiryForEvent(ctx: any, eventId: any): Promise<number> {
   return eventCutoff && eventCutoff > Date.now() ? eventCutoff : Date.now() + TICKET_EXPIRY_FALLBACK_MS;
 }
 
+// --- Multi-day ticket day math ---
+// Ghana runs UTC+0 year-round (no DST), so "calendar day" can be computed
+// this way safely everywhere (server and browser) with no timezone
+// library. A "day" is always represented as its UTC-midnight timestamp.
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+export function dayStartMs(ts: number): number {
+  return Math.floor(ts / DAY_MS) * DAY_MS;
+}
+
+function eventDayList(event: { startsAt: number; endsAt?: number }): number[] {
+  const start = dayStartMs(event.startsAt);
+  const end = dayStartMs(event.endsAt ?? event.startsAt);
+  const days: number[] = [];
+  for (let day = start; day <= end; day += DAY_MS) {
+    days.push(day);
+  }
+  return days;
+}
+
+// A ticket type with no validDayTimestamps set (or an empty list) is a
+// full multi-day pass, valid every day the event runs - including an
+// ordinary single-day event, where this just resolves to that one day,
+// reproducing today's exact single-scan behavior with no special-casing
+// needed anywhere else.
+function resolveTicketTypeDays(
+  ticketType: { validDayTimestamps?: number[] } | null,
+  event: { startsAt: number; endsAt?: number },
+): number[] {
+  if (ticketType?.validDayTimestamps && ticketType.validDayTimestamps.length > 0) {
+    return ticketType.validDayTimestamps;
+  }
+  return eventDayList(event);
+}
+
 async function buildSignedToken(ticketId: string, expiry: number): Promise<string> {
   const secret = process.env.QR_SIGNING_SECRET;
   if (!secret) throw new Error("QR_SIGNING_SECRET is not configured");
@@ -96,7 +131,16 @@ export async function issueTickets(ctx: any, orderId: any) {
   const order = await ctx.db.get(orderId);
   if (!order) throw new Error("Order not found");
 
+  const [event, ticketType] = await Promise.all([
+    ctx.db.get(order.eventId),
+    ctx.db.get(order.ticketTypeId),
+  ]);
+
   const expiry = await ticketExpiryForEvent(ctx, order.eventId);
+  // Resolved once per order (identical for every unit) and snapshotted
+  // onto each ticket - a later edit to the ticketType's day config only
+  // affects tickets sold after the edit, not ones already issued.
+  const resolvedDays = event ? resolveTicketTypeDays(ticketType, event) : undefined;
   const ticketIds = [];
   for (let i = 0; i < order.quantity; i++) {
     const ticketId = await ctx.db.insert("tickets", {
@@ -107,6 +151,7 @@ export async function issueTickets(ctx: any, orderId: any) {
       ownerPhone: order.buyerPhone,
       qrToken: "", // filled in immediately below, insert first to get an id
       status: "valid",
+      validDayTimestamps: resolvedDays,
       createdAt: Date.now(),
     });
 
@@ -116,7 +161,6 @@ export async function issueTickets(ctx: any, orderId: any) {
   }
 
   // Move inventory from reserved to sold now that payment is confirmed.
-  const ticketType = await ctx.db.get(order.ticketTypeId);
   if (ticketType) {
     await ctx.db.patch(order.ticketTypeId, {
       quantityReserved: Math.max(
@@ -390,10 +434,44 @@ export const validateScan = mutation({
       return await reject(`Ticket is ${ticket.status}`, ticket);
     }
 
+    // No validDayTimestamps means this ticket was issued before multi-day
+    // support existed - keep its behavior byte-for-byte unchanged: one
+    // scan, terminal "used", forever.
+    if (!ticket.validDayTimestamps || ticket.validDayTimestamps.length === 0) {
+      await ctx.db.patch(ticket._id, {
+        status: "used",
+        usedAt: Date.now(),
+        scannedBy: scannedBy || scannerStaff?.name,
+      });
+      await logScan("accepted", undefined, ticket, scannerStaff);
+
+      return {
+        ok: true,
+        ownerName: ticket.ownerName,
+        ticketTypeId: ticket.ticketTypeId,
+        gateLabel: scannerStaff?.gateLabel,
+        scannerName: scannerStaff?.name,
+      };
+    }
+
+    // Multi-day (or day-scoped) ticket: valid every day in
+    // validDayTimestamps, capped at one scan per calendar day, until
+    // every valid day has been consumed.
+    const today = dayStartMs(Date.now());
+    if (!ticket.validDayTimestamps.includes(today)) {
+      return await reject("This ticket is not valid today", ticket);
+    }
+    if (ticket.usedDates?.includes(today)) {
+      return await reject(`Already used today at ${new Date(ticket.usedAt ?? 0).toLocaleString()}`, ticket);
+    }
+
+    const newUsedDates = [...(ticket.usedDates ?? []), today];
+    const daysRemaining = ticket.validDayTimestamps.length - newUsedDates.length;
     await ctx.db.patch(ticket._id, {
-      status: "used",
+      status: daysRemaining <= 0 ? "used" : "valid",
       usedAt: Date.now(),
       scannedBy: scannedBy || scannerStaff?.name,
+      usedDates: newUsedDates,
     });
     await logScan("accepted", undefined, ticket, scannerStaff);
 
@@ -403,6 +481,8 @@ export const validateScan = mutation({
       ticketTypeId: ticket.ticketTypeId,
       gateLabel: scannerStaff?.gateLabel,
       scannerName: scannerStaff?.name,
+      daysUsed: newUsedDates.length,
+      daysTotal: ticket.validDayTimestamps.length,
     };
   },
 });
@@ -437,6 +517,10 @@ export const adminVoidTicket = mutation({
 // leaked/photographed code before doors open, this invalidates every copy
 // of the old code (validateScan signature-checks against the current
 // token) without voiding the ticket or making the buyer re-checkout.
+// The status!=="valid" guard below still does the right thing under
+// multi-day tickets unchanged: a still-active pass with unconsumed days
+// left stays "valid" and remains reissuable; a fully-consumed one is
+// "used" and correctly blocked.
 export const adminReissueTicket = mutation({
   args: { ticketId: v.id("tickets"), reason: v.string() },
   handler: async (ctx, { ticketId, reason }) => {
@@ -464,7 +548,12 @@ export const adminReissueTicket = mutation({
 });
 
 // Admin God Mode: undoes a mis-scan (wrong ticket tapped, a scanner
-// glitch double-fired) by flipping "used" back to "valid".
+// glitch double-fired) by flipping "used" back to "valid". For a
+// multi-day ticket this only undoes its most recent day's scan (keyed
+// off usedAt's calendar day, not "today", so this still works correctly
+// if an admin fixes a mis-scan just after midnight) rather than
+// resetting the whole ticket - a legacy ticket with no usedDates at all
+// keeps today's exact full-reset behavior.
 export const adminUnscanTicket = mutation({
   args: { ticketId: v.id("tickets"), reason: v.string() },
   handler: async (ctx, { ticketId, reason }) => {
@@ -474,11 +563,22 @@ export const adminUnscanTicket = mutation({
 
     const ticket = await ctx.db.get(ticketId);
     if (!ticket) throw new Error("Ticket not found.");
-    if (ticket.status !== "used") {
-      throw new Error(`Ticket is ${ticket.status}, not used - nothing to unscan.`);
-    }
 
-    await ctx.db.patch(ticketId, { status: "valid", usedAt: undefined, scannedBy: undefined });
+    if (!ticket.usedDates || ticket.usedDates.length === 0) {
+      if (ticket.status !== "used") {
+        throw new Error(`Ticket is ${ticket.status}, not used - nothing to unscan.`);
+      }
+      await ctx.db.patch(ticketId, { status: "valid", usedAt: undefined, scannedBy: undefined });
+    } else {
+      const lastUsedDay = dayStartMs(ticket.usedAt ?? Date.now());
+      const remainingUsedDates = ticket.usedDates.filter((day) => day !== lastUsedDay);
+      await ctx.db.patch(ticketId, {
+        status: "valid",
+        usedAt: undefined,
+        scannedBy: undefined,
+        usedDates: remainingUsedDates,
+      });
+    }
 
     await logAdminAction(ctx, admin, {
       action: "ticket.unscan",

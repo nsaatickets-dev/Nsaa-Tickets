@@ -20,7 +20,7 @@ const OUTSIDE_SESSION_WINDOW_ERROR_CODE = 131047;
 const FAQ_ANSWERS: Record<string, string> = {
   refunds:
     "All ticket sales are final except when an event is fully cancelled by the organizer, in which case a refund is processed automatically. Service fees are never refunded.",
-  qr: "After you pay, we'll send your ticket right here as a QR code image. Show it at the door - each code can only be scanned once, so keep it safe and don't forward it to anyone else.",
+  qr: "After you pay, we'll send your ticket right here as a QR code image. Show it at the door - your ticket is checked at each entry, so keep it safe and don't forward it to anyone else.",
   human: "You can reach our support team any time at support@nsaatickets.com and we'll get back to you as soon as we can.",
 };
 

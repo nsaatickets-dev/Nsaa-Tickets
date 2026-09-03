@@ -396,7 +396,7 @@
         const meta = NSAA.categoryMeta(event.category);
         return {
           title: event.title,
-          meta: [event.venue, event.city].filter(Boolean).join(", ") || NSAA.formatDate(event.startsAt),
+          meta: [event.venue, event.city].filter(Boolean).join(", ") || NSAA.formatDateRange(event.startsAt, event.endsAt),
           category: meta.shortLabel,
           href: NSAA.eventHref(event),
           image: NSAA.eventImage(event),
