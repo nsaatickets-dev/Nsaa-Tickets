@@ -55,12 +55,15 @@ export function ticketBlock(params: {
 }
 
 // Wraps email body content in a branded "paper ledger" letterhead: white
-// card, gold header band, dashed divider, muted footer. Mirrors the QR
-// ticket shell's sanctioned white/printed-object exception (see
-// DESIGN.md) rather than the site's dark chrome, since full dark-bg HTML
-// emails get unpredictably color-inverted by Gmail/Outlook/Apple Mail
-// dark-mode rewriting. Logo/colors are placeholders pending final brand
-// assets - swap the hex values below when those land.
+// card, logo header, dashed divider, muted footer. Mirrors the QR ticket
+// shell's sanctioned white/printed-object exception (see DESIGN.md) rather
+// than the site's dark chrome, since full dark-bg HTML emails get
+// unpredictably color-inverted by Gmail/Outlook/Apple Mail dark-mode
+// rewriting. Logo and ink/muted colors mirror the real site header (see
+// .nsaa-brand-mark / --nsaa-ink / --nsaa-ink-muted in public/css/nsaa.css)
+// so the letterhead matches the brand instead of the old placeholder box.
+const LOGO_URL = "https://www.nsaatickets.com/logo.jpeg";
+
 export function renderEmailLayout(params: {
   heading: string;
   bodyHtml: string;
@@ -75,13 +78,15 @@ export function renderEmailLayout(params: {
         <td align="center">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px; background-color:#ffffff; border:1px solid #e8e3d8;">
             <tr>
-              <td style="background-color:#dfb36c; padding:22px 32px;">
+              <td style="background-color:#ffffff; padding:22px 32px; border-bottom:1px solid #e8e3d8;">
                 <table role="presentation" cellpadding="0" cellspacing="0">
                   <tr>
-                    <td style="width:34px; height:34px; background-color:#120e06; text-align:center; vertical-align:middle; font-weight:800; font-size:15px; color:#dfb36c;">N</td>
+                    <td style="width:38px;">
+                      <img src="${LOGO_URL}" width="38" height="38" alt="Nsaa Tickets" style="display:block; width:38px; height:38px; border-radius:6px; border:1px solid rgba(36,31,26,0.22);" />
+                    </td>
                     <td style="padding-left:12px;">
-                      <div style="font-weight:800; font-size:19px; letter-spacing:-0.02em; color:#120e06; line-height:1;">NSAA</div>
-                      <div style="font-weight:700; font-size:10px; letter-spacing:0.22em; color:#120e06; line-height:1; margin-top:3px;">TICKETS</div>
+                      <div style="font-weight:800; font-size:19px; letter-spacing:-0.02em; color:#241f1a; line-height:1;">NSAA</div>
+                      <div style="font-weight:700; font-size:10px; letter-spacing:0.22em; color:#6b5f52; line-height:1; margin-top:3px;">TICKETS</div>
                     </td>
                   </tr>
                 </table>
@@ -89,7 +94,7 @@ export function renderEmailLayout(params: {
             </tr>
             <tr>
               <td style="padding:32px;">
-                <h1 style="margin:0 0 16px; font-weight:800; font-size:20px; letter-spacing:-0.01em; color:#0b0b0e;">${heading}</h1>
+                <h1 style="margin:0 0 16px; font-weight:800; font-size:20px; letter-spacing:-0.01em; color:#241f1a;">${heading}</h1>
                 <div style="font-size:15px; line-height:1.6; color:#33333a;">${bodyHtml}</div>
               </td>
             </tr>
