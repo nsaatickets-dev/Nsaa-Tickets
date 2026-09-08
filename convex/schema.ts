@@ -47,6 +47,13 @@ export default defineSchema({
     // moolre.ts's applyVerifiedStatus), so a late/edge-case order still
     // gets picked back up automatically.
     payoutSettledAt: v.optional(v.number()),
+    // The currently-pending auto-payout job scheduled by
+    // scheduleAutoPayoutAtEventEnd (events.ts), so a later create/edit/
+    // status-change call can cancel it before scheduling a fresh one
+    // instead of stacking a second job at the same endsAt - two jobs
+    // firing concurrently means two real Moolre transfer attempts for
+    // the same event.
+    payoutScheduledFunctionId: v.optional(v.id("_scheduled_functions")),
     createdAt: v.number(),
   })
     .index("by_status", ["status"])
@@ -306,7 +313,17 @@ export default defineSchema({
     // left unset (implicitly "final") on every existing creation path -
     // the automatic end-of-event sweep and admin manual overrides.
     kind: v.optional(v.union(v.literal("interim"), v.literal("final"))),
-  }).index("by_event", ["eventId"]),
+  })
+    .index("by_event", ["eventId"])
+    .index("by_status_created", ["status", "createdAt"])
+    // Lets eligiblePayoutAmount and hasRecentFailedPayout fetch only the
+    // handful of paid/pending/recent-failed rows they actually need for
+    // an event, instead of by_event's full history - a repeatedly-failing
+    // payout (e.g. a permanently bad phone number) can accumulate hundreds
+    // of failed rows for one event, and both of those queries run on
+    // every retry, so without this they re-read that whole growing
+    // history every ~40 minutes forever.
+    .index("by_event_status_created", ["eventId", "status", "createdAt"]),
 
   // Organizer-initiated request for an interim/milestone payout while an
   // event's sales are still running (Pro/Custom tier perk) - a separate

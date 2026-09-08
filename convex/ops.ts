@@ -83,7 +83,14 @@ export const overview = query({
         ctx.db.query("organizerInquiries").collect(),
         ctx.db.query("contactMessages").collect(),
         ctx.db.query("events").collect(),
-        ctx.db.query("payouts").collect(),
+        // A repeatedly-failing automatic payout can pile up hundreds of
+        // rows for a single event (see payouts.ts's MAX_AUTO_PAYOUT_ATTEMPTS
+        // comment) - collect()ing the whole table here re-reads all of
+        // that growing history on every admin console load (and again on
+        // every reactive re-run, since this query re-executes whenever any
+        // payout row changes). _creationTime's built-in index bounds this
+        // to the 120 rows actually shown, regardless of table size.
+        ctx.db.query("payouts").order("desc").take(120),
         ctx.db.query("serviceFeeTransfers").collect(),
         ctx.db.query("payoutRequests").collect(),
       ]);
@@ -92,7 +99,7 @@ export const overview = query({
       organizerInquiries: organizerInquiries.sort((a, b) => b.createdAt - a.createdAt).slice(0, 80),
       contactMessages: contactMessages.sort((a, b) => b.createdAt - a.createdAt).slice(0, 80),
       events: events.sort((a, b) => b.createdAt - a.createdAt).slice(0, 120),
-      payouts: payouts.sort((a, b) => b.createdAt - a.createdAt).slice(0, 120),
+      payouts,
       serviceFeeTransfers: serviceFeeTransfers.sort((a, b) => b.createdAt - a.createdAt).slice(0, 120),
       payoutRequests: payoutRequests.sort((a, b) => b.requestedAt - a.requestedAt).slice(0, 120),
     };

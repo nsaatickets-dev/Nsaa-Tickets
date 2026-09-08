@@ -1,5 +1,6 @@
 import { action, mutation, internalAction, internalMutation, internalQuery, query } from "./_generated/server";
 import { internal, api } from "./_generated/api";
+import type { Doc } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { requireAdmin, logAdminAction, type AdminIdentity } from "./admin";
 import { requireOwnedEvent } from "./events";
@@ -12,6 +13,14 @@ import { sendBrevoEmail, SENDERS, renderEmailLayout, paragraph, escapeHtml } fro
 // of every payout regardless of who/what started it.
 const SYSTEM_IDENTITY: AdminIdentity = { subject: "system", label: "Automatic payout" };
 const AUTO_PAYOUT_FAILED_RETRY_DELAY_MS = 30 * 60 * 1000;
+// Caps how many times the automatic sweep will retry one event's payout
+// before giving up and waiting for a human. Without this, a permanently
+// bad payout phone/account (the failure Moolre reports isn't something a
+// retry ever fixes) retries forever - one event hit ~500 failed attempts
+// over 12 days before this cap existed. Admin-triggered retries (strict
+// mode) bypass this, same as they already bypass the recent-failure
+// backoff below.
+const MAX_AUTO_PAYOUT_ATTEMPTS = 5;
 
 // Moolre's TRANSFER channel codes are different from their COLLECTION
 // channel codes (verified against docs.moolre.com) - MTN is 1 here vs 13
@@ -56,13 +65,26 @@ export const eligiblePayoutAmount = query({
 
     const grossGHS = paidOrders.reduce((sum, o) => sum + o.ticketSubtotalGHS, 0);
 
-    const existingPayouts = await ctx.db
-      .query("payouts")
-      .withIndex("by_event", (q) => q.eq("eventId", eventId))
-      .filter((q) => q.neq(q.field("status"), "failed"))
-      .collect();
+    // "Not failed" (paid or pending) as two indexed lookups rather than
+    // by_event's full history filtered in memory - a repeatedly-failing
+    // payout can pile up hundreds of "failed" rows for one event, and
+    // this query runs on every automatic retry, so scanning past them
+    // every time would make each retry more expensive than the last.
+    const [paidPayouts, pendingPayouts] = await Promise.all([
+      ctx.db
+        .query("payouts")
+        .withIndex("by_event_status_created", (q) => q.eq("eventId", eventId).eq("status", "paid"))
+        .collect(),
+      ctx.db
+        .query("payouts")
+        .withIndex("by_event_status_created", (q) => q.eq("eventId", eventId).eq("status", "pending"))
+        .collect(),
+    ]);
 
-    const alreadyAccountedGHS = existingPayouts.reduce((sum, p) => sum + p.amountGHS, 0);
+    const alreadyAccountedGHS = [...paidPayouts, ...pendingPayouts].reduce(
+      (sum, p) => sum + p.amountGHS,
+      0,
+    );
 
     return Math.max(0, Math.round((grossGHS - alreadyAccountedGHS) * 100) / 100);
   },
@@ -271,6 +293,19 @@ async function payoutEventIfDue(
     });
     if (hasRecentFailure) {
       return { status: "deferred", amountGHS, reason: "recent_failed_payout" };
+    }
+
+    // Each real attempt above already alerts on its own failure (see
+    // sendOrganizerPayoutTransfer's caller below and autoPayoutSingleEvent's
+    // catch block) - that's the signal for a human to fix the payout
+    // details, so this just stops the retries once it's clearly not a
+    // transient problem, rather than alerting again here too.
+    const failedAttempts: number = await ctx.runQuery(internal.payouts.countFailedPayoutAttempts, {
+      eventId,
+      limit: MAX_AUTO_PAYOUT_ATTEMPTS,
+    });
+    if (failedAttempts >= MAX_AUTO_PAYOUT_ATTEMPTS) {
+      return { status: "blocked", amountGHS, reason: "max_auto_retry_attempts_reached" };
     }
   }
 
@@ -634,12 +669,34 @@ export const hasRecentFailedPayout = internalQuery({
     since: v.number(),
   },
   handler: async (ctx, { eventId, since }) => {
+    // Indexed directly to "failed rows for this event created since X",
+    // stopping at the first match - a full by_event scan here would re-read
+    // every past failure on each retry, growing with the event's own
+    // failure count instead of staying flat.
     const recent = await ctx.db
       .query("payouts")
-      .withIndex("by_event", (q) => q.eq("eventId", eventId))
-      .filter((q) => q.gte(q.field("createdAt"), since))
-      .collect();
-    return recent.some((payout) => payout.status === "failed");
+      .withIndex("by_event_status_created", (q) =>
+        q.eq("eventId", eventId).eq("status", "failed").gte("createdAt", since),
+      )
+      .first();
+    return recent !== null;
+  },
+});
+
+// Bounded to `limit` reads regardless of how many times this event's
+// payout has actually failed - .take() stops the index scan early instead
+// of collecting the whole (potentially hundreds-deep) failure history.
+export const countFailedPayoutAttempts = internalQuery({
+  args: {
+    eventId: v.id("events"),
+    limit: v.number(),
+  },
+  handler: async (ctx, { eventId, limit }) => {
+    const failed = await ctx.db
+      .query("payouts")
+      .withIndex("by_event_status_created", (q) => q.eq("eventId", eventId).eq("status", "failed"))
+      .take(limit);
+    return failed.length;
   },
 });
 
@@ -730,7 +787,7 @@ export const adminSetPayoutStatus = mutation({
 // Moolre's own status endpoint before marking a payout paid.
 export const verifyAndProcessPayout = internalAction({
   args: { externalref: v.string(), payoutId: v.id("payouts") },
-  handler: async (ctx, { externalref, payoutId }) => {
+  handler: async (ctx, { externalref, payoutId }): Promise<void> => {
     let txstatus: number | undefined;
     let transactionId: string | undefined;
 
@@ -806,6 +863,44 @@ export const applyVerifiedPayoutStatus = internalMutation({
 export const getPayoutInternal = internalQuery({
   args: { payoutId: v.id("payouts") },
   handler: async (ctx, { payoutId }) => ctx.db.get(payoutId),
+});
+
+// Cron-triggered (see convex/crons.ts) - verifyAndProcessPayout above is
+// otherwise only ever called from the Moolre webhook (http.ts), so a
+// payout whose webhook callback is delayed, dropped, or never registered
+// stays "pending" forever with nobody re-checking it - real money that
+// already left the platform, with no confirmation it arrived. Mirrors
+// serviceFees.ts's verifyPendingServiceFeeTransfers, which has the same
+// webhook-as-only-path gap already closed for service-fee transfers.
+export const listPendingPayouts = internalQuery({
+  args: { olderThan: v.number(), limit: v.number() },
+  handler: async (ctx, { olderThan, limit }): Promise<Doc<"payouts">[]> => {
+    return await ctx.db
+      .query("payouts")
+      .withIndex("by_status_created", (q) => q.eq("status", "pending").lt("createdAt", olderThan))
+      .take(limit);
+  },
+});
+
+export const verifyPendingPayouts = internalAction({
+  args: {},
+  handler: async (ctx): Promise<{ status: string; checked: number }> => {
+    const payouts: Doc<"payouts">[] = await ctx.runQuery(internal.payouts.listPendingPayouts, {
+      // Give the webhook a couple of minutes to land normally before this
+      // sweep duplicates the same status check.
+      olderThan: Date.now() - 2 * 60 * 1000,
+      limit: 40,
+    });
+
+    for (const payout of payouts) {
+      await ctx.runAction(internal.payouts.verifyAndProcessPayout, {
+        externalref: `payout:${payout._id}`,
+        payoutId: payout._id,
+      });
+    }
+
+    return { status: "ok", checked: payouts.length };
+  },
 });
 
 // Lets an organizer know their money actually moved, rather than having

@@ -73,15 +73,28 @@ export function computePlatformFee(ticketSubtotalGHS: number, feePercent: number
   return Math.floor(ticketSubtotalGHS * feePercent * 100) / 100;
 }
 
+// Every create/update/status-change call reaches this function, so without
+// cancelling whatever was scheduled before, each edit stacks another
+// payout job at the same endsAt - all of them firing concurrently once the
+// event ends, each one a real, independent Moolre transfer attempt for the
+// same event. Cancelling the prior job first keeps exactly one pending.
 async function scheduleAutoPayoutAtEventEnd(
   ctx: MutationCtx,
   eventId: Id<"events">,
-  event: Pick<Doc<"events">, "startsAt" | "endsAt">,
+  event: Pick<Doc<"events">, "startsAt" | "endsAt"> & {
+    payoutScheduledFunctionId?: Id<"_scheduled_functions">;
+  },
 ) {
+  if (event.payoutScheduledFunctionId) {
+    await ctx.scheduler.cancel(event.payoutScheduledFunctionId);
+  }
   const payoutAt = event.endsAt ?? event.startsAt;
-  await ctx.scheduler.runAt(Math.max(Date.now(), payoutAt), internal.payouts.autoPayoutSingleEvent, {
-    eventId,
-  });
+  const payoutScheduledFunctionId = await ctx.scheduler.runAt(
+    Math.max(Date.now(), payoutAt),
+    internal.payouts.autoPayoutSingleEvent,
+    { eventId },
+  );
+  await ctx.db.patch(eventId, { payoutScheduledFunctionId });
 }
 
 export const generateHeroImageUploadUrl = mutation({
@@ -1321,10 +1334,13 @@ export const createEventWithTicketTypes = mutation({
 export const updateEvent = mutation({
   args: { eventId: v.id("events"), ...eventFields },
   handler: async (ctx, { eventId, ...fields }) => {
-    await requireOwnedEvent(ctx, eventId);
+    const { event: existingEvent } = await requireOwnedEvent(ctx, eventId);
     const eventFields = sanitizeEventFields(fields);
     await ctx.db.patch(eventId, eventFields);
-    await scheduleAutoPayoutAtEventEnd(ctx, eventId, eventFields);
+    await scheduleAutoPayoutAtEventEnd(ctx, eventId, {
+      ...eventFields,
+      payoutScheduledFunctionId: existingEvent.payoutScheduledFunctionId,
+    });
   },
 });
 

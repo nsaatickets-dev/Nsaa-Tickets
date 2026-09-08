@@ -24,6 +24,16 @@ crons.interval(
   internal.payouts.autoPayoutEndedEvents,
 );
 
+// Safety-net verification for organizer payouts if Moolre's webhook
+// callback is delayed or missed - without this, a payout that Moolre
+// accepted but never confirmed via webhook stays "pending" forever.
+// Mirrors "verify service fee transfers" below.
+crons.interval(
+  "verify pending organizer payouts",
+  { minutes: 10 },
+  internal.payouts.verifyPendingPayouts,
+);
+
 // Moves retained Nsaa service fees from the Moolre wallet into the
 // configured GCB instant bank account, and backfills paid orders created
 // before the account env var was configured. The real-time path already
