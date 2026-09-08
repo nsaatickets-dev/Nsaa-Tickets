@@ -36,8 +36,8 @@ export function detectMoolreTransferChannel(phone: string): string {
   const prefix = local.slice(0, 3);
 
   const mtn = ["024", "025", "053", "054", "055", "059"];
-  const telecel = ["020", "030", "050"];
-  const airtelTigo = ["026", "027", "028", "056", "057"];
+  const telecel = ["020", "050"];
+  const airtelTigo = ["026", "027", "056", "057"];
 
   if (mtn.includes(prefix)) return "1";
   if (telecel.includes(prefix)) return "6";
@@ -49,6 +49,52 @@ export function detectMoolreTransferChannel(phone: string): string {
 function isMoolreSuccess(value: unknown): boolean {
   return Number(value) === 1 || String(value ?? "").trim() === "1";
 }
+
+// Diagnostic - Moolre's docs recommend calling their "Validate Name"
+// endpoint before a transfer to confirm the recipient resolves on the
+// given channel, which this codebase doesn't otherwise do. Lets an admin
+// (or `npx convex run` on the deployment) check why a specific payout
+// phone is being rejected without spending a real transfer attempt on it.
+export const validatePayoutRecipient = internalAction({
+  args: { phone: v.string(), channel: v.optional(v.string()) },
+  handler: async (
+    ctx,
+    { phone, channel },
+  ): Promise<{ channel: string; status: unknown; code: unknown; message: unknown; accountName: unknown }> => {
+    const config = requireMoolreEnv([
+      "MOOLRE_API_BASE",
+      "MOOLRE_API_USER",
+      "MOOLRE_API_KEY",
+      "MOOLRE_ACCOUNT_NUMBER",
+    ]);
+    const resolvedChannel = channel ?? detectMoolreTransferChannel(phone);
+
+    const response = await fetch(`${config.MOOLRE_API_BASE}/open/transact/validate`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-API-USER": config.MOOLRE_API_USER,
+        "X-API-KEY": config.MOOLRE_API_KEY,
+      },
+      body: JSON.stringify({
+        type: 1,
+        receiver: phone,
+        channel: resolvedChannel,
+        currency: "GHS",
+        accountnumber: config.MOOLRE_ACCOUNT_NUMBER,
+      }),
+    });
+
+    const data = await response.json();
+    return {
+      channel: resolvedChannel,
+      status: data.status,
+      code: data.code,
+      message: data.message,
+      accountName: data.data,
+    };
+  },
+});
 
 // How much of an event's ticket revenue is eligible for payout right now:
 // paid orders' ticket subtotal only (the organizer's cut - the service
@@ -182,34 +228,29 @@ export const requestInterimPayout = mutation({
   },
 });
 
-// Shared by both the admin-triggered action below and the automatic cron
-// job (autoPayoutEndedEvents) - creates the pending payout record and
-// fires the real Moolre transfer. Never throws on a Moolre-side rejection
-// (marks the payout "failed" and returns that instead) so a batch of
-// automatic payouts can keep going after one event's transfer is
-// rejected, rather than the whole cron run aborting.
-async function sendOrganizerPayoutTransfer(
-  ctx: any,
-  params: {
-    eventId: any;
-    organizerPayoutPhone: string;
-    amountGHS: number;
-    kind?: "interim" | "final";
-  },
-): Promise<{ payoutId: any; accepted: boolean; failureReason?: string }> {
-  const { eventId, organizerPayoutPhone, amountGHS, kind } = params;
+// All three Moolre transfer channels, prefix-guessed one first (see
+// detectMoolreTransferChannel) - Ghana numbers get ported between
+// MTN/Telecel/AT and keep their original prefix, so the guess can be wrong
+// for a perfectly valid, correctly-registered number. One rejected
+// attempt on a channel is a definitive, synchronous "not sent" (not a
+// timeout/uncertain outcome - see Moolre's Safe Retries guidance), so
+// trying the remaining channels next is a legitimate new attempt, not an
+// unsafe blind retry.
+export const ALL_MOOLRE_TRANSFER_CHANNELS = ["1", "6", "7"] as const;
 
-  const payoutId = await ctx.runMutation(internal.payouts.createPendingPayout, {
-    eventId,
-    organizerPayoutPhone,
-    amountGHS,
-    kind,
-  });
+async function attemptMoolreTransfer(params: {
+  payoutId: any;
+  organizerPayoutPhone: string;
+  amountGHS: number;
+  channel: string;
+}): Promise<{ accepted: boolean; externalref: string; failureReason?: string }> {
+  const { payoutId, organizerPayoutPhone, amountGHS, channel } = params;
 
-  // Same prefixing scheme as orders.ts - lets the shared webhook tell a
-  // payout apart from a customer payment.
-  const externalref = `payout:${payoutId}`;
-  const channel = detectMoolreTransferChannel(organizerPayoutPhone);
+  // Channel-suffixed so each attempt gets its own externalref - required
+  // ("unique ID to identify the transfer" per Moolre's docs) and correct,
+  // since a rejected attempt on one channel and a fresh attempt on another
+  // are genuinely different requests, not retries of the same one.
+  const externalref = `payout:${payoutId}:${channel}`;
   const config = requireMoolreEnv([
     "MOOLRE_API_BASE",
     "MOOLRE_API_USER",
@@ -237,13 +278,79 @@ async function sendOrganizerPayoutTransfer(
 
   const data = await response.json();
   const accepted = data.status === 1;
+  return {
+    accepted,
+    externalref,
+    failureReason: accepted ? undefined : data.message || "Payout could not be started.",
+  };
+}
 
-  if (!accepted) {
-    await ctx.runMutation(internal.payouts.markPayoutFailed, { payoutId });
-    return { payoutId, accepted: false, failureReason: data.message || "Payout could not be started." };
+// Shared by both the admin-triggered action below and the automatic cron
+// job (autoPayoutEndedEvents) - creates the pending payout record and
+// fires the real Moolre transfer, falling back to the other two networks
+// if the prefix-guessed one is rejected. Never throws on a Moolre-side
+// rejection (marks the payout "failed" and returns that instead) so a
+// batch of automatic payouts can keep going after one event's transfer is
+// rejected, rather than the whole cron run aborting.
+async function sendOrganizerPayoutTransfer(
+  ctx: any,
+  params: {
+    eventId: any;
+    organizerPayoutPhone: string;
+    amountGHS: number;
+    kind?: "interim" | "final";
+  },
+): Promise<{ payoutId: any; accepted: boolean; failureReason?: string }> {
+  const { eventId, organizerPayoutPhone, amountGHS, kind } = params;
+
+  const payoutId = await ctx.runMutation(internal.payouts.createPendingPayout, {
+    eventId,
+    organizerPayoutPhone,
+    amountGHS,
+    kind,
+  });
+
+  // Prefix-to-network mapping is inherently unreliable - carriers get
+  // allocated new prefix blocks over time, blocks get reassigned (028 is
+  // classified as AirtelTigo below but at least one carrier reference
+  // lists it as Expresso instead), and ported numbers keep their original
+  // prefix regardless of their current network. A guess is only used to
+  // pick which channel to try first; an unrecognized prefix must never
+  // block the attempt entirely, since every channel gets tried anyway.
+  let guessedChannel: string | undefined;
+  try {
+    guessedChannel = detectMoolreTransferChannel(organizerPayoutPhone);
+  } catch {
+    guessedChannel = undefined;
+  }
+  const channelsToTry = guessedChannel
+    ? [guessedChannel, ...ALL_MOOLRE_TRANSFER_CHANNELS.filter((c) => c !== guessedChannel)]
+    : [...ALL_MOOLRE_TRANSFER_CHANNELS];
+
+  let lastFailureReason: string | undefined;
+  for (const channel of channelsToTry) {
+    const result = await attemptMoolreTransfer({ payoutId, organizerPayoutPhone, amountGHS, channel });
+    if (result.accepted) {
+      await ctx.runMutation(internal.payouts.setPayoutAcceptedChannel, {
+        payoutId,
+        externalRef: result.externalref,
+        channel,
+      });
+      return { payoutId, accepted: true };
+    }
+    lastFailureReason = result.failureReason;
+    // Insufficient balance is about our own wallet, not the recipient's
+    // network - trying the other two channels can't fix that, so stop
+    // instead of spending two more calls on a guaranteed-identical result.
+    if (lastFailureReason && /balance/i.test(lastFailureReason)) break;
   }
 
-  return { payoutId, accepted: true };
+  await ctx.runMutation(internal.payouts.markPayoutFailed, { payoutId });
+  return {
+    payoutId,
+    accepted: false,
+    failureReason: lastFailureReason || "Payout could not be started.",
+  };
 }
 
 async function payoutEventIfDue(
@@ -723,6 +830,18 @@ export const markPayoutFailed = internalMutation({
   },
 });
 
+// Records which channel/externalref Moolre actually accepted, once one of
+// sendOrganizerPayoutTransfer's channel attempts succeeds - needed because
+// the winning channel isn't necessarily the prefix-guessed one, and later
+// status verification (webhook or the verifyPendingPayouts sweep) has to
+// use the exact externalref that was accepted, not a reconstructed guess.
+export const setPayoutAcceptedChannel = internalMutation({
+  args: { payoutId: v.id("payouts"), externalRef: v.string(), channel: v.string() },
+  handler: async (ctx, { payoutId, externalRef, channel }) => {
+    await ctx.db.patch(payoutId, { externalRef, channel });
+  },
+});
+
 export const logPayoutInitiated = internalMutation({
   args: {
     payoutId: v.id("payouts"),
@@ -893,8 +1012,10 @@ export const verifyPendingPayouts = internalAction({
     });
 
     for (const payout of payouts) {
+      // Falls back to the old (pre-channel-fallback) externalref shape for
+      // rows created before this field existed.
       await ctx.runAction(internal.payouts.verifyAndProcessPayout, {
-        externalref: `payout:${payout._id}`,
+        externalref: payout.externalRef ?? `payout:${payout._id}`,
         payoutId: payout._id,
       });
     }

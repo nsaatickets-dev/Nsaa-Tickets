@@ -313,6 +313,16 @@ export default defineSchema({
     // left unset (implicitly "final") on every existing creation path -
     // the automatic end-of-event sweep and admin manual overrides.
     kind: v.optional(v.union(v.literal("interim"), v.literal("final"))),
+    // The actual externalref Moolre accepted, once one of the channel
+    // attempts below succeeds (see sendOrganizerPayoutTransfer) - each
+    // attempted channel uses its own externalref, so verifying/webhook
+    // matching this payout later needs the one that was actually accepted,
+    // not a reconstructed guess.
+    externalRef: v.optional(v.string()),
+    // Which network the accepted attempt used - may differ from what the
+    // phone number's prefix would suggest (numbers get ported between
+    // MTN/Telecel/AT and keep their original prefix).
+    channel: v.optional(v.string()),
   })
     .index("by_event", ["eventId"])
     .index("by_status_created", ["status", "createdAt"])

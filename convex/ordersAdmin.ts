@@ -8,12 +8,61 @@ import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { requireAdmin, logAdminAction } from "./admin";
 import { issueTickets } from "./tickets";
-import { detectMoolreTransferChannel } from "./payouts";
+import { detectMoolreTransferChannel, ALL_MOOLRE_TRANSFER_CHANNELS } from "./payouts";
 import { requireMoolreEnv } from "./moolreConfig";
 import { alertCritical } from "./alerts";
 
 function isMoolreSuccess(value: unknown): boolean {
   return Number(value) === 1 || String(value ?? "").trim() === "1";
+}
+
+// Mirrors payouts.ts's attemptMoolreTransfer/channel-fallback design: the
+// prefix-guessed network can be wrong (ported numbers, incomplete/stale
+// prefix tables), so a rejected attempt on one channel is followed by a
+// fresh attempt on the others rather than failing the refund outright.
+// Each attempt gets its own externalref, and a definitive synchronous
+// rejection is a "not sent" outcome, not an uncertain one - so trying the
+// next channel is a legitimate new request, not an unsafe blind retry.
+async function attemptRefundTransfer(params: {
+  orderId: any;
+  buyerPhone: string;
+  amountGHS: number;
+  channel: string;
+}): Promise<{ accepted: boolean; externalref: string; failureReason?: string }> {
+  const { orderId, buyerPhone, amountGHS, channel } = params;
+  const externalref = `refund:${orderId}:${Date.now()}:${channel}`;
+  const config = requireMoolreEnv([
+    "MOOLRE_API_BASE",
+    "MOOLRE_API_USER",
+    "MOOLRE_API_KEY",
+    "MOOLRE_ACCOUNT_NUMBER",
+  ]);
+
+  const response = await fetch(`${config.MOOLRE_API_BASE}/open/transact/transfer`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-API-USER": config.MOOLRE_API_USER,
+      "X-API-KEY": config.MOOLRE_API_KEY,
+    },
+    body: JSON.stringify({
+      type: 1,
+      channel,
+      currency: "GHS",
+      amount: String(amountGHS),
+      receiver: buyerPhone,
+      externalref,
+      accountnumber: config.MOOLRE_ACCOUNT_NUMBER,
+    }),
+  });
+
+  const data = await response.json();
+  const accepted = data.status === 1;
+  return {
+    accepted,
+    externalref,
+    failureReason: accepted ? undefined : data.message || "Refund transfer could not be started.",
+  };
 }
 
 // For the "Moolre webhook never fired but the buyer really did pay" case -
@@ -116,45 +165,48 @@ export const adminRefundOrder = action({
       throw new Error(`Refund amount must be between 0 and ${order.totalGHS} GHS.`);
     }
 
-    const externalref = `refund:${orderId}:${Date.now()}`;
-    const channel = detectMoolreTransferChannel(order.buyerPhone);
-    const config = requireMoolreEnv([
-      "MOOLRE_API_BASE",
-      "MOOLRE_API_USER",
-      "MOOLRE_API_KEY",
-      "MOOLRE_ACCOUNT_NUMBER",
-    ]);
+    // Prefix-based guessing can be wrong (ported numbers, incomplete/stale
+    // prefix tables - see payouts.ts's sendOrganizerPayoutTransfer for the
+    // full reasoning), so an unrecognized prefix must not block the refund
+    // outright; it just means no preferred first channel.
+    let guessedChannel: string | undefined;
+    try {
+      guessedChannel = detectMoolreTransferChannel(order.buyerPhone);
+    } catch {
+      guessedChannel = undefined;
+    }
+    const channelsToTry = guessedChannel
+      ? [guessedChannel, ...ALL_MOOLRE_TRANSFER_CHANNELS.filter((c) => c !== guessedChannel)]
+      : [...ALL_MOOLRE_TRANSFER_CHANNELS];
 
-    const response = await fetch(`${config.MOOLRE_API_BASE}/open/transact/transfer`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-API-USER": config.MOOLRE_API_USER,
-        "X-API-KEY": config.MOOLRE_API_KEY,
-      },
-      body: JSON.stringify({
-        type: 1,
+    let acceptedExternalref: string | undefined;
+    let lastFailureReason: string | undefined;
+    for (const channel of channelsToTry) {
+      const result = await attemptRefundTransfer({
+        orderId,
+        buyerPhone: order.buyerPhone,
+        amountGHS,
         channel,
-        currency: "GHS",
-        amount: String(amountGHS),
-        receiver: order.buyerPhone,
-        externalref,
-        accountnumber: config.MOOLRE_ACCOUNT_NUMBER,
-      }),
-    });
+      });
+      if (result.accepted) {
+        acceptedExternalref = result.externalref;
+        break;
+      }
+      lastFailureReason = result.failureReason;
+      // Insufficient balance is about our own wallet, not the buyer's
+      // network - trying the other two channels can't fix that.
+      if (lastFailureReason && /balance/i.test(lastFailureReason)) break;
+    }
 
-    const data = await response.json();
-    const accepted = data.status === 1;
-
-    if (!accepted) {
-      throw new Error(data.message || "Refund transfer could not be started.");
+    if (!acceptedExternalref) {
+      throw new Error(lastFailureReason || "Refund transfer could not be started.");
     }
 
     await ctx.runMutation(internal.ordersAdmin.markRefundPending, {
       orderId,
       amountGHS,
       reason: trimmedReason,
-      externalref,
+      externalref: acceptedExternalref,
       adminSubject: admin.subject,
       adminLabel: admin.label,
     });

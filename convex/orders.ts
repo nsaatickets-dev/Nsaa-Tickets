@@ -33,8 +33,8 @@ function detectMoolreChannel(phone: string): string {
   const prefix2 = local.slice(0, 3); // "0XX"
 
   const mtn = ["024", "025", "053", "054", "055", "059"];
-  const telecel = ["020", "030", "050"];
-  const airtelTigo = ["026", "027", "028", "056", "057"];
+  const telecel = ["020", "050"];
+  const airtelTigo = ["026", "027", "056", "057"];
 
   if (mtn.includes(prefix2)) return "13";
   if (telecel.includes(prefix2)) return "6";
