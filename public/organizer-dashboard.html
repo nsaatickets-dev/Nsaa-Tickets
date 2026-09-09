@@ -405,6 +405,7 @@
             <div class="col-md-6">
               <label class="form-label nsaa-muted small" for="ef-payout-phone">Payout Mobile Money number optional</label>
               <input id="ef-payout-phone" class="form-control form-control-nsaa" type="tel" value="${NSAA.escapeAttr(payoutPhone)}" placeholder="024 000 0000" />
+              <div id="ef-payout-phone-status" class="small mt-1"></div>
               ${payoutPhoneInherited ? `<p class="nsaa-faint small mt-1 mb-0">Pre-filled from your organizer profile. Only change it if this event should pay out to a different number.</p>` : ""}
             </div>
           </div>
@@ -826,6 +827,56 @@
         });
       }
 
+      // Moolre's own docs recommend showing the initiator the resolved
+      // account name before a transfer, so an organizer can catch a
+      // mistyped payout number here instead of discovering it as a
+      // failed payout after the event ends. Advisory only - it never
+      // blocks saving the event, since a "could not verify right now"
+      // result is common and isn't the same as an invalid number.
+      function bindPayoutPhoneVerification(client) {
+        const input = document.getElementById("ef-payout-phone");
+        const status = document.getElementById("ef-payout-phone-status");
+        if (!input || !status) return;
+
+        let lastChecked = "";
+
+        input.addEventListener("blur", async () => {
+          const phone = input.value.trim();
+          if (!phone || phone === lastChecked) return;
+          if (phone.replace(/[\s\-()]/g, "").length < 9) return;
+          lastChecked = phone;
+
+          status.textContent = "Checking Mobile Money registration...";
+          status.className = "small mt-1 nsaa-muted";
+
+          try {
+            const result = await client.action("payouts:validateOrganizerPayoutPhone", { phone });
+            if (lastChecked !== phone || input.value.trim() !== phone) return;
+
+            if (result.status === "confirmed") {
+              status.textContent = `Registered to: ${result.name}. Make sure that's the right person before saving.`;
+              status.className = "small mt-1 text-success";
+            } else if (result.status === "not_found") {
+              status.textContent = "No Mobile Money account found for this number - double-check it before saving.";
+              status.className = "small mt-1 text-warning";
+            } else {
+              status.textContent = "Could not verify this number automatically right now - you can still continue.";
+              status.className = "small mt-1 nsaa-faint";
+            }
+          } catch (err) {
+            if (lastChecked !== phone) return;
+            status.textContent = "Could not verify this number automatically right now - you can still continue.";
+            status.className = "small mt-1 nsaa-faint";
+          }
+        });
+
+        input.addEventListener("input", () => {
+          if (input.value.trim() !== lastChecked) {
+            status.textContent = "";
+          }
+        });
+      }
+
       function readEventForm() {
         return {
           title: document.getElementById("ef-title").value.trim(),
@@ -1158,6 +1209,7 @@
         populateCitySelect(existingEvent?.city);
         populateAgeSelect(existingEvent?.ageRating);
         bindHeroImageControls();
+        bindPayoutPhoneVerification(client);
         if (!isEditing) bindTicketTierBuilder();
 
         const form = document.getElementById("event-form");

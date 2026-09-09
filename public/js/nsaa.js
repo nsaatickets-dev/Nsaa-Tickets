@@ -5,7 +5,7 @@
   // vercel.json). Falls back to the known production URL for local dev
   // via `npm run serve`, where no build step runs to generate the file.
   const CONVEX_URL =
-    window.NSAA_CONVEX_CONFIG?.url || "https://adjoining-aardvark-475.convex.cloud";
+    window.NSAA_CONVEX_CONFIG?.url || "https://aromatic-iguana-779.convex.cloud";
 
   const categories = [
     {

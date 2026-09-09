@@ -7,6 +7,8 @@ import { requireOwnedEvent } from "./events";
 import { alertCritical } from "./alerts";
 import { requireMoolreEnv } from "./moolreConfig";
 import { sendBrevoEmail, SENDERS, renderEmailLayout, paragraph, escapeHtml } from "./email";
+import { requireValidGhanaPhone } from "./validation";
+import { rateLimiter } from "./rateLimit";
 
 // Attributes automatic (cron-triggered) payouts in the same audit trail
 // as admin-triggered ones, so the Audit Log tab shows a single timeline
@@ -164,6 +166,83 @@ export const updateMoolreCallbackUrl = internalAction({
     });
     const data = await response.json();
     return { status: data.status, code: data.code, message: data.message, data: data.data };
+  },
+});
+
+// Organizer-facing: Moolre's own Validate Name docs recommend showing the
+// initiator the resolved account name before a transfer, so an organizer
+// can catch a mistyped payout number before it costs them a failed/
+// misdirected payout later. Tries every channel (not just the
+// prefix-guessed one) before giving up - a ported number would otherwise
+// come back as a false "not found" - and only reports "not_found" once
+// every channel gives Moolre's own documented AVD02 response; anything
+// else (including the undocumented, currently-ongoing MTN/AT/bank
+// failures - see payoutEventIfDue's channel fallback) is surfaced as
+// "unavailable" rather than a false claim that the number is invalid.
+export const validateOrganizerPayoutPhone = action({
+  args: { phone: v.string() },
+  handler: async (
+    ctx,
+    { phone },
+  ): Promise<{ status: "confirmed" | "not_found" | "unavailable"; name?: string }> => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Sign in required.");
+    await rateLimiter.limit(ctx, "payoutPhoneValidationByOrganizer", {
+      key: identity.subject,
+      throws: true,
+    });
+
+    let normalizedPhone: string;
+    try {
+      normalizedPhone = requireValidGhanaPhone(phone);
+    } catch {
+      return { status: "unavailable" };
+    }
+
+    const config = requireMoolreEnv([
+      "MOOLRE_API_BASE",
+      "MOOLRE_API_USER",
+      "MOOLRE_API_KEY",
+      "MOOLRE_ACCOUNT_NUMBER",
+    ]);
+
+    let guessedChannel: string | undefined;
+    try {
+      guessedChannel = detectMoolreTransferChannel(normalizedPhone);
+    } catch {
+      guessedChannel = undefined;
+    }
+    const channelsToTry = guessedChannel
+      ? [guessedChannel, ...ALL_MOOLRE_TRANSFER_CHANNELS.filter((c) => c !== guessedChannel)]
+      : [...ALL_MOOLRE_TRANSFER_CHANNELS];
+
+    let sawDefiniteNotFound = false;
+    for (const channel of channelsToTry) {
+      const response = await fetch(`${config.MOOLRE_API_BASE}/open/transact/validate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-API-USER": config.MOOLRE_API_USER,
+          "X-API-KEY": config.MOOLRE_API_KEY,
+        },
+        body: JSON.stringify({
+          type: 1,
+          receiver: normalizedPhone,
+          channel,
+          currency: "GHS",
+          accountnumber: config.MOOLRE_ACCOUNT_NUMBER,
+        }),
+      });
+      const data = await response.json();
+      if (Number(data.status) === 1 && typeof data.data === "string") {
+        return { status: "confirmed", name: data.data };
+      }
+      if (data.code === "AVD02") {
+        sawDefiniteNotFound = true;
+      }
+    }
+
+    return { status: sawDefiniteNotFound ? "not_found" : "unavailable" };
   },
 });
 

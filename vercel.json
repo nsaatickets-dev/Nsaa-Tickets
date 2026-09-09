@@ -6,7 +6,7 @@
   "rewrites": [
     {
       "source": "/events/:slug",
-      "destination": "https://adjoining-aardvark-475.convex.site/seo/event?slug=:slug"
+      "destination": "https://aromatic-iguana-779.convex.site/seo/event?slug=:slug"
     }
   ]
 }

@@ -31,4 +31,12 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
   // real back-and-forth conversation, bounds a single number hammering
   // the webhook (see convex/whatsapp.ts:recordInboundIfNew).
   whatsappInboundByPhone: { kind: "fixed window", rate: 30, period: MINUTE },
+
+  // Payout phone name-lookup, keyed on the signed-in organizer's Clerk id.
+  // This calls Moolre's Validate Name endpoint, which resolves a phone
+  // number to the real person's registered name - a privacy-sensitive
+  // lookup, not just an abuse-prevention one, so it's bounded even though
+  // an authenticated organizer isn't otherwise a spam risk the way a
+  // public form is.
+  payoutPhoneValidationByOrganizer: { kind: "fixed window", rate: 10, period: MINUTE },
 });
