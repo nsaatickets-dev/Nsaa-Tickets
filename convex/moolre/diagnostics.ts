@@ -19,10 +19,10 @@
 // - updateCallbackUrl: corrects the account's registered webhook
 //   callback via Moolre's Update Account endpoint. `callback` has no
 //   default - this must never silently repoint the account somewhere
-//   unintended. `api` defaults to true if omitted (see client.ts's
-//   updateAccountCallback - Moolre disables API access account-wide if
-//   this field is left out of the request entirely); `accountname` is
-//   only sent when explicitly passed.
+//   unintended. `api` defaults to true and `accountname` is re-read from
+//   the account's current state if omitted (see client.ts's
+//   updateAccountCallback - Moolre clears both fields, not just leaves
+//   them unchanged, when they're left out of the request entirely).
 // - reconcilePayoutFromLedger: one-off correction for a payout row the
 //   now-fixed status "1" vs 1 bug marked "failed" despite Moolre's
 //   ledger showing it was actually accepted. Refuses to touch a row

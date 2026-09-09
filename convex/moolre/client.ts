@@ -331,16 +331,27 @@ export async function listTransactions(
   return await response.json();
 }
 
-// POST /open/account/update - `api` is ALWAYS sent explicitly (defaulting
-// to true), never omitted. Moolre's account API does NOT "leave unchanged"
-// a field just because it's absent from the request - confirmed the hard
-// way three times this session: omitting `api` disables API access for the
-// whole account rather than preserving it. `accountname` doesn't share
-// this failure mode, so it's only sent when explicitly passed.
+// POST /open/account/update - Moolre's account API does NOT "leave
+// unchanged" a field just because it's absent from the request, despite
+// what the docs imply. Confirmed the hard way, in production: omitting
+// `api` disables API access account-wide, and separately, omitting
+// `accountname` wipes it to an empty string. Rather than track every
+// field this turns out to affect one at a time, read the account's
+// current state first and resend everything explicitly unless the
+// caller overrides it - nothing this endpoint knows about can be
+// silently cleared by an update call again.
 export async function updateAccountCallback(
   config: MoolreConfig,
   params: { callback: string; api?: boolean; accountname?: string },
 ): Promise<{ status: unknown; code: unknown; message: unknown; data: unknown }> {
+  let resolvedAccountname = params.accountname;
+  if (resolvedAccountname === undefined) {
+    const current = await getAccountStatus(config);
+    const currentData = current.data as { accountname?: unknown } | undefined;
+    if (typeof currentData?.accountname === "string" && currentData.accountname !== "") {
+      resolvedAccountname = currentData.accountname;
+    }
+  }
   const response = await fetch(`${config.MOOLRE_API_BASE}/open/account/update`, {
     method: "POST",
     headers: {
@@ -354,7 +365,7 @@ export async function updateAccountCallback(
       currency: "GHS",
       callback: params.callback,
       api: params.api ?? true,
-      ...(params.accountname !== undefined ? { accountname: params.accountname } : {}),
+      ...(resolvedAccountname !== undefined ? { accountname: resolvedAccountname } : {}),
     }),
   });
   return await response.json();
