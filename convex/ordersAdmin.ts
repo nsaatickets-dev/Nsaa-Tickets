@@ -57,7 +57,10 @@ async function attemptRefundTransfer(params: {
   });
 
   const data = await response.json();
-  const accepted = data.status === 1;
+  // Moolre's docs show a successful transfer's status as the STRING "1",
+  // not the number 1 - see payouts.ts's attemptMoolreTransfer for the
+  // full explanation and the real transaction this exact bug misclassified.
+  const accepted = isMoolreSuccess(data.status);
   return {
     accepted,
     externalref,

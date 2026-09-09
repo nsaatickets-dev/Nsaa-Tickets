@@ -62,7 +62,16 @@ export const validatePayoutRecipient = internalAction({
   handler: async (
     ctx,
     { phone, channel, sublistid },
-  ): Promise<{ channel: string; status: unknown; code: unknown; message: unknown; accountName: unknown }> => {
+  ): Promise<{
+    channel: string;
+    httpStatus: number;
+    httpHeaders: Record<string, string>;
+    rawBody: string;
+    status: unknown;
+    code: unknown;
+    message: unknown;
+    accountName: unknown;
+  }> => {
     const config = requireMoolreEnv([
       "MOOLRE_API_BASE",
       "MOOLRE_API_USER",
@@ -70,6 +79,17 @@ export const validatePayoutRecipient = internalAction({
       "MOOLRE_ACCOUNT_NUMBER",
     ]);
     const resolvedChannel = channel ?? detectMoolreTransferChannel(phone);
+    const requestBody = {
+      type: 1,
+      receiver: phone,
+      channel: resolvedChannel,
+      currency: "GHS",
+      accountnumber: config.MOOLRE_ACCOUNT_NUMBER,
+      // Bank channel (2) validation needs the specific bank's code - not
+      // documented on Validate Name's own params page, but present in
+      // Moolre's Agency Banking guide's real validate-name example.
+      ...(sublistid ? { sublistid } : {}),
+    };
 
     const response = await fetch(`${config.MOOLRE_API_BASE}/open/transact/validate`, {
       method: "POST",
@@ -78,27 +98,100 @@ export const validatePayoutRecipient = internalAction({
         "X-API-USER": config.MOOLRE_API_USER,
         "X-API-KEY": config.MOOLRE_API_KEY,
       },
-      body: JSON.stringify({
-        type: 1,
-        receiver: phone,
-        channel: resolvedChannel,
-        currency: "GHS",
-        accountnumber: config.MOOLRE_ACCOUNT_NUMBER,
-        // Bank channel (2) validation needs the specific bank's code - not
-        // documented on Validate Name's own params page, but present in
-        // Moolre's Agency Banking guide's real validate-name example.
-        ...(sublistid ? { sublistid } : {}),
-      }),
+      body: JSON.stringify(requestBody),
     });
 
-    const data = await response.json();
+    // Diagnostic - capture the raw HTTP status/headers/body verbatim,
+    // never before checked separately from the parsed JSON's own `status`
+    // field, to rule out a transport-level (proxy, gateway, rate-limit)
+    // cause hiding behind what looked like a normal 200 application error.
+    const rawBody = await response.text();
+    let data: any = {};
+    try {
+      data = JSON.parse(rawBody);
+    } catch {
+      // leave data empty - rawBody still carries whatever was returned
+    }
+    const httpHeaders: Record<string, string> = {};
+    response.headers.forEach((value, key) => {
+      httpHeaders[key] = value;
+    });
+
     return {
       channel: resolvedChannel,
+      httpStatus: response.status,
+      httpHeaders,
+      rawBody,
       status: data.status,
       code: data.code,
       message: data.message,
       accountName: data.data,
     };
+  },
+});
+
+// Diagnostic - looks up one transaction's authoritative status directly by
+// Moolre's own generated transaction ID (idtype 2), for reconciling a
+// specific payout row against Moolre's ledger without guessing what
+// externalref we used for it.
+export const checkMoolreTransactionStatus = internalAction({
+  args: { transactionId: v.string() },
+  handler: async (ctx, { transactionId }): Promise<{ status: unknown; code: unknown; message: unknown; data: unknown }> => {
+    const config = requireMoolreEnv([
+      "MOOLRE_API_BASE",
+      "MOOLRE_API_USER",
+      "MOOLRE_API_PUBKEY",
+      "MOOLRE_ACCOUNT_NUMBER",
+    ]);
+    const response = await fetch(`${config.MOOLRE_API_BASE}/open/transact/status`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-API-USER": config.MOOLRE_API_USER,
+        "X-API-PUBKEY": config.MOOLRE_API_PUBKEY,
+      },
+      body: JSON.stringify({
+        type: 1,
+        idtype: "2",
+        id: transactionId,
+        accountnumber: config.MOOLRE_ACCOUNT_NUMBER,
+      }),
+    });
+    const data = await response.json();
+    return { status: data.status, code: data.code, message: data.message, data: data.data };
+  },
+});
+
+// Diagnostic - Moolre's own transaction ledger (List Transactions), to see
+// whether their side recorded anything more detailed about a rejected
+// transfer than the synchronous response did.
+export const listMoolreTransactions = internalAction({
+  args: { status: v.optional(v.union(v.literal(0), v.literal(1), v.literal(2))), limit: v.optional(v.number()) },
+  handler: async (ctx, { status, limit }): Promise<{ status: unknown; code: unknown; message: unknown; data: unknown }> => {
+    const config = requireMoolreEnv([
+      "MOOLRE_API_BASE",
+      "MOOLRE_API_USER",
+      "MOOLRE_API_KEY",
+      "MOOLRE_ACCOUNT_NUMBER",
+    ]);
+    const response = await fetch(`${config.MOOLRE_API_BASE}/open/account/status`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-API-USER": config.MOOLRE_API_USER,
+        "X-API-KEY": config.MOOLRE_API_KEY,
+      },
+      body: JSON.stringify({
+        type: 2,
+        accountnumber: config.MOOLRE_ACCOUNT_NUMBER,
+        startdate: "2026-07-01 00:00:00",
+        enddate: "2026-12-31 23:59:59",
+        limit: limit ?? 20,
+        ...(status !== undefined ? { status } : {}),
+      }),
+    });
+    const data = await response.json();
+    return { status: data.status, code: data.code, message: data.message, data: data.data };
   },
 });
 
@@ -427,7 +520,14 @@ async function attemptMoolreTransfer(params: {
   });
 
   const data = await response.json();
-  const accepted = data.status === 1;
+  // Moolre's own docs show a successful transfer's status as the STRING
+  // "1" (e.g. {"status": "1", "code": "OBGH01", ...}), not the number 1 -
+  // a strict === 1 here silently treats every real acceptance as a
+  // rejection. Confirmed against Moolre's own transaction ledger: a
+  // Telecel transfer this exact bug marked "failed" in our database
+  // actually shows as a real, accepted (txstatus 0/pending) transaction
+  // on their side, with a genuine transactionid.
+  const accepted = isMoolreSuccess(data.status);
   return {
     accepted,
     externalref,
@@ -989,6 +1089,28 @@ export const setPayoutAcceptedChannel = internalMutation({
   args: { payoutId: v.id("payouts"), externalRef: v.string(), channel: v.string() },
   handler: async (ctx, { payoutId, externalRef, channel }) => {
     await ctx.db.patch(payoutId, { externalRef, channel });
+  },
+});
+
+// One-off ops fix - reconciles a payout row that attemptMoolreTransfer's
+// now-fixed status === 1 vs "1" bug marked "failed" even though Moolre's
+// own ledger shows it was actually accepted and is still pending. Only
+// ever needed for rows created before that fix shipped; new rows can't
+// hit this since setPayoutAcceptedChannel now runs correctly on accept.
+export const reconcilePayoutFromLedger = internalMutation({
+  args: {
+    payoutId: v.id("payouts"),
+    externalRef: v.string(),
+    channel: v.string(),
+    moolreReference: v.string(),
+  },
+  handler: async (ctx, { payoutId, externalRef, channel, moolreReference }) => {
+    const payout = await ctx.db.get(payoutId);
+    if (!payout) throw new Error("Payout not found.");
+    if (payout.status !== "failed") {
+      throw new Error(`Refusing to reconcile a payout that isn't currently "failed" (is "${payout.status}").`);
+    }
+    await ctx.db.patch(payoutId, { status: "pending", externalRef, channel, moolreReference });
   },
 });
 
