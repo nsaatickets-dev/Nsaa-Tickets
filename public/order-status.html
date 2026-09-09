@@ -223,6 +223,7 @@
             ${order.status === "paid" ? `<a class="btn btn-nsaa" href="${NSAA.escapeAttr(whatsappLink)}" target="_blank" rel="noreferrer">Send on WhatsApp</a>` : ""}
             ${order.status === "paid" ? `<a class="btn btn-nsaa" href="${NSAA.escapeAttr(emailLink)}">Email link</a>` : ""}
             ${order.status === "reserved" && order.moolreExternalRef ? `<button id="refresh-payment-btn" class="btn btn-nsaa" type="button"><i class="ph ph-arrows-clockwise me-1" aria-hidden="true"></i>Check payment status</button>` : ""}
+            ${order.status === "reserved" ? `<button id="retry-payment-btn" class="btn btn-outline-nsaa" type="button"><i class="ph ph-arrow-clockwise me-1" aria-hidden="true"></i>Try payment again</button>` : ""}
             <a class="btn btn-nsaa" href="${NSAA.escapeAttr(eventLink)}">Back to event</a>
             ${copy.isThankYou ? `<a class="btn btn-outline-nsaa" href="/">Browse more events</a>` : ""}
           </div>
@@ -232,6 +233,9 @@
 
         document.getElementById("refresh-payment-btn")?.addEventListener("click", () => {
           refreshPaymentStatus();
+        });
+        document.getElementById("retry-payment-btn")?.addEventListener("click", () => {
+          retryPayment(order);
         });
 
         if (
@@ -280,6 +284,56 @@
           if (button) {
             button.disabled = false;
             button.innerHTML = previousHtml || `<i class="ph ph-arrows-clockwise me-1" aria-hidden="true"></i>Check payment status`;
+          }
+        }
+      }
+
+      let retryInFlight = false;
+
+      // Generates a fresh Moolre checkout session for this same
+      // reservation and redirects to it. Moolre's own hosted checkout
+      // page occasionally gets stuck (an entered OTP rejected with no
+      // way forward, or the authorize step hanging indefinitely) - since
+      // that's on their end, not something a page reload fixes, a brand
+      // new session is the only reliable way for a buyer to recover
+      // without losing their ticket hold. extendReservationHold (server
+      // side, called by initiateHostedCheckout) pushes the reservation's
+      // expiry out first, so retrying doesn't race against it.
+      async function retryPayment(order) {
+        if (!client || !orderId || retryInFlight) return;
+        retryInFlight = true;
+        const button = document.getElementById("retry-payment-btn");
+        const note = document.getElementById("refresh-payment-note");
+        const previousHtml = button?.innerHTML;
+        if (button) {
+          button.disabled = true;
+          button.innerHTML = `<i class="ph ph-spinner-gap me-1" aria-hidden="true"></i>Starting new checkout`;
+        }
+        if (note) {
+          note.textContent = "";
+        }
+
+        // The externalref format is order:<id>:<method>:<timestamp> - reuse
+        // whichever method the buyer picked last time, defaulting to momo
+        // for an order that never got as far as generating a link at all.
+        const previousMethod = order.moolreExternalRef?.split(":")[2];
+        const method = previousMethod === "card" ? "card" : "momo";
+
+        try {
+          const result = await client.action("orders:initiateHostedCheckout", {
+            orderId,
+            method,
+            returnUrl: `${window.location.origin}/order-status?orderId=${encodeURIComponent(orderId)}&payment=${method}&check=1`,
+          });
+          window.location.href = result.authorizationUrl;
+        } catch (err) {
+          retryInFlight = false;
+          if (note) {
+            note.textContent = err.message || "Could not start a new checkout attempt. Try again in a few seconds.";
+          }
+          if (button) {
+            button.disabled = false;
+            button.innerHTML = previousHtml || `<i class="ph ph-arrow-clockwise me-1" aria-hidden="true"></i>Try payment again`;
           }
         }
       }

@@ -117,11 +117,12 @@ export const createReservation = mutation({
     // Schedule this specific reservation's expiry sweep. Even though the
     // cron below does a periodic sweep too, scheduling an exact-time
     // check keeps inventory accurate without waiting for the next tick.
-    await ctx.scheduler.runAt(
+    const expiryScheduledFunctionId = await ctx.scheduler.runAt(
       reservedUntil,
       internal.orders.expireReservationIfUnpaid,
       { orderId },
     );
+    await ctx.db.patch(orderId, { expiryScheduledFunctionId });
 
     return { orderId, totalGHS, reservedUntil };
   },
@@ -147,6 +148,34 @@ export const expireReservationIfUnpaid = internalMutation({
     }
 
     await ctx.db.patch(orderId, { status: "expired" });
+  },
+});
+
+// Pushes a reservation's hold out by a fresh RESERVATION_MS window,
+// cancelling and rescheduling the expiry job to match. Called whenever a
+// checkout attempt (first try or a retry) actually starts, so a buyer
+// who's stuck on Moolre's own checkout/OTP page - which can legitimately
+// take a few minutes, and occasionally much longer when something's
+// wrong on their end - doesn't lose their seat mid-attempt. Silently
+// does nothing if the order isn't "reserved" (createHostedCheckoutLink
+// already checked that before calling this, so this is just defense in
+// depth against a race).
+export const extendReservationHold = internalMutation({
+  args: { orderId: v.id("orders") },
+  handler: async (ctx, { orderId }) => {
+    const order = await ctx.db.get(orderId);
+    if (!order || order.status !== "reserved") return;
+
+    if (order.expiryScheduledFunctionId) {
+      await ctx.scheduler.cancel(order.expiryScheduledFunctionId);
+    }
+    const reservedUntil = Date.now() + RESERVATION_MS;
+    const expiryScheduledFunctionId = await ctx.scheduler.runAt(
+      reservedUntil,
+      internal.orders.expireReservationIfUnpaid,
+      { orderId },
+    );
+    await ctx.db.patch(orderId, { reservedUntil, expiryScheduledFunctionId });
   },
 });
 
@@ -271,6 +300,11 @@ async function createHostedCheckoutLink(
     if (order.status !== "reserved") {
       throw new Error(`Order is ${order.status}, cannot pay`);
     }
+
+    // Extend the hold before handing off to Moolre - a checkout attempt
+    // (first try or retry) starting now shouldn't lose the race against
+    // an expiry timer set from whenever the reservation was first made.
+    await ctx.runMutation(internal.orders.extendReservationHold, { orderId });
 
     const config = requireMoolreEnv([
       "MOOLRE_API_BASE",

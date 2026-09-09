@@ -117,6 +117,13 @@ export default defineSchema({
     ),
 
     reservedUntil: v.number(), // unix ms - scheduled function sweeps past this
+    // The currently-pending expireReservationIfUnpaid job, so starting or
+    // retrying a checkout attempt can push reservedUntil out and
+    // reschedule this instead of the original hold quietly expiring the
+    // reservation out from under a buyer who's still on Moolre's checkout
+    // page (their OTP/authorize flow can itself take several minutes, and
+    // is occasionally stuck taking much longer than that on Moolre's end).
+    expiryScheduledFunctionId: v.optional(v.id("_scheduled_functions")),
 
     moolreReference: v.optional(v.string()), // Moolre's transaction id
     moolreExternalRef: v.optional(v.string()), // exact externalref sent to Moolre for the active attempt
