@@ -331,11 +331,12 @@ export async function listTransactions(
   return await response.json();
 }
 
-// POST /open/account/update - `api` and `accountname` are omitted from
-// the request entirely unless explicitly passed, since Moolre's account
-// API does NOT reliably "leave unchanged" a field just because it's
-// absent from the request (confirmed the hard way: omitting `api`
-// disabled API access for the whole account rather than preserving it).
+// POST /open/account/update - `api` is ALWAYS sent explicitly (defaulting
+// to true), never omitted. Moolre's account API does NOT "leave unchanged"
+// a field just because it's absent from the request - confirmed the hard
+// way three times this session: omitting `api` disables API access for the
+// whole account rather than preserving it. `accountname` doesn't share
+// this failure mode, so it's only sent when explicitly passed.
 export async function updateAccountCallback(
   config: MoolreConfig,
   params: { callback: string; api?: boolean; accountname?: string },
@@ -352,7 +353,7 @@ export async function updateAccountCallback(
       accountnumber: config.MOOLRE_ACCOUNT_NUMBER,
       currency: "GHS",
       callback: params.callback,
-      ...(params.api !== undefined ? { api: params.api } : {}),
+      api: params.api ?? true,
       ...(params.accountname !== undefined ? { accountname: params.accountname } : {}),
     }),
   });

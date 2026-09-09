@@ -19,8 +19,10 @@
 // - updateCallbackUrl: corrects the account's registered webhook
 //   callback via Moolre's Update Account endpoint. `callback` has no
 //   default - this must never silently repoint the account somewhere
-//   unintended. `api`/`accountname` are only sent when explicitly
-//   passed (see client.ts's updateAccountCallback for why).
+//   unintended. `api` defaults to true if omitted (see client.ts's
+//   updateAccountCallback - Moolre disables API access account-wide if
+//   this field is left out of the request entirely); `accountname` is
+//   only sent when explicitly passed.
 // - reconcilePayoutFromLedger: one-off correction for a payout row the
 //   now-fixed status "1" vs 1 bug marked "failed" despite Moolre's
 //   ledger showing it was actually accepted. Refuses to touch a row
@@ -177,10 +179,11 @@ export const updateCallbackUrl = internalAction({
 // staying stuck "pending". Re-asserting the same correct value every day
 // is a no-op when nothing's wrong, and fixes it automatically if a future
 // dev-testing session (see the rebuild plan's Phase 2) forgets to point
-// the callback back at prod afterward. `api` is deliberately omitted here
-// (see client.ts's updateAccountCallback) so this can never accidentally
-// disable API access the way a naive "always send every field" call did
-// once already.
+// the callback back at prod afterward. `api: true` is passed explicitly -
+// updateAccountCallback defaults it anyway, but this cron is exactly the
+// kind of call that would silently disable API access account-wide, every
+// single day, if that default were ever removed - so make it impossible
+// to get wrong here even if the shared default changes.
 export const reassertMoolreCallback = internalAction({
   args: {},
   handler: async (ctx): Promise<{ status: unknown; code: unknown; message: unknown }> => {
@@ -195,7 +198,7 @@ export const reassertMoolreCallback = internalAction({
       "MOOLRE_ACCOUNT_NUMBER",
     ]);
     const callback = `${siteUrl.replace(/\/+$/, "")}/moolre/webhook`;
-    const result = await updateAccountCallback(config, { callback });
+    const result = await updateAccountCallback(config, { callback, api: true });
     return { status: result.status, code: result.code, message: result.message };
   },
 });
