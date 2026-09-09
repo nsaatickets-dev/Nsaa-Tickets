@@ -229,6 +229,14 @@ export const checkMoolreWalletStatus = internalAction({
 // Update Account endpoint. `callback` is required to be passed explicitly
 // (no default) so this can never silently repoint the account somewhere
 // unintended.
+//
+// Moolre's Update Account endpoint treats an OMITTED field as "clear it",
+// not "leave unchanged", despite what the docs imply - confirmed for both
+// `api` (disabled API access account-wide) and `accountname` (wiped it to
+// an empty string), each the hard way, in production. Rather than track
+// every field this can happen to, read the account's current state first
+// and always resend every field explicitly - nothing this endpoint knows
+// about can be silently cleared by an update call again.
 export const updateMoolreCallbackUrl = internalAction({
   args: { callback: v.string(), api: v.optional(v.boolean()), accountname: v.optional(v.string()) },
   handler: async (
@@ -241,6 +249,22 @@ export const updateMoolreCallbackUrl = internalAction({
       "MOOLRE_API_KEY",
       "MOOLRE_ACCOUNT_NUMBER",
     ]);
+    let resolvedAccountname = accountname;
+    if (resolvedAccountname === undefined) {
+      const statusResponse = await fetch(`${config.MOOLRE_API_BASE}/open/account/status`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-API-USER": config.MOOLRE_API_USER,
+          "X-API-KEY": config.MOOLRE_API_KEY,
+        },
+        body: JSON.stringify({ type: 1, accountnumber: config.MOOLRE_ACCOUNT_NUMBER }),
+      });
+      const statusData = await statusResponse.json();
+      if (typeof statusData?.data?.accountname === "string" && statusData.data.accountname !== "") {
+        resolvedAccountname = statusData.data.accountname;
+      }
+    }
     const response = await fetch(`${config.MOOLRE_API_BASE}/open/account/update`, {
       method: "POST",
       headers: {
@@ -253,11 +277,8 @@ export const updateMoolreCallbackUrl = internalAction({
         accountnumber: config.MOOLRE_ACCOUNT_NUMBER,
         currency: "GHS",
         callback,
-        // Moolre treats an omitted `api` field as "disable API access", not
-        // "leave unchanged" (despite what the docs imply) — always send an
-        // explicit value so this call can never silently lock us out again.
         api: api ?? true,
-        ...(accountname !== undefined ? { accountname } : {}),
+        ...(resolvedAccountname !== undefined ? { accountname: resolvedAccountname } : {}),
       }),
     });
     const data = await response.json();
