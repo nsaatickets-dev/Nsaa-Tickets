@@ -4,6 +4,7 @@ import { internal, api } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { escapeHtml } from "./email";
 import { verifyMetaSignature } from "./whatsapp";
+import { parseExternalRef } from "./moolre/client";
 
 const http = httpRouter();
 
@@ -225,10 +226,12 @@ http.route({
       return new Response("Missing data.externalref", { status: 400 });
     }
 
-    const [prefix = "", id = ""] = externalref.split(":");
+    const parsed = parseExternalRef(externalref);
+    const prefix = parsed?.kind ?? "";
+    const id = parsed?.id ?? "";
 
     if (prefix === "order" && id) {
-      await ctx.runAction(internal.moolre.verifyAndProcessPayment, {
+      await ctx.runAction(internal.moolre.webhook.verifyAndProcessPayment, {
         externalref,
         orderId: id as Id<"orders">,
       });

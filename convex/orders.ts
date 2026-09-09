@@ -7,77 +7,12 @@ import { optionalTrimmed, requireNonEmpty, requireValidEmail, requireValidGhanaP
 import { rateLimiter } from "./rateLimit";
 import { requireMoolreEnv } from "./moolreConfig";
 import { isBuyerBlocked } from "./buyerBlocklist";
+import { createHostedCheckoutLink as requestHostedCheckoutLink } from "./moolre/client";
 
 // How long a reservation holds inventory before it's released back to
 // availability. Long enough to comfortably approve a MoMo prompt,
 // short enough that abandoned carts don't lock up tickets forever.
 const RESERVATION_MS = 10 * 60 * 1000; // 10 minutes
-
-// Moolre's collection API requires a `channel` telling it which network
-// to route the Mobile Money prompt to (13=MTN, 6=Telecel, 7=AirtelTigo).
-// We only collect a phone number at checkout, so the network is inferred
-// from Ghana's published numbering-plan prefixes rather than asking the
-// buyer to pick their own network. Coverage is best-effort - carrier
-// number ranges have shifted with the AirtelTigo/Telecel rebrands, so
-// confirm against real numbers on each network before live rollout.
-// If Moolre routes to the wrong network the collection request itself
-// fails (returned as an error code, not a silent misfire), so a wrong
-// guess here surfaces as a retryable error, not a lost payment.
-function detectMoolreChannel(phone: string): string {
-  const digits = phone.replace(/[\s\-()]/g, "");
-  const local = digits.startsWith("233")
-    ? `0${digits.slice(3)}`
-    : digits.startsWith("+233")
-      ? `0${digits.slice(4)}`
-      : digits;
-  const prefix2 = local.slice(0, 3); // "0XX"
-
-  const mtn = ["024", "025", "053", "054", "055", "059"];
-  const telecel = ["020", "050"];
-  const airtelTigo = ["026", "027", "056", "057"];
-
-  if (mtn.includes(prefix2)) return "13";
-  if (telecel.includes(prefix2)) return "6";
-  if (airtelTigo.includes(prefix2)) return "7";
-
-  throw new Error(
-    "Could not detect a mobile money network for this number. Please contact support.",
-  );
-}
-
-function resolveMoolreChannel(phone: string, explicitChannel?: string): string {
-  if (explicitChannel) {
-    const allowed = new Set(["13", "6", "7"]);
-    if (!allowed.has(explicitChannel)) {
-      throw new Error("Choose a valid Mobile Money network.");
-    }
-    return explicitChannel;
-  }
-  return detectMoolreChannel(phone);
-}
-
-function moolreAccepted(data: any): boolean {
-  return Number(data?.status) === 1 || String(data?.status ?? "").trim() === "1";
-}
-
-async function readMoolreJson(response: Response): Promise<any> {
-  const text = await response.text();
-  if (!text) return {};
-  try {
-    return JSON.parse(text);
-  } catch (_err) {
-    return {
-      status: response.ok ? 1 : 0,
-      code: response.status,
-      message: text,
-    };
-  }
-}
-
-function moolreMessage(data: any, fallback: string): string {
-  const message = String(data?.message ?? data?.msg ?? "").trim();
-  return message || fallback;
-}
 
 // Step 1 of checkout: reserve inventory, create a pending order.
 // This is what makes the reservation-with-timeout model work - the
@@ -263,130 +198,6 @@ export const getOrderSummary = query({
   },
 });
 
-// Step 2 of checkout: kick off the actual Moolre payment request for an
-// already-reserved order. Separated from createReservation so the UI
-// can show "reserved, now confirm payment" as a distinct step.
-export const initiateMoolrePayment = action({
-  args: {
-    orderId: v.id("orders"),
-    otpcode: v.optional(v.string()),
-    channel: v.optional(v.string()),
-  },
-  handler: async (ctx, { orderId, otpcode, channel }): Promise<{ status: string }> => {
-    const order = await ctx.runQuery(internal.orders.getOrderInternal, {
-      orderId,
-    });
-    if (!order) throw new Error("Order not found");
-    if (order.status !== "reserved") {
-      throw new Error(`Order is ${order.status}, cannot pay`);
-    }
-
-    const config = requireMoolreEnv([
-      "MOOLRE_API_BASE",
-      "MOOLRE_API_USER",
-      "MOOLRE_API_KEY",
-      "MOOLRE_ACCOUNT_NUMBER",
-    ]);
-
-    if (!otpcode && order.moolreStatus === "initiated") {
-      return { status: "initiated" };
-    }
-
-    // --- Moolre payment request ---
-    // Verified against docs.moolre.com (Initiate Payment): POST
-    // /open/transact/payment, X-API-USER + X-API-KEY headers, externalref
-    // must be unique per attempt so we use the order id (confirmed by
-    // Moolre testing: resubmitting the same externalref with otpcode
-    // does NOT hit the "must be unique" error - it's recognized as the
-    // OTP retry for the same pending request). Moolre has no documented
-    // per-request callback field - the webhook URL is registered once at
-    // the account level (Moolre dashboard settings, or POST
-    // /open/account/update with a `callback` field) pointing at
-    // https://<your-deployment>.convex.site/moolre/webhook.
-    const resolvedChannel = resolveMoolreChannel(order.buyerPhone, channel);
-    // Prefixed so the shared webhook (convex/http.ts) can tell a customer
-    // payment apart from an organizer payout - both land on the same
-    // callback URL since Moolre registers one webhook per account, not
-    // per transaction type.
-    const externalref =
-      (otpcode || order.moolreStatus === "otp_required" || order.moolreStatus === "otp_invalid") &&
-      order.moolreExternalRef
-        ? order.moolreExternalRef
-        : `order:${order._id}:momo:${Date.now()}`;
-
-    const response = await fetch(`${config.MOOLRE_API_BASE}/open/transact/payment`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-API-USER": config.MOOLRE_API_USER,
-        "X-API-KEY": config.MOOLRE_API_KEY,
-      },
-      body: JSON.stringify({
-        type: 1,
-        channel: resolvedChannel,
-        currency: "GHS",
-        payer: order.buyerPhone,
-        amount: String(order.totalGHS),
-        externalref,
-        accountnumber: config.MOOLRE_ACCOUNT_NUMBER,
-        ...(otpcode ? { otpcode } : {}),
-      }),
-    });
-
-    const data = await readMoolreJson(response);
-
-    // TP14: confirmed via Moolre testing - Moolre texts a verification
-    // code directly to the buyer's phone and won't process the collection
-    // until we resubmit this same request with that code as `otpcode`.
-    // Not every account/channel triggers this; treat it as optional.
-    if (data.code === "TP14") {
-      await ctx.runMutation(internal.orders.recordMoolreReference, {
-        orderId,
-        moolreReference: String(data.data ?? data.code ?? "otp_required"),
-        moolreExternalRef: externalref,
-        moolreStatus: "otp_required",
-      });
-      return { status: "otp_required" };
-    }
-
-    // TP15: wrong code, not a real failure - let the buyer retry entering
-    // it rather than killing their reservation over a typo.
-    if (data.code === "TP15") {
-      await ctx.runMutation(internal.orders.recordMoolreReference, {
-        orderId,
-        moolreReference: String(data.code),
-        moolreExternalRef: externalref,
-        moolreStatus: "otp_invalid",
-        moolreFailureReason: moolreMessage(data, "Incorrect verification code."),
-      });
-      return { status: "otp_invalid" };
-    }
-
-    const accepted = response.ok && moolreAccepted(data);
-    const failureReason = accepted
-      ? undefined
-      : moolreMessage(data, "Payment could not be started. Please try again.");
-
-    await ctx.runMutation(internal.orders.recordMoolreReference, {
-      orderId,
-      moolreReference:
-        accepted && typeof data.data === "string" ? data.data : (data.code ?? "unknown"),
-      moolreExternalRef: externalref,
-      moolreStatus: accepted ? "initiated" : "rejected",
-      moolreFailureReason: failureReason,
-    });
-
-    if (!accepted) {
-      // Keep the reservation retryable until the hold naturally expires.
-      // Rejections here can be recoverable: the buyer can choose the right
-      // MoMo network, retry a transient processor error, or switch to card.
-      throw new Error(failureReason!);
-    }
-
-    return { status: "initiated" };
-  },
-});
-
 export const prepareInlineCheckout = action({
   args: {
     orderId: v.id("orders"),
@@ -472,53 +283,34 @@ async function createHostedCheckoutLink(
     const siteUrl = process.env.CONVEX_SITE_URL ?? "";
     const callback = siteUrl ? `${siteUrl.replace(/\/+$/, "")}/moolre/webhook` : undefined;
 
-    const response = await fetch(`${config.MOOLRE_API_BASE}/embed/link`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-API-USER": config.MOOLRE_API_USER,
-        "X-API-PUBKEY": config.MOOLRE_API_PUBKEY,
-      },
-      body: JSON.stringify({
-        type: 1,
-        amount: String(order.totalGHS),
-        // Moolre's own "business email" field for their hosted page, not
-        // the buyer's - buyer email is optional in guest checkout so it
-        // can't be relied on here.
-        email: "tickets@nsaatickets.com",
-        externalref,
-        reusable: 0,
-        currency: "GHS",
-        accountnumber: config.MOOLRE_ACCOUNT_NUMBER,
-        callback,
-        redirect: returnUrl,
-      }),
+    const result = await requestHostedCheckoutLink(config, {
+      amountGHS: order.totalGHS,
+      externalref,
+      callback,
+      redirect: returnUrl,
     });
 
-    const data = await readMoolreJson(response);
-    const accepted = response.ok && moolreAccepted(data);
-    const failureReason = accepted
+    const failureReason = result.accepted
       ? undefined
-      : moolreMessage(data, "Moolre checkout could not be started. Please try again.");
+      : result.message || "Moolre checkout could not be started. Please try again.";
 
     await ctx.runMutation(internal.orders.recordMoolreReference, {
       orderId,
-      moolreReference: accepted ? (data.data?.reference ?? "unknown") : (data.code ?? "unknown"),
+      moolreReference: result.accepted ? (result.data?.data?.reference ?? "unknown") : (result.data?.code ?? "unknown"),
       moolreExternalRef: externalref,
-      moolreStatus: accepted ? "initiated" : "rejected",
+      moolreStatus: result.accepted ? "initiated" : "rejected",
       moolreFailureReason: failureReason,
     });
 
-    if (!accepted) {
+    if (!result.accepted) {
       throw new Error(failureReason!);
     }
 
-    const authorizationUrl = data.data?.authorization_url;
-    if (!authorizationUrl) {
+    if (!result.authorizationUrl) {
       const reason = "Moolre did not return a checkout link.";
       await ctx.runMutation(internal.orders.recordMoolreReference, {
         orderId,
-        moolreReference: data.code ?? "unknown",
+        moolreReference: result.data?.code ?? "unknown",
         moolreExternalRef: externalref,
         moolreStatus: "rejected",
         moolreFailureReason: reason,
@@ -526,7 +318,7 @@ async function createHostedCheckoutLink(
       throw new Error(reason);
     }
 
-    return { authorizationUrl };
+    return { authorizationUrl: result.authorizationUrl };
 }
 
 // Hosted Moolre checkout link (POST /embed/link). This is now used for
@@ -586,7 +378,7 @@ export const refreshPaymentStatus = action({
       };
     }
 
-    await ctx.runAction(internal.moolre.verifyAndProcessPayment, {
+    await ctx.runAction(internal.moolre.webhook.verifyAndProcessPayment, {
       orderId,
       externalref: order.moolreExternalRef,
     });

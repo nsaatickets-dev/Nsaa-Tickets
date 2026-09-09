@@ -8,13 +8,9 @@ import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { requireAdmin, logAdminAction } from "./admin";
 import { issueTickets } from "./tickets";
-import { detectMoolreTransferChannel, ALL_MOOLRE_TRANSFER_CHANNELS } from "./payouts";
 import { requireMoolreEnv } from "./moolreConfig";
 import { alertCritical } from "./alerts";
-
-function isMoolreSuccess(value: unknown): boolean {
-  return Number(value) === 1 || String(value ?? "").trim() === "1";
-}
+import { isMoolreAccepted, checkStatus, requestTransfer, transferChannelsToTry } from "./moolre/client";
 
 // Mirrors payouts.ts's attemptMoolreTransfer/channel-fallback design: the
 // prefix-guessed network can be wrong (ported numbers, incomplete/stale
@@ -38,33 +34,16 @@ async function attemptRefundTransfer(params: {
     "MOOLRE_ACCOUNT_NUMBER",
   ]);
 
-  const response = await fetch(`${config.MOOLRE_API_BASE}/open/transact/transfer`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-API-USER": config.MOOLRE_API_USER,
-      "X-API-KEY": config.MOOLRE_API_KEY,
-    },
-    body: JSON.stringify({
-      type: 1,
-      channel,
-      currency: "GHS",
-      amount: String(amountGHS),
-      receiver: buyerPhone,
-      externalref,
-      accountnumber: config.MOOLRE_ACCOUNT_NUMBER,
-    }),
-  });
-
-  const data = await response.json();
-  // Moolre's docs show a successful transfer's status as the STRING "1",
-  // not the number 1 - see payouts.ts's attemptMoolreTransfer for the
-  // full explanation and the real transaction this exact bug misclassified.
-  const accepted = isMoolreSuccess(data.status);
-  return {
-    accepted,
+  const result = await requestTransfer(config, {
+    channel,
+    amountGHS,
+    receiver: buyerPhone,
     externalref,
-    failureReason: accepted ? undefined : data.message || "Refund transfer could not be started.",
+  });
+  return {
+    accepted: result.accepted,
+    externalref,
+    failureReason: result.accepted ? undefined : result.message || "Refund transfer could not be started.",
   };
 }
 
@@ -94,8 +73,8 @@ export const adminForceMarkOrderPaid = mutation({
 
     await issueTickets(ctx, orderId);
 
-    await ctx.scheduler.runAfter(0, internal.moolre.sendConfirmation, { orderId });
-    await ctx.scheduler.runAfter(0, internal.moolre.sendOrganizerNotification, { orderId });
+    await ctx.scheduler.runAfter(0, internal.moolre.webhook.sendConfirmation, { orderId });
+    await ctx.scheduler.runAfter(0, internal.moolre.webhook.sendOrganizerNotification, { orderId });
     await ctx.scheduler.runAfter(0, internal.serviceFees.sweepServiceFeeForOrder, { orderId });
 
     await logAdminAction(ctx, admin, {
@@ -168,23 +147,9 @@ export const adminRefundOrder = action({
       throw new Error(`Refund amount must be between 0 and ${order.totalGHS} GHS.`);
     }
 
-    // Prefix-based guessing can be wrong (ported numbers, incomplete/stale
-    // prefix tables - see payouts.ts's sendOrganizerPayoutTransfer for the
-    // full reasoning), so an unrecognized prefix must not block the refund
-    // outright; it just means no preferred first channel.
-    let guessedChannel: string | undefined;
-    try {
-      guessedChannel = detectMoolreTransferChannel(order.buyerPhone);
-    } catch {
-      guessedChannel = undefined;
-    }
-    const channelsToTry = guessedChannel
-      ? [guessedChannel, ...ALL_MOOLRE_TRANSFER_CHANNELS.filter((c) => c !== guessedChannel)]
-      : [...ALL_MOOLRE_TRANSFER_CHANNELS];
-
     let acceptedExternalref: string | undefined;
     let lastFailureReason: string | undefined;
-    for (const channel of channelsToTry) {
+    for (const channel of transferChannelsToTry(order.buyerPhone)) {
       const result = await attemptRefundTransfer({
         orderId,
         buyerPhone: order.buyerPhone,
@@ -270,23 +235,9 @@ export const verifyAndProcessRefund = internalAction({
         "MOOLRE_API_PUBKEY",
         "MOOLRE_ACCOUNT_NUMBER",
       ]);
-      const response = await fetch(`${config.MOOLRE_API_BASE}/open/transact/status`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-API-USER": config.MOOLRE_API_USER,
-          "X-API-PUBKEY": config.MOOLRE_API_PUBKEY,
-        },
-        body: JSON.stringify({
-          type: 1,
-          idtype: "1",
-          id: externalref,
-          accountnumber: config.MOOLRE_ACCOUNT_NUMBER,
-        }),
-      });
-      const payload = await response.json();
-      txstatus = payload?.data?.txstatus;
-      transactionId = payload?.data?.transactionid;
+      const result = await checkStatus(config, { idtype: "1", id: externalref });
+      txstatus = result.txstatus;
+      transactionId = result.transactionId;
     } catch (err) {
       // Real money left the platform back to a buyer and we can't confirm
       // it went through - same class of problem as a failed payout-status
@@ -300,7 +251,7 @@ export const verifyAndProcessRefund = internalAction({
 
     await ctx.runMutation(internal.ordersAdmin.applyVerifiedRefund, {
       orderId,
-      isSuccess: isMoolreSuccess(txstatus),
+      isSuccess: isMoolreAccepted(txstatus),
       transactionId,
     });
   },

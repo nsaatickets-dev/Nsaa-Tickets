@@ -1,15 +1,12 @@
-import { internalMutation, internalAction } from "./_generated/server";
-import { internal, api } from "./_generated/api";
+import { internalMutation, internalAction } from "../_generated/server";
+import { internal, api } from "../_generated/api";
 import { v } from "convex/values";
-import { issueTickets } from "./tickets";
-import { escapeHtml, sendBrevoEmail, SENDERS, renderEmailLayout, paragraph, ticketBlock } from "./email";
-import { alertCritical } from "./alerts";
-import { requireMoolreEnv } from "./moolreConfig";
-import { REMINDER_LEAD_MS } from "./whatsapp";
-
-function isMoolreSuccess(value: unknown): boolean {
-  return Number(value) === 1 || String(value ?? "").trim() === "1";
-}
+import { issueTickets } from "../tickets";
+import { escapeHtml, sendBrevoEmail, SENDERS, renderEmailLayout, paragraph, ticketBlock } from "../email";
+import { alertCritical } from "../alerts";
+import { requireMoolreEnv } from "../moolreConfig";
+import { REMINDER_LEAD_MS } from "../whatsapp";
+import { isMoolreAccepted, checkStatus, sendSms } from "./client";
 
 // Called from convex/http.ts when Moolre POSTs to our webhook, after it
 // has already parsed the `order:<id>` prefix off data.externalref.
@@ -34,23 +31,9 @@ export const verifyAndProcessPayment = internalAction({
         "MOOLRE_API_PUBKEY",
         "MOOLRE_ACCOUNT_NUMBER",
       ]);
-      const response = await fetch(`${config.MOOLRE_API_BASE}/open/transact/status`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-API-USER": config.MOOLRE_API_USER,
-          "X-API-PUBKEY": config.MOOLRE_API_PUBKEY,
-        },
-        body: JSON.stringify({
-          type: 1,
-          idtype: "1",
-          id: externalref,
-          accountnumber: config.MOOLRE_ACCOUNT_NUMBER,
-        }),
-      });
-      const payload = await response.json();
-      txstatus = payload?.data?.txstatus;
-      transactionId = payload?.data?.transactionid;
+      const result = await checkStatus(config, { idtype: "1", id: externalref });
+      txstatus = result.txstatus;
+      transactionId = result.transactionId;
     } catch (err) {
       // We've lost visibility into whether this order was actually paid -
       // not a routine decline, a real infrastructure failure worth a
@@ -62,9 +45,9 @@ export const verifyAndProcessPayment = internalAction({
       return;
     }
 
-    await ctx.runMutation(internal.moolre.applyVerifiedStatus, {
+    await ctx.runMutation(internal.moolre.webhook.applyVerifiedStatus, {
       orderId,
-      isSuccess: isMoolreSuccess(txstatus),
+      isSuccess: isMoolreAccepted(txstatus),
       transactionId,
     });
   },
@@ -116,12 +99,12 @@ export const applyVerifiedStatus = internalMutation({
       await ctx.db.patch(event._id, { payoutSettledAt: undefined });
     }
 
-    await ctx.scheduler.runAfter(0, internal.moolre.sendConfirmation, {
+    await ctx.scheduler.runAfter(0, internal.moolre.webhook.sendConfirmation, {
       orderId: order._id,
     });
     // Independent of the buyer confirmation above - a failure here (or a
     // missing organizer contact email) must never block ticket delivery.
-    await ctx.scheduler.runAfter(0, internal.moolre.sendOrganizerNotification, {
+    await ctx.scheduler.runAfter(0, internal.moolre.webhook.sendOrganizerNotification, {
       orderId: order._id,
     });
     await ctx.scheduler.runAfter(0, internal.serviceFees.sweepServiceFeeForOrder, {
@@ -159,23 +142,12 @@ export const sendConfirmation = internalAction({
 
     const message = `Nsaa Tickets: your order is confirmed. GHS ${order.totalGHS} paid. Your ticket(s) are ready in the app.`;
 
-    // --- Moolre SMS ---
-    // Verified against docs.moolre.com (Send SMS). senderid must already
-    // be registered and approved in the Moolre dashboard before sends
-    // will succeed (code ASMS07 = unapproved sender).
     try {
       const config = requireMoolreEnv(["MOOLRE_API_BASE", "MOOLRE_VASKEY"]);
-      await fetch(`${config.MOOLRE_API_BASE}/open/sms/send`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-API-VASKEY": config.MOOLRE_VASKEY,
-        },
-        body: JSON.stringify({
-          type: 1,
-          senderid: process.env.MOOLRE_SMS_SENDER_ID ?? "",
-          messages: [{ recipient: order.buyerPhone, message }],
-        }),
+      await sendSms(config, {
+        senderid: process.env.MOOLRE_SMS_SENDER_ID ?? "",
+        recipient: order.buyerPhone,
+        message,
       });
     } catch (err) {
       console.error("Moolre SMS failed", err);
