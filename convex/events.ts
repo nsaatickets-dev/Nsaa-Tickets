@@ -78,7 +78,7 @@ export function computePlatformFee(ticketSubtotalGHS: number, feePercent: number
 // payout job at the same endsAt - all of them firing concurrently once the
 // event ends, each one a real, independent Moolre transfer attempt for the
 // same event. Cancelling the prior job first keeps exactly one pending.
-async function scheduleAutoPayoutAtEventEnd(
+export async function scheduleAutoPayoutAtEventEnd(
   ctx: MutationCtx,
   eventId: Id<"events">,
   event: Pick<Doc<"events">, "startsAt" | "endsAt"> & {

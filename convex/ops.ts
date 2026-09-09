@@ -1,8 +1,8 @@
 import { mutation, query } from "./_generated/server";
-import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { requireAdmin, logAdminAction } from "./admin";
 import { optionalTrimmed, requireNonEmpty, requireValidGhanaPhone } from "./validation";
+import { scheduleAutoPayoutAtEventEnd } from "./events";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -138,11 +138,7 @@ export const setEventStatusAdmin = mutation({
     const event = await ctx.db.get(eventId);
     if (!event) throw new Error("Event not found.");
     await ctx.db.patch(eventId, { status });
-    await ctx.scheduler.runAt(
-      Math.max(Date.now(), event.endsAt ?? event.startsAt),
-      internal.payouts.autoPayoutSingleEvent,
-      { eventId },
-    );
+    await scheduleAutoPayoutAtEventEnd(ctx, eventId, event);
     await logAdminAction(ctx, admin, {
       action: "event.setStatus",
       targetType: "event",
@@ -202,11 +198,11 @@ export const adminUpdateEventFields = mutation({
     }
 
     await ctx.db.patch(args.eventId, patch);
-    await ctx.scheduler.runAt(
-      Math.max(Date.now(), effectiveEndsAt ?? effectiveStartsAt),
-      internal.payouts.autoPayoutSingleEvent,
-      { eventId: args.eventId },
-    );
+    await scheduleAutoPayoutAtEventEnd(ctx, args.eventId, {
+      startsAt: effectiveStartsAt,
+      endsAt: effectiveEndsAt,
+      payoutScheduledFunctionId: event.payoutScheduledFunctionId,
+    });
 
     await logAdminAction(ctx, admin, {
       action: "event.updateFields",
