@@ -67,4 +67,17 @@ crons.interval(
   internal.whatsapp.sweepMissedEventReminders,
 );
 
+// Self-healing safety net for this session's root incident: the account's
+// Moolre webhook callback silently pointed at a dead dev deployment for an
+// unknown period, and nothing noticed until payouts/orders started
+// staying stuck "pending" with no confirmation ever arriving. Re-asserting
+// the same correct callback URL every day is a no-op when nothing's
+// wrong, and fixes it automatically if a future dev-testing session
+// forgets to point the callback back at prod afterward.
+crons.interval(
+  "reassert Moolre webhook callback",
+  { hours: 24 },
+  internal.moolre.diagnostics.reassertMoolreCallback,
+);
+
 export default crons;

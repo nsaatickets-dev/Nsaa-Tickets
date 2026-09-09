@@ -5,6 +5,7 @@ import { v } from "convex/values";
 import { requireAdmin, logAdminAction } from "./admin";
 import { alertCritical } from "./alerts";
 import { requireMoolreEnv } from "./moolreConfig";
+import { isMoolreAccepted, checkStatus, requestTransfer, moolreMessage } from "./moolre/client";
 
 const GCB_BANK_NAME = "GCB Bank Limited";
 const GCB_BANK_SUBLIST_ID = "300304";
@@ -14,34 +15,6 @@ const FAILED_RETRY_DELAY_MS = 30 * 60 * 1000;
 
 function round2(value: number): number {
   return Math.round(value * 100) / 100;
-}
-
-function isMoolreSuccess(value: unknown): boolean {
-  return Number(value) === 1 || String(value ?? "").trim() === "1";
-}
-
-function moolreAccepted(data: any): boolean {
-  return isMoolreSuccess(data?.status);
-}
-
-async function readMoolreJson(response: Response): Promise<any> {
-  const text = await response.text();
-  if (!text) return {};
-  try {
-    return JSON.parse(text);
-  } catch (_err) {
-    return {
-      status: response.ok ? 1 : 0,
-      code: response.status,
-      message: text,
-    };
-  }
-}
-
-function moolreMessage(data: any, fallback: string): string {
-  const raw = data?.message ?? data?.msg;
-  const message = Array.isArray(raw) ? raw.join(" ") : String(raw ?? "").trim();
-  return message || fallback;
 }
 
 function minSweepAmount(): number {
@@ -138,31 +111,17 @@ async function transferServiceFeeForOrder(
     "MOOLRE_ACCOUNT_NUMBER",
   ]);
 
-  const response = await fetch(`${moolreConfig.MOOLRE_API_BASE}/open/transact/transfer`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-API-USER": moolreConfig.MOOLRE_API_USER,
-      "X-API-KEY": moolreConfig.MOOLRE_API_KEY,
-    },
-    body: JSON.stringify({
-      type: 1,
-      channel: INSTANT_BANK_TRANSFER_CHANNEL,
-      currency: "GHS",
-      amount: String(pending.amountGHS),
-      receiver: config.bankAccountNumber,
-      sublistid: config.bankSublistId,
-      externalref: pending.externalRef,
-      reference: `Nsaa service fee ${orderId}`,
-      accountnumber: moolreConfig.MOOLRE_ACCOUNT_NUMBER,
-    }),
+  const result = await requestTransfer(moolreConfig, {
+    channel: INSTANT_BANK_TRANSFER_CHANNEL,
+    amountGHS: pending.amountGHS,
+    receiver: config.bankAccountNumber,
+    sublistid: config.bankSublistId,
+    externalref: pending.externalRef,
+    reference: `Nsaa service fee ${orderId}`,
   });
 
-  const data = await readMoolreJson(response);
-  const accepted = response.ok && moolreAccepted(data);
-
-  if (!accepted) {
-    const failureReason = moolreMessage(data, "Service fee transfer could not be started.");
+  if (!result.accepted) {
+    const failureReason = moolreMessage(result.data, "Service fee transfer could not be started.");
     await ctx.runMutation(internal.serviceFees.markServiceFeeTransferFailed, {
       transferId: pending.transferId,
       failureReason,
@@ -437,23 +396,9 @@ export const verifyAndProcessServiceFeeTransfer = internalAction({
         "MOOLRE_API_PUBKEY",
         "MOOLRE_ACCOUNT_NUMBER",
       ]);
-      const response = await fetch(`${config.MOOLRE_API_BASE}/open/transact/status`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-API-USER": config.MOOLRE_API_USER,
-          "X-API-PUBKEY": config.MOOLRE_API_PUBKEY,
-        },
-        body: JSON.stringify({
-          type: 1,
-          idtype: "1",
-          id: externalref,
-          accountnumber: config.MOOLRE_ACCOUNT_NUMBER,
-        }),
-      });
-      const payload = await response.json();
-      txstatus = payload?.data?.txstatus;
-      transactionId = payload?.data?.transactionid;
+      const result = await checkStatus(config, { idtype: "1", id: externalref });
+      txstatus = result.txstatus;
+      transactionId = result.transactionId;
     } catch (err) {
       await alertCritical(
         "Moolre service fee status check failed",
@@ -464,7 +409,7 @@ export const verifyAndProcessServiceFeeTransfer = internalAction({
 
     await ctx.runMutation(internal.serviceFees.applyVerifiedServiceFeeTransferStatus, {
       transferId,
-      isSuccess: isMoolreSuccess(txstatus),
+      isSuccess: isMoolreAccepted(txstatus),
       transactionId,
     });
   },

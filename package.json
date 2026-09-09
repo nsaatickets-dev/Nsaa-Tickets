@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "convex dev",
     "deploy": "convex deploy",
-    "serve": "npx http-server public -p 8080"
+    "serve": "npx http-server public -p 8080",
+    "test": "vitest run"
   },
   "dependencies": {
     "@convex-dev/rate-limiter": "^0.3.2",
@@ -15,6 +16,7 @@
     "qrcode": "^1.5.4"
   },
   "devDependencies": {
-    "http-server": "^14.1.1"
+    "http-server": "^14.1.1",
+    "vitest": "^5.0.0"
   }
 }
