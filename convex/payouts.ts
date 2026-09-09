@@ -56,10 +56,10 @@ function isMoolreSuccess(value: unknown): boolean {
 // (or `npx convex run` on the deployment) check why a specific payout
 // phone is being rejected without spending a real transfer attempt on it.
 export const validatePayoutRecipient = internalAction({
-  args: { phone: v.string(), channel: v.optional(v.string()) },
+  args: { phone: v.string(), channel: v.optional(v.string()), sublistid: v.optional(v.string()) },
   handler: async (
     ctx,
-    { phone, channel },
+    { phone, channel, sublistid },
   ): Promise<{ channel: string; status: unknown; code: unknown; message: unknown; accountName: unknown }> => {
     const config = requireMoolreEnv([
       "MOOLRE_API_BASE",
@@ -82,6 +82,10 @@ export const validatePayoutRecipient = internalAction({
         channel: resolvedChannel,
         currency: "GHS",
         accountnumber: config.MOOLRE_ACCOUNT_NUMBER,
+        // Bank channel (2) validation needs the specific bank's code - not
+        // documented on Validate Name's own params page, but present in
+        // Moolre's Agency Banking guide's real validate-name example.
+        ...(sublistid ? { sublistid } : {}),
       }),
     });
 
@@ -93,6 +97,73 @@ export const validatePayoutRecipient = internalAction({
       message: data.message,
       accountName: data.data,
     };
+  },
+});
+
+// Diagnostic - checks the sending wallet's own balance/config via Moolre's
+// Account Status endpoint, to rule out "insufficient balance" as the cause
+// of a transfer rejection before assuming it's a channel-provisioning
+// issue on Moolre's side.
+export const checkMoolreWalletStatus = internalAction({
+  args: {},
+  handler: async (ctx): Promise<{ status: unknown; code: unknown; message: unknown; data: unknown }> => {
+    const config = requireMoolreEnv([
+      "MOOLRE_API_BASE",
+      "MOOLRE_API_USER",
+      "MOOLRE_API_KEY",
+      "MOOLRE_ACCOUNT_NUMBER",
+    ]);
+    const response = await fetch(`${config.MOOLRE_API_BASE}/open/account/status`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-API-USER": config.MOOLRE_API_USER,
+        "X-API-KEY": config.MOOLRE_API_KEY,
+      },
+      body: JSON.stringify({ type: 1, accountnumber: config.MOOLRE_ACCOUNT_NUMBER }),
+    });
+    const data = await response.json();
+    return { status: data.status, code: data.code, message: data.message, data: data.data };
+  },
+});
+
+// One-off ops fix - the account's registered webhook callback was pointing
+// at a different (dev) Convex deployment's URL, so every Moolre webhook
+// (payment/transfer/refund/service-fee confirmations) has been landing
+// somewhere that never runs this code. Corrects it via Moolre's own
+// Update Account endpoint. `callback` is required to be passed explicitly
+// (no default) so this can never silently repoint the account somewhere
+// unintended.
+export const updateMoolreCallbackUrl = internalAction({
+  args: { callback: v.string(), api: v.optional(v.boolean()), accountname: v.optional(v.string()) },
+  handler: async (
+    ctx,
+    { callback, api, accountname },
+  ): Promise<{ status: unknown; code: unknown; message: unknown; data: unknown }> => {
+    const config = requireMoolreEnv([
+      "MOOLRE_API_BASE",
+      "MOOLRE_API_USER",
+      "MOOLRE_API_KEY",
+      "MOOLRE_ACCOUNT_NUMBER",
+    ]);
+    const response = await fetch(`${config.MOOLRE_API_BASE}/open/account/update`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-API-USER": config.MOOLRE_API_USER,
+        "X-API-KEY": config.MOOLRE_API_KEY,
+      },
+      body: JSON.stringify({
+        type: 1,
+        accountnumber: config.MOOLRE_ACCOUNT_NUMBER,
+        currency: "GHS",
+        callback,
+        ...(api !== undefined ? { api } : {}),
+        ...(accountname !== undefined ? { accountname } : {}),
+      }),
+    });
+    const data = await response.json();
+    return { status: data.status, code: data.code, message: data.message, data: data.data };
   },
 });
 
