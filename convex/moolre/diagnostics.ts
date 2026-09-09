@@ -224,3 +224,44 @@ export const reconcilePayoutFromLedger = internalMutation({
     await ctx.db.patch(payoutId, { status: "pending", externalRef, channel, moolreReference });
   },
 });
+
+// TEMPORARY - Phase 4 production cutover verification only. Not called
+// from anywhere, not reachable from the browser. Remove after the
+// one-time post-cutover smoke test.
+export const seedPhase4ProdTestEvent = internalMutation({
+  args: {},
+  handler: async (ctx): Promise<{ eventId: string; ticketTypeId: string }> => {
+    const now = Date.now();
+    const eventId = await ctx.db.insert("events", {
+      title: "Phase 4 Cutover Smoke Test",
+      description: "Temporary event for production cutover verification.",
+      venue: "N/A",
+      address: "N/A",
+      city: "Accra",
+      startsAt: now + 60 * 60 * 1000,
+      category: "conference",
+      status: "published",
+      organizerName: "Phase 4 Test",
+      createdAt: now,
+    });
+    const ticketTypeId = await ctx.db.insert("ticketTypes", {
+      eventId,
+      name: "Smoke Test Ticket",
+      priceGHS: 1,
+      quantityTotal: 5,
+      quantitySold: 0,
+      quantityReserved: 0,
+    });
+    return { eventId, ticketTypeId };
+  },
+});
+
+// TEMPORARY - Phase 4 helper, remove alongside seedPhase4ProdTestEvent.
+export const deletePhase4TestData = internalMutation({
+  args: { eventId: v.id("events"), ticketTypeId: v.id("ticketTypes"), orderId: v.optional(v.id("orders")) },
+  handler: async (ctx, { eventId, ticketTypeId, orderId }) => {
+    if (orderId) await ctx.db.delete(orderId);
+    await ctx.db.delete(ticketTypeId);
+    await ctx.db.delete(eventId);
+  },
+});
