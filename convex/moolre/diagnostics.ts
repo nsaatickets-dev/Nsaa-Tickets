@@ -224,3 +224,43 @@ export const reconcilePayoutFromLedger = internalMutation({
     await ctx.db.patch(payoutId, { status: "pending", externalRef, channel, moolreReference });
   },
 });
+
+// TEMPORARY - retry-flow verification only. Not called from anywhere,
+// not reachable from the browser. Remove after the one-time test.
+export const seedRetryTestEvent = internalMutation({
+  args: {},
+  handler: async (ctx): Promise<{ eventId: string; ticketTypeId: string }> => {
+    const now = Date.now();
+    const eventId = await ctx.db.insert("events", {
+      title: "Retry Flow Test",
+      description: "Temporary event for testing the checkout retry button.",
+      venue: "N/A",
+      address: "N/A",
+      city: "Accra",
+      startsAt: now + 60 * 60 * 1000,
+      category: "conference",
+      status: "published",
+      organizerName: "Retry Test",
+      createdAt: now,
+    });
+    const ticketTypeId = await ctx.db.insert("ticketTypes", {
+      eventId,
+      name: "Retry Test Ticket",
+      priceGHS: 1,
+      quantityTotal: 5,
+      quantitySold: 0,
+      quantityReserved: 0,
+    });
+    return { eventId, ticketTypeId };
+  },
+});
+
+// TEMPORARY - remove alongside seedRetryTestEvent.
+export const deleteRetryTestData = internalMutation({
+  args: { eventId: v.id("events"), ticketTypeId: v.id("ticketTypes"), orderId: v.optional(v.id("orders")) },
+  handler: async (ctx, { eventId, ticketTypeId, orderId }) => {
+    if (orderId) await ctx.db.delete(orderId);
+    await ctx.db.delete(ticketTypeId);
+    await ctx.db.delete(eventId);
+  },
+});
