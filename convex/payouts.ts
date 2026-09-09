@@ -253,7 +253,10 @@ export const updateMoolreCallbackUrl = internalAction({
         accountnumber: config.MOOLRE_ACCOUNT_NUMBER,
         currency: "GHS",
         callback,
-        ...(api !== undefined ? { api } : {}),
+        // Moolre treats an omitted `api` field as "disable API access", not
+        // "leave unchanged" (despite what the docs imply) — always send an
+        // explicit value so this call can never silently lock us out again.
+        api: api ?? true,
         ...(accountname !== undefined ? { accountname } : {}),
       }),
     });
