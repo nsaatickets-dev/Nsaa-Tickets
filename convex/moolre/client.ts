@@ -167,6 +167,14 @@ export async function checkStatus(
 // not documented on Validate Name's own params page, but present in
 // Moolre's Agency Banking guide's real examples for both validate and
 // transfer.
+//
+// `walletid` is NOT part of Moolre's documented request schema for this
+// endpoint (confirmed against both their docs site and the full Postman
+// collection), but this account's transfers fail synchronously with
+// `TN02 "Invalid Account Details" data:"walletid"` without it - found by
+// testing with the wallet number shown on this account's dashboard
+// (Wallets page: "Nsaa Tickets - 72829"). Always sent; MOOLRE_WALLET_ID
+// must be in the caller's requireMoolreEnv list.
 export async function requestTransfer(
   config: MoolreConfig,
   params: {
@@ -193,6 +201,7 @@ export async function requestTransfer(
       receiver: params.receiver,
       externalref: params.externalref,
       accountnumber: config.MOOLRE_ACCOUNT_NUMBER,
+      walletid: config.MOOLRE_WALLET_ID,
       ...(params.sublistid ? { sublistid: params.sublistid } : {}),
       ...(params.reference ? { reference: params.reference } : {}),
     }),

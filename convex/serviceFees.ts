@@ -109,6 +109,7 @@ async function transferServiceFeeForOrder(
     "MOOLRE_API_USER",
     "MOOLRE_API_KEY",
     "MOOLRE_ACCOUNT_NUMBER",
+    "MOOLRE_WALLET_ID",
   ]);
 
   const result = await requestTransfer(moolreConfig, {
