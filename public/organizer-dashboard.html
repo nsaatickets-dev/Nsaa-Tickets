@@ -60,6 +60,7 @@
       let currentOrganizerProfile = null;
       let dashboardEventFilter = "all";
       let dashboardEventsCache = [];
+      let dashboardFailedPayoutEvents = [];
 
       function renderOrganizerAvatar() {
         const slot = document.getElementById("organizer-avatar-slot");
@@ -221,6 +222,23 @@
         });
       }
 
+      // Active alert (not just a red chip buried in a per-event tab) so an
+      // organizer notices a failed payout without having to open each
+      // event's Payouts tab individually. Fed by payouts:failedPayoutEventTitles,
+      // which only reports an event whose MOST RECENT payout attempt is
+      // still "failed" - a later successful retry clears this on its own.
+      function failedPayoutBannerHtml(failedPayoutEvents) {
+        if (!failedPayoutEvents || failedPayoutEvents.length === 0) return "";
+        const titles = failedPayoutEvents.map((e) => NSAA.escapeHtml(e.title)).join(", ");
+        return `
+          <div class="nsaa-status-box failed mb-3">
+            <p class="fw-semibold mb-1">Payout failed: ${titles}</p>
+            <p class="mb-2">We couldn't complete the Mobile Money transfer for ${failedPayoutEvents.length > 1 ? "these events" : "this event"}. We also emailed you about it. Add or switch to a backup MTN number so we can retry.</p>
+            <a class="btn btn-nsaa btn-sm" href="/organizer-onboarding?edit=1">Update payout number</a>
+          </div>
+        `;
+      }
+
       function renderList(events) {
         dashboardEventsCache = events || [];
         const counts = organizerEventCounts(dashboardEventsCache);
@@ -247,6 +265,7 @@
 
         root.innerHTML = `
           <section class="nsaa-dashboard-board">
+            ${failedPayoutBannerHtml(dashboardFailedPayoutEvents)}
             ${dashboardSummaryHtml(dashboardEventsCache, counts)}
             ${dashboardTabsHtml(counts)}
             <div id="dashboard-event-list" class="nsaa-dashboard-event-list" role="tabpanel">
@@ -1021,9 +1040,19 @@
           `;
         }
         const sorted = [...payouts].sort((a, b) => b.createdAt - a.createdAt);
+        const mostRecentFailed = sorted[0]?.status === "failed";
         return `
           <div class="nsaa-panel mb-3">
             <h2 class="h5 mb-3">Payout status</h2>
+            ${
+              mostRecentFailed
+                ? `<div class="nsaa-status-box failed mb-3">
+                    <p class="fw-semibold mb-1">Your latest payout failed</p>
+                    <p class="mb-2">The Mobile Money transfer for this event couldn't be completed. We emailed you about it. Add or switch to a backup MTN number so we can retry.</p>
+                    <a class="btn btn-nsaa btn-sm" href="/organizer-onboarding?edit=1">Update payout number</a>
+                  </div>`
+                : ""
+            }
             <div class="table-responsive">
               <table class="table align-middle mb-0">
                 <thead><tr><th>Amount</th><th>Status</th><th>Date</th></tr></thead>
@@ -1683,6 +1712,10 @@
           } else {
             renderOrganizerAvatar();
             client.onUpdate("events:eventsForCurrentOrganizer", {}, renderList);
+            client.onUpdate("payouts:failedPayoutEventTitles", {}, (failedPayoutEvents) => {
+              dashboardFailedPayoutEvents = failedPayoutEvents || [];
+              renderList(dashboardEventsCache);
+            });
           }
         }
       }

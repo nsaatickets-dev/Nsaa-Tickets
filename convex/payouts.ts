@@ -148,6 +148,39 @@ export const payoutsForEvent = query({
   },
 });
 
+// Organizer-facing, dashboard-wide (not scoped to one event) - powers the
+// top-level "payout failed" banner so an organizer notices without having
+// to open each event's Payouts tab individually. Checks the MOST RECENT
+// payout per event, not "has any payout ever failed" - a failed attempt
+// that a later retry successfully paid shouldn't keep showing as broken.
+// Bounded by the organizer's own event count (typically small), one
+// indexed lookup per event - not a full-table scan.
+export const failedPayoutEventTitles = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+
+    const events = await ctx.db
+      .query("events")
+      .withIndex("by_organizer", (q) => q.eq("organizerClerkUserId", identity.subject))
+      .collect();
+
+    const results: { eventId: string; title: string }[] = [];
+    for (const event of events) {
+      const latestPayout = await ctx.db
+        .query("payouts")
+        .withIndex("by_event", (q) => q.eq("eventId", event._id))
+        .order("desc")
+        .first();
+      if (latestPayout?.status === "failed") {
+        results.push({ eventId: event._id, title: event.title });
+      }
+    }
+    return results;
+  },
+});
+
 // Organizer-facing: their own interim-payout request history for one of
 // their events (pending/approved/rejected) - read-only, so this repeats
 // requireOwnedEvent's identity/ownership check inline rather than
@@ -839,6 +872,7 @@ export const markPayoutFailed = internalMutation({
   args: { payoutId: v.id("payouts") },
   handler: async (ctx, { payoutId }) => {
     await ctx.db.patch(payoutId, { status: "failed" });
+    await ctx.scheduler.runAfter(0, internal.payouts.sendPayoutFailedNotification, { payoutId });
   },
 });
 
@@ -1023,6 +1057,7 @@ export const applyVerifiedPayoutStatus = internalMutation({
       "Moolre payout confirmed failed after being pending",
       `Payout ${payoutId} for event ${payout.eventId} (GHS ${payout.amountGHS} to ${payout.organizerPayoutPhone}) was confirmed FAILED by Moolre (txstatus 2) after sitting pending. Marked failed and re-queued the event for automatic retry.`,
     );
+    await ctx.scheduler.runAfter(0, internal.payouts.sendPayoutFailedNotification, { payoutId });
   },
 });
 
@@ -1100,6 +1135,51 @@ export const sendPayoutNotification = internalAction({
             `GHS ${payout.amountGHS} for <strong>${escapeHtml(eventTitle)}</strong> has been sent to your Mobile Money number on file.`,
           ),
         footerNote: "This confirms an organizer payout from Nsaa Tickets.",
+      }),
+    });
+  },
+});
+
+// Mirrors sendPayoutNotification above but for the failure side - fired
+// from both places a payout can end up "failed" (markPayoutFailed's
+// synchronous rejection at initiation, and applyVerifiedPayoutStatus's
+// async confirmed-failure branch). Previously only alertCritical fired on
+// failure, which only reaches internal support - the organizer had no way
+// to find out their money didn't move except by noticing it missing and
+// asking. Points straight at the profile edit page so switching to (or
+// adding) a backup MTN number is one click away, not a support ticket.
+export const sendPayoutFailedNotification = internalAction({
+  args: { payoutId: v.id("payouts") },
+  handler: async (ctx, { payoutId }) => {
+    const payout = await ctx.runQuery(internal.payouts.getPayoutInternal, { payoutId });
+    if (!payout || payout.status !== "failed") return;
+
+    const contact = await ctx.runQuery(internal.events.getOrganizerContactForEvent, {
+      eventId: payout.eventId,
+    });
+    if (!contact) return;
+
+    const event = await ctx.runQuery(api.events.getById, { eventId: payout.eventId });
+    const eventTitle = event?.title ?? "your event";
+    const editProfileUrl = "https://nsaatickets.com/organizer-onboarding?edit=1";
+
+    await sendBrevoEmail({
+      sender: SENDERS.events,
+      to: [{ email: contact.contactEmail, name: contact.organizerName }],
+      subject: `Payout could not be completed: ${eventTitle}`,
+      htmlContent: renderEmailLayout({
+        heading: "We couldn't complete your payout",
+        bodyHtml:
+          paragraph(`Hi ${escapeHtml(contact.organizerName)},`) +
+          paragraph(
+            `We tried to send GHS ${payout.amountGHS} for <strong>${escapeHtml(eventTitle)}</strong> to your Mobile Money number on file, but the transfer failed. No money left your balance - this attempt just didn't go through.`,
+          ) +
+          paragraph(
+            `Mobile Money transfers only work reliably on MTN right now. If your payout number isn't an MTN number, add a backup MTN number so we can retry automatically, or switch your payout number to one that is.`,
+          ) +
+          `<p style="margin:0 0 18px;"><a href="${editProfileUrl}" style="display:inline-block; background:#ff8a00; color:#241f1a; text-decoration:none; font-weight:800; padding:12px 16px; border-radius:4px;">Update payout number</a></p>` +
+          paragraph("We'll automatically retry once you've updated it. Our support team has also been notified."),
+        footerNote: "This is about an organizer payout from Nsaa Tickets.",
       }),
     });
   },
