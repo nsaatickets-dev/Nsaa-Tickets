@@ -14,7 +14,7 @@
     />
     <link href="css/nsaa.css" rel="stylesheet" />
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
-    <script src="https://js.moolre.com/v1/inline.js"></script>
+    <script src="https://js.moolre.com/moolre-min.js"></script>
   </head>
   <body class="checkout-body">
     <nav class="navbar nsaa-navbar">
@@ -727,6 +727,7 @@
           };
 
           const checkoutResult = popup.checkout({
+            username: config.username,
             publicKey: config.publicKey,
             accountNumber: config.accountNumber,
             amount: config.amount,

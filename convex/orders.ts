@@ -236,6 +236,7 @@ export const prepareInlineCheckout = action({
     ctx,
     { orderId, method },
   ): Promise<{
+    username: string;
     publicKey: string;
     accountNumber: string;
     amount: number;
@@ -253,6 +254,7 @@ export const prepareInlineCheckout = action({
 
     const config = requireMoolreEnv([
       "MOOLRE_API_BASE",
+      "MOOLRE_API_USER",
       "MOOLRE_API_PUBKEY",
       "MOOLRE_ACCOUNT_NUMBER",
     ]);
@@ -267,6 +269,11 @@ export const prepareInlineCheckout = action({
     });
 
     return {
+      // Required by the Inline SDK (sent as X-API-USER by its own
+      // browser-side calls to Moolre) - missing here would only ever
+      // have surfaced once the script itself loaded, which it never did
+      // (see the src fix in checkout.html).
+      username: config.MOOLRE_API_USER,
       publicKey: config.MOOLRE_API_PUBKEY,
       accountNumber: config.MOOLRE_ACCOUNT_NUMBER,
       amount: Math.round(order.totalGHS * 100) / 100,
