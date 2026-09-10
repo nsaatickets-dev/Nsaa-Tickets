@@ -124,9 +124,23 @@ export const eligiblePayoutAmount = query({
   },
 });
 
+// Organizer-facing: the real transfer ledger for one of their events
+// (pending/paid/failed, not just interim-request status - see
+// payoutRequestsForEvent above for that). Was defined but never called
+// from anywhere in the frontend, and had no ownership check at all - an
+// organizer who happened to have another event's ID could have read its
+// payout amounts and status. Fixed to match payoutRequestsForEvent's
+// established check before wiring it into the dashboard.
 export const payoutsForEvent = query({
   args: { eventId: v.id("events") },
   handler: async (ctx, { eventId }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Sign in required.");
+    const event = await ctx.db.get(eventId);
+    if (!event) throw new Error("Event not found.");
+    if (event.organizerClerkUserId !== identity.subject) {
+      throw new Error("You do not have access to this event.");
+    }
     return await ctx.db
       .query("payouts")
       .withIndex("by_event", (q) => q.eq("eventId", eventId))

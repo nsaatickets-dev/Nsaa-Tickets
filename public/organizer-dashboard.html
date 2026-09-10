@@ -1006,6 +1006,49 @@
         { key: "door", label: "Door", icon: "ph-scan" },
       ];
 
+      // The real transfer ledger for this event - separate from the
+      // interim-request panel below, which only tracks the organizer's own
+      // *requests* (pending/approved/rejected), not whether Moolre actually
+      // moved the money. This is what answers "did my payout arrive" -
+      // previously only visible to admins in the ops console.
+      function payoutHistoryHtml(payouts) {
+        if (!payouts || payouts.length === 0) {
+          return `
+            <div class="nsaa-panel mb-3">
+              <h2 class="h5 mb-1">Payout status</h2>
+              <p class="nsaa-muted small mb-0">No payout has gone out for this event yet. Payouts are released automatically once the event ends.</p>
+            </div>
+          `;
+        }
+        const sorted = [...payouts].sort((a, b) => b.createdAt - a.createdAt);
+        return `
+          <div class="nsaa-panel mb-3">
+            <h2 class="h5 mb-3">Payout status</h2>
+            <div class="table-responsive">
+              <table class="table align-middle mb-0">
+                <thead><tr><th>Amount</th><th>Status</th><th>Date</th></tr></thead>
+                <tbody>
+                  ${sorted
+                    .map(
+                      (p) => `
+                    <tr>
+                      <td>${NSAA.money(p.amountGHS)}</td>
+                      <td>
+                        <span class="nsaa-chip"${p.status === "paid" ? ' data-tone="green"' : p.status === "failed" ? ' data-tone="rose"' : ""}>${NSAA.escapeHtml(p.status)}</span>
+                        ${p.payoutPhoneUsed ? `<p class="nsaa-faint small mb-0">Sent to your backup MTN number</p>` : ""}
+                      </td>
+                      <td>${NSAA.escapeHtml(NSAA.formatDate(p.paidAt || p.createdAt))}</td>
+                    </tr>
+                  `,
+                    )
+                    .join("")}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        `;
+      }
+
       // Interim-payout request form + history for the Payouts tab -
       // Pro/Custom tier perk only (see convex/payouts.ts:requestInterimPayout).
       // Kept as one render function fed by two independent onUpdate
@@ -1432,10 +1475,12 @@
         // form itself is replaced each time.
         let latestEligibleGHS = 0;
         let latestPayoutRequests = [];
+        let latestPayouts = [];
         function renderPayoutSlot() {
           const slot = document.getElementById("payout-slot");
           if (!slot) return;
-          slot.innerHTML = payoutPanelHtml(organizerProfile, latestEligibleGHS, latestPayoutRequests);
+          slot.innerHTML =
+            payoutHistoryHtml(latestPayouts) + payoutPanelHtml(organizerProfile, latestEligibleGHS, latestPayoutRequests);
           const payoutForm = document.getElementById("payout-request-form");
           if (!payoutForm) return;
           payoutForm.addEventListener("submit", async (evt) => {
@@ -1467,6 +1512,10 @@
         });
         client.onUpdate("payouts:payoutRequestsForEvent", { eventId: existingEvent._id }, (requests) => {
           latestPayoutRequests = requests || [];
+          renderPayoutSlot();
+        });
+        client.onUpdate("payouts:payoutsForEvent", { eventId: existingEvent._id }, (payouts) => {
+          latestPayouts = payouts || [];
           renderPayoutSlot();
         });
       }
