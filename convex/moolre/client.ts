@@ -107,17 +107,21 @@ export function detectMoolreTransferChannel(phone: string): string | undefined {
   return undefined;
 }
 
-// Every channel to try for a transfer, prefix-guessed one first - a
-// rejected attempt on one channel is a definitive, synchronous "not
-// sent" (not a timeout/uncertain outcome - see Moolre's own Safe Retries
-// guidance), so trying the remaining channels next is a legitimate new
-// attempt, not an unsafe blind retry. A ported number, or one whose
-// prefix isn't recognized at all, still gets every channel tried.
+// Every channel to try for a transfer. A confidently-detected prefix means
+// we know the real network - if Moolre rejects that channel, trying
+// another one doesn't send the money more successfully, it just risks
+// Moolre *accepting* a request routed to a network that can never
+// actually deliver to this number. Confirmed live 2026-09-10: an AT
+// number's correct channel (7) was rejected, the old fallback tried
+// Telecel (6) next, Moolre accepted that mismatched request, and the
+// transfer sat "pending" indefinitely instead of failing cleanly - stuck
+// money is worse than a fast, honest failure. So a confident guess now
+// gets exactly one attempt; only a genuinely unrecognized/ambiguous
+// prefix (unlisted, or a ported number) still gets every channel tried,
+// since there we have no better information to narrow it down.
 export function transferChannelsToTry(phone: string): string[] {
   const guessed = detectMoolreTransferChannel(phone);
-  return guessed
-    ? [guessed, ...ALL_MOOLRE_TRANSFER_CHANNELS.filter((c) => c !== guessed)]
-    : [...ALL_MOOLRE_TRANSFER_CHANNELS];
+  return guessed ? [guessed] : [...ALL_MOOLRE_TRANSFER_CHANNELS];
 }
 
 // POST /open/transact/status - the one status-check shape used by every

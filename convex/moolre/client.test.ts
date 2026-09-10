@@ -104,11 +104,15 @@ describe("detectMoolreTransferChannel", () => {
 });
 
 describe("transferChannelsToTry", () => {
-  it("puts the guessed channel first, followed by the other two", () => {
+  it("tries only the guessed channel when the prefix is recognized", () => {
+    // A confident guess gets exactly one attempt - falling back to a
+    // channel we know doesn't match the number risks Moolre accepting a
+    // transfer it can never actually deliver, which is worse than a fast
+    // failure (confirmed live: an AT number's correct channel was
+    // rejected, the old fallback's Telecel attempt was accepted, and the
+    // transfer sat pending indefinitely instead of failing cleanly).
     const channels = transferChannelsToTry("0241234567"); // MTN
-    expect(channels[0]).toBe("1");
-    expect(new Set(channels)).toEqual(new Set(ALL_MOOLRE_TRANSFER_CHANNELS));
-    expect(channels).toHaveLength(3);
+    expect(channels).toEqual(["1"]);
   });
 
   it("still returns all three channels when the prefix is unrecognized", () => {
