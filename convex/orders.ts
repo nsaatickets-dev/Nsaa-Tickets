@@ -241,6 +241,7 @@ export const prepareInlineCheckout = action({
     accountNumber: string;
     amount: number;
     currency: "GHS";
+    email: string;
     externalRef: string;
     metadata: Record<string, string>;
   }> => {
@@ -278,6 +279,9 @@ export const prepareInlineCheckout = action({
       accountNumber: config.MOOLRE_ACCOUNT_NUMBER,
       amount: Math.round(order.totalGHS * 100) / 100,
       currency: "GHS",
+      // Required by the Inline SDK - same missing-required-field pattern
+      // as `username`, only surfaced once the script actually loaded.
+      email: order.buyerEmail,
       externalRef,
       metadata: {
         order_id: order._id,
