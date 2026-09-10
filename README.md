@@ -41,7 +41,7 @@ Clerk, Convex, Brevo, and Moolre.
   links, poster QR codes, embed snippets, referral summaries, scanner
   staff tokens, and recent scan logs.
 - **Organizer pricing tiers** (`convex/events.ts`, `organizerProfiles`
-  table) - Free (0%), Essential/Standard (4.5%), Pro/Priority (4.9%)
+  table) - Free (0%), Essential/Standard (4.5%), Pro/Priority (5%)
   self-serve at event creation, plus an admin-only Custom tier with a
   per-organizer rate. Deliberately priced below the 5% local Essential
   benchmark while leaving room for Moolre's processing share and Nsaa's

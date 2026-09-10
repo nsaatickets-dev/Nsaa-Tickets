@@ -12,7 +12,7 @@ Tickets are non-transferable and non-resellable by design. Guest checkout requir
 
 ## Sell tickets
 - [How selling works](https://www.nsaatickets.com/organizer-inquiry): fees, the distribution kit, and assisted setup
-- [Pricing](https://www.nsaatickets.com/pricing): Free, Standard (4.5%), and Priority (4.9%) tiers
+- [Pricing](https://www.nsaatickets.com/pricing): Free, Standard (4.5%), and Priority (5%) tiers
 
 ## Policies
 - [Terms of Service](https://www.nsaatickets.com/terms-of-service)

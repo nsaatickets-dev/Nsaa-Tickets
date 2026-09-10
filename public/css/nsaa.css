@@ -1439,6 +1439,34 @@ body.nsaa-modal-open {
   text-underline-offset: 0.18em;
 }
 
+.nsaa-review-ticket-list {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.nsaa-review-ticket-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.6rem 0;
+  border-top: 1px solid var(--nsaa-border);
+}
+
+.nsaa-review-ticket-row:first-child {
+  border-top: none;
+}
+
+.nsaa-review-ticket-row span:first-child {
+  font-weight: 700;
+  color: var(--nsaa-ink);
+}
+
+.nsaa-review-ticket-row span:nth-child(2) {
+  color: var(--nsaa-gold);
+  font-weight: 700;
+}
+
 .nsaa-onboarding-header {
   display: flex;
   align-items: end;

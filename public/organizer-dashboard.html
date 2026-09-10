@@ -1142,6 +1142,104 @@
         `;
       }
 
+      function renderReviewStep(client, organizerProfile, eventFields, ticketTypes) {
+        const categoryLabel =
+          NSAA.categories.find((item) => item.value === eventFields.category)?.label ||
+          eventFields.category;
+        const ticketRows = ticketTypes
+          .map(
+            (tier) => `
+              <div class="nsaa-review-ticket-row">
+                <span>${NSAA.escapeHtml(tier.name)}</span>
+                <span>${NSAA.money(tier.priceGHS)}</span>
+                <span>${tier.quantityTotal} available</span>
+              </div>
+            `,
+          )
+          .join("");
+
+        root.innerHTML = `
+          <a class="nsaa-nav-link d-inline-flex align-items-center gap-1 mb-4" href="/organizer-dashboard">
+            <i class="ph ph-arrow-left"></i> Back to my events
+          </a>
+          <section class="nsaa-dashboard-workspace">
+            <div class="nsaa-dashboard-workspace-head">
+              <div>
+                <h2 class="h4 mb-1">Review your event</h2>
+                <p class="nsaa-muted small mb-0">Check everything below, then publish now or save it as a draft to finish later.</p>
+              </div>
+            </div>
+            <div class="nsaa-panel mb-4">
+              <h2 class="h5 mb-3">${NSAA.escapeHtml(eventFields.title)}</h2>
+              <div class="nsaa-dashboard-fact-list mb-3">
+                <div><span>Category</span><strong>${NSAA.escapeHtml(categoryLabel)}</strong></div>
+                <div><span>When</span><strong>${NSAA.escapeHtml(NSAA.formatDate(eventFields.startsAt))} &ndash; ${NSAA.escapeHtml(NSAA.formatDate(eventFields.endsAt))}</strong></div>
+                <div><span>Venue</span><strong>${NSAA.escapeHtml(eventFields.venue)}, ${NSAA.escapeHtml(eventFields.city)}</strong></div>
+                <div><span>Address</span><strong>${NSAA.escapeHtml(eventFields.address)}</strong></div>
+                <div><span>Organizer</span><strong>${NSAA.escapeHtml(eventFields.organizerName)}</strong></div>
+                ${eventFields.ageRating ? `<div><span>Age rating</span><strong>${NSAA.escapeHtml(eventFields.ageRating)}</strong></div>` : ""}
+                ${eventFields.organizerPayoutPhone ? `<div><span>Payout phone</span><strong>${NSAA.escapeHtml(eventFields.organizerPayoutPhone)}</strong></div>` : ""}
+              </div>
+              <p class="nsaa-muted small mb-0">${NSAA.escapeHtml(eventFields.description)}</p>
+            </div>
+            <div class="nsaa-panel mb-4">
+              <h2 class="h5 mb-3">Ticket tiers</h2>
+              <div class="nsaa-review-ticket-list">${ticketRows}</div>
+            </div>
+            <div id="review-result"></div>
+            <div class="d-grid gap-2 d-sm-flex">
+              <button id="review-edit-btn" class="btn btn-outline-nsaa" type="button">
+                <i class="ph ph-pencil-simple me-1" aria-hidden="true"></i>Back to edit
+              </button>
+              <button id="review-draft-btn" class="btn btn-outline-nsaa" type="button">Save as draft</button>
+              <button id="review-publish-btn" class="btn btn-nsaa" type="button">Publish event</button>
+            </div>
+          </section>
+        `;
+
+        const resultEl = document.getElementById("review-result");
+        const editBtn = document.getElementById("review-edit-btn");
+        const draftBtn = document.getElementById("review-draft-btn");
+        const publishBtn = document.getElementById("review-publish-btn");
+
+        editBtn.addEventListener("click", () => {
+          renderEditor(client, null, organizerProfile);
+        });
+
+        async function saveEvent(publish) {
+          draftBtn.disabled = true;
+          publishBtn.disabled = true;
+          editBtn.disabled = true;
+          (publish ? publishBtn : draftBtn).textContent = publish ? "Publishing..." : "Saving...";
+          try {
+            const newId = await client.mutation("events:createEventWithTicketTypes", {
+              ...eventFields,
+              ticketTypes,
+            });
+            if (publish) {
+              await client.mutation("events:setEventStatus", {
+                eventId: newId,
+                status: "published",
+              });
+            }
+            window.location.href = `/organizer-dashboard?eventId=${encodeURIComponent(newId)}`;
+          } catch (err) {
+            resultEl.innerHTML = NSAA.errorState(
+              "Could not save event",
+              err.message || "Please try again.",
+            );
+            draftBtn.disabled = false;
+            publishBtn.disabled = false;
+            editBtn.disabled = false;
+            draftBtn.textContent = "Save as draft";
+            publishBtn.textContent = "Publish event";
+          }
+        }
+
+        draftBtn.addEventListener("click", () => saveEvent(false));
+        publishBtn.addEventListener("click", () => saveEvent(true));
+      }
+
       async function renderEditor(client, existingEvent, organizerProfile) {
         const isEditing = Boolean(existingEvent);
         const requestedTab = params.get("tab");
@@ -1259,11 +1357,11 @@
               });
               resultEl.innerHTML = `<div class="nsaa-status-box success"><p class="fw-semibold mb-1">Saved</p><p class="mb-0">Your event details were updated.</p></div>`;
             } else {
-              const newId = await client.mutation("events:createEventWithTicketTypes", {
-                ...eventFields,
-                ticketTypes,
-              });
-              window.location.href = `/organizer-dashboard?eventId=${encodeURIComponent(newId)}`;
+              // Don't create yet - show everything the organizer just
+              // entered in one place first, so "Create event" isn't a
+              // silent save-as-draft they then have to go hunt down a
+              // separate Publish button for.
+              renderReviewStep(client, organizerProfile, eventFields, ticketTypes);
               return;
             }
           } catch (err) {
