@@ -1193,6 +1193,24 @@ body.nsaa-modal-open {
   background: #fff8ec;
 }
 
+/* Groups the admin console's 10 sections into short scannable clusters
+   (Monitor / Catalog / People / Money / Records) instead of one flat
+   strip - same buttons, same click handling, just chunked. */
+.nsaa-tab-group {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.nsaa-tab-divider {
+  flex: none;
+  align-self: stretch;
+  width: 1px;
+  margin: 0.3rem 0.2rem;
+  background: var(--nsaa-border);
+}
+
 /* Scroll variant - for a tab bar with too many tabs to fit a 2-column
    mobile grid without towering (admin console's 9 sections; the
    workspace tab bar above, which is sticky and would otherwise eat a

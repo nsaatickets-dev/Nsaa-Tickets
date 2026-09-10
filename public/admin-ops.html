@@ -46,18 +46,38 @@
       const resultEl = document.getElementById("admin-result");
       const tabsEl = document.getElementById("admin-tabs");
 
-      const TABS = [
-        ["overview", "Overview", "ph-gauge"],
-        ["events", "Events", "ph-calendar-blank"],
-        ["orders", "Orders", "ph-receipt"],
-        ["tickets", "Tickets", "ph-ticket"],
-        ["organizers", "Organizers", "ph-users-three"],
-        ["payouts", "Payouts", "ph-bank"],
-        ["payoutRequests", "Payout requests", "ph-hourglass-medium"],
-        ["serviceFees", "Fees", "ph-percent"],
-        ["blocklist", "Blocklist", "ph-shield-slash"],
-        ["audit", "Audit log", "ph-list-magnifying-glass"],
+      // Grouped so a 10-section console reads as five short clusters
+      // instead of one flat scrolling strip - same tabs, same click
+      // wiring (TABS below stays a flat list for every existing lookup),
+      // just chunked for scanability.
+      const TAB_GROUPS = [
+        { label: "Monitor", tabs: [["overview", "Overview", "ph-gauge"]] },
+        {
+          label: "Catalog",
+          tabs: [
+            ["events", "Events", "ph-calendar-blank"],
+            ["orders", "Orders", "ph-receipt"],
+            ["tickets", "Tickets", "ph-ticket"],
+          ],
+        },
+        {
+          label: "People",
+          tabs: [
+            ["organizers", "Organizers", "ph-users-three"],
+            ["blocklist", "Blocklist", "ph-shield-slash"],
+          ],
+        },
+        {
+          label: "Money",
+          tabs: [
+            ["payouts", "Payouts", "ph-bank"],
+            ["payoutRequests", "Payout requests", "ph-hourglass-medium"],
+            ["serviceFees", "Fees", "ph-percent"],
+          ],
+        },
+        { label: "Records", tabs: [["audit", "Audit log", "ph-list-magnifying-glass"]] },
       ];
+      const TABS = TAB_GROUPS.flatMap((group) => group.tabs);
 
       let client = null;
       let activeTab = "overview";
@@ -120,15 +140,22 @@
 
       // ---- Tab bar ----
       function renderTabs() {
-        tabsEl.innerHTML = TABS.map(([key, label, icon]) => {
-          const count = attentionCounts[key] || 0;
-          return `
-            <button type="button" class="nsaa-dashboard-tab ${key === activeTab ? "active" : ""}" role="tab" aria-selected="${key === activeTab ? "true" : "false"}" data-tab="${key}">
-              <i class="ph ${icon}" aria-hidden="true"></i>
-              <span>${label}</span>
-              ${count > 0 ? `<strong class="nsaa-tab-attention-badge">${count}</strong>` : ""}
-            </button>
-          `;
+        tabsEl.innerHTML = TAB_GROUPS.map((group, groupIndex) => {
+          const buttons = group.tabs
+            .map(([key, label, icon]) => {
+              const count = attentionCounts[key] || 0;
+              return `
+                <button type="button" class="nsaa-dashboard-tab ${key === activeTab ? "active" : ""}" role="tab" aria-selected="${key === activeTab ? "true" : "false"}" data-tab="${key}">
+                  <i class="ph ${icon}" aria-hidden="true"></i>
+                  <span>${label}</span>
+                  ${count > 0 ? `<strong class="nsaa-tab-attention-badge">${count}</strong>` : ""}
+                </button>
+              `;
+            })
+            .join("");
+          const divider =
+            groupIndex < TAB_GROUPS.length - 1 ? `<span class="nsaa-tab-divider" aria-hidden="true"></span>` : "";
+          return `<span class="nsaa-tab-group" role="presentation" aria-label="${NSAA.escapeAttr(group.label)}">${buttons}</span>${divider}`;
         }).join("");
       }
 
@@ -479,21 +506,58 @@
       }
 
       let editingEventId = null;
+      let eventsFilterQuery = "";
+      let eventsFilterStatus = "";
+
+      function filteredEvents() {
+        const query = eventsFilterQuery.trim().toLowerCase();
+        return eventsCache.filter((event) => {
+          if (eventsFilterStatus && event.status !== eventsFilterStatus) return false;
+          if (!query) return true;
+          return (
+            event.title.toLowerCase().includes(query) ||
+            event.organizerName.toLowerCase().includes(query) ||
+            event.venue.toLowerCase().includes(query) ||
+            event.city.toLowerCase().includes(query)
+          );
+        });
+      }
+
+      function renderEventsTable() {
+        const rows = filteredEvents();
+        return `
+          <div class="table-responsive nsaa-table-scroll-hint">
+            <table class="table align-middle mb-0 nsaa-table-stack">
+              <thead>
+                <tr><th>Event</th><th>Status</th><th>Organizer</th><th>Date</th><th class="text-end">Actions</th></tr>
+              </thead>
+              <tbody>
+                ${rows.length ? rows.map((event) => eventRowHtml(event, event._id === editingEventId)).join("") : '<tr><td colspan="5" class="nsaa-muted">No events match.</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+        `;
+      }
 
       function renderEventsSection() {
         return `
           <div class="nsaa-panel">
-            <h2 class="h5 mb-3">Event moderation and payouts</h2>
-            <div class="table-responsive nsaa-table-scroll-hint">
-              <table class="table align-middle mb-0 nsaa-table-stack">
-                <thead>
-                  <tr><th>Event</th><th>Status</th><th>Organizer</th><th>Date</th><th class="text-end">Actions</th></tr>
-                </thead>
-                <tbody>
-                  ${eventsCache.map((event) => eventRowHtml(event, event._id === editingEventId)).join("")}
-                </tbody>
-              </table>
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-3">
+              <h2 class="h5 mb-0">Event moderation and payouts</h2>
+              <p class="nsaa-faint small mb-0">Showing the ${eventsCache.length} most recent events.</p>
             </div>
+            <form id="events-filter-form" class="row g-2 mb-3">
+              <div class="col-md-8">
+                <input class="form-control form-control-nsaa form-control-sm" id="events-filter-query" placeholder="Search title, organizer, venue, or city" value="${NSAA.escapeAttr(eventsFilterQuery)}" />
+              </div>
+              <div class="col-md-4">
+                <select class="form-select form-select-nsaa form-select-sm" id="events-filter-status">
+                  <option value="">All statuses</option>
+                  ${["draft", "published", "cancelled"].map((s) => `<option value="${s}" ${s === eventsFilterStatus ? "selected" : ""}>${labelize(s)}</option>`).join("")}
+                </select>
+              </div>
+            </form>
+            <div id="events-table-slot">${renderEventsTable()}</div>
           </div>
         `;
       }
@@ -513,6 +577,23 @@
           showError(err);
         }
       }
+
+      root.addEventListener("input", (event) => {
+        if (event.target.closest("#events-filter-query") === null) return;
+        eventsFilterQuery = event.target.value;
+        document.getElementById("events-table-slot").innerHTML = renderEventsTable();
+      });
+
+      root.addEventListener("change", (event) => {
+        if (event.target.closest("#events-filter-status") === null) return;
+        eventsFilterStatus = event.target.value;
+        document.getElementById("events-table-slot").innerHTML = renderEventsTable();
+      });
+
+      root.addEventListener("submit", (event) => {
+        if (event.target.closest("#events-filter-form") === null) return;
+        event.preventDefault();
+      });
 
       root.addEventListener("click", async (event) => {
         const editBtn = event.target.closest(".admin-event-action[data-action='edit']");
@@ -873,19 +954,53 @@
         `;
       }
 
+      let organizersCache = [];
+      let organizersFilterQuery = "";
+      let organizersFilterTier = "";
+
+      function filteredOrganizers() {
+        const query = organizersFilterQuery.trim().toLowerCase();
+        return organizersCache.filter((org) => {
+          if (organizersFilterTier && org.tier !== organizersFilterTier) return false;
+          if (!query) return true;
+          return (
+            org.displayName.toLowerCase().includes(query) ||
+            org.organizerClerkUserId.toLowerCase().includes(query)
+          );
+        });
+      }
+
+      function renderOrganizersTable() {
+        const rows = filteredOrganizers();
+        return `
+          <div class="table-responsive nsaa-table-scroll-hint">
+            <table class="table align-middle mb-0">
+              <thead><tr><th>Organizer</th><th>Events</th><th>Fee tier</th><th class="text-end">Actions</th></tr></thead>
+              <tbody>${rows.length ? rows.map(organizerRowHtml).join("") : '<tr><td colspan="4" class="nsaa-muted">No organizers match.</td></tr>'}</tbody>
+            </table>
+          </div>
+        `;
+      }
+
       async function renderOrganizersTab() {
         root.innerHTML = NSAA.loading("Loading organizers");
         try {
-          const organizers = await client.query("events:adminListOrganizers", {});
+          organizersCache = await client.query("events:adminListOrganizers", {});
           root.innerHTML = `
             <div class="nsaa-panel">
               <h2 class="h5 mb-3">Organizers</h2>
-              <div class="table-responsive nsaa-table-scroll-hint">
-                <table class="table align-middle mb-0">
-                  <thead><tr><th>Organizer</th><th>Events</th><th>Fee tier</th><th class="text-end">Actions</th></tr></thead>
-                  <tbody>${organizers.map(organizerRowHtml).join("") || '<tr><td colspan="4" class="nsaa-muted">No organizers yet.</td></tr>'}</tbody>
-                </table>
-              </div>
+              <form id="organizers-filter-form" class="row g-2 mb-3">
+                <div class="col-md-8">
+                  <input class="form-control form-control-nsaa form-control-sm" id="organizers-filter-query" placeholder="Search organizer name or ID" value="${NSAA.escapeAttr(organizersFilterQuery)}" />
+                </div>
+                <div class="col-md-4">
+                  <select class="form-select form-select-nsaa form-select-sm" id="organizers-filter-tier">
+                    <option value="">All tiers</option>
+                    ${TIER_OPTIONS.map((t) => `<option value="${t}" ${t === organizersFilterTier ? "selected" : ""}>${labelize(t)}</option>`).join("")}
+                  </select>
+                </div>
+              </form>
+              <div id="organizers-table-slot">${renderOrganizersTable()}</div>
             </div>
           `;
         } catch (err) {
@@ -894,7 +1009,24 @@
         }
       }
 
+      root.addEventListener("input", (event) => {
+        if (event.target.closest("#organizers-filter-query") === null) return;
+        organizersFilterQuery = event.target.value;
+        document.getElementById("organizers-table-slot").innerHTML = renderOrganizersTable();
+      });
+
+      root.addEventListener("submit", (event) => {
+        if (event.target.closest("#organizers-filter-form") === null) return;
+        event.preventDefault();
+      });
+
       root.addEventListener("change", async (event) => {
+        const tierFilter = event.target.closest("#organizers-filter-tier");
+        if (tierFilter) {
+          organizersFilterTier = tierFilter.value;
+          document.getElementById("organizers-table-slot").innerHTML = renderOrganizersTable();
+          return;
+        }
         const select = event.target.closest(".admin-org-tier");
         if (!select) return;
         const organizerClerkUserId = select.closest("[data-organizer-id]").dataset.organizerId;
@@ -941,7 +1073,7 @@
             : [];
         return `
           <tr data-payout-id="${NSAA.escapeAttr(payout._id)}">
-            <td>${NSAA.escapeHtml(payout.eventId)}</td>
+            <td>${NSAA.escapeHtml(payout.eventTitle)}</td>
             <td>${NSAA.escapeHtml(payout.organizerPayoutPhone)}</td>
             <td class="text-end">${NSAA.money(payout.amountGHS)}</td>
             <td>${statusChip(payout.status)}</td>
@@ -951,20 +1083,55 @@
         `;
       }
 
+      let payoutsCache = [];
+      let payoutsFilterQuery = "";
+      let payoutsFilterStatus = "";
+
+      function filteredPayouts() {
+        const query = payoutsFilterQuery.trim().toLowerCase();
+        return payoutsCache.filter((payout) => {
+          if (payoutsFilterStatus && payout.status !== payoutsFilterStatus) return false;
+          if (!query) return true;
+          return (
+            payout.eventTitle.toLowerCase().includes(query) ||
+            payout.organizerPayoutPhone.toLowerCase().includes(query)
+          );
+        });
+      }
+
+      function renderPayoutsTable() {
+        const rows = filteredPayouts();
+        return `
+          <div class="table-responsive nsaa-table-scroll-hint">
+            <table class="table align-middle mb-0">
+              <thead><tr><th>Event</th><th>Payout phone</th><th class="text-end">Amount</th><th>Status</th><th>Date</th><th class="text-end">Override</th></tr></thead>
+              <tbody>${rows.length ? rows.map(payoutRowHtml).join("") : '<tr><td colspan="6" class="nsaa-muted">No payouts match.</td></tr>'}</tbody>
+            </table>
+          </div>
+        `;
+      }
+
       async function renderPayoutsTab() {
         root.innerHTML = NSAA.loading("Loading payouts");
         try {
           const data = await client.query("ops:overview", {});
+          payoutsCache = data.payouts;
           root.innerHTML = `
             <div class="nsaa-panel">
               <h2 class="h5 mb-3">Payouts</h2>
               <p class="nsaa-muted small">Payouts are scheduled automatically for the event end time, with a one-minute safety sweep. Moolre transfers the organizer's cut and the service fee stays with Nsaa. Use the Events tab only to queue an exceptional on-demand retry, and the override actions below only for out-of-band settlement.</p>
-              <div class="table-responsive nsaa-table-scroll-hint">
-                <table class="table align-middle mb-0">
-                  <thead><tr><th>Event</th><th>Payout phone</th><th class="text-end">Amount</th><th>Status</th><th>Date</th><th class="text-end">Override</th></tr></thead>
-                  <tbody>${data.payouts.map(payoutRowHtml).join("") || '<tr><td colspan="6" class="nsaa-muted">No payouts yet.</td></tr>'}</tbody>
-                </table>
-              </div>
+              <form id="payouts-filter-form" class="row g-2 mb-3">
+                <div class="col-md-8">
+                  <input class="form-control form-control-nsaa form-control-sm" id="payouts-filter-query" placeholder="Search event or payout phone" value="${NSAA.escapeAttr(payoutsFilterQuery)}" />
+                </div>
+                <div class="col-md-4">
+                  <select class="form-select form-select-nsaa form-select-sm" id="payouts-filter-status">
+                    <option value="">All statuses</option>
+                    ${["pending", "paid", "failed"].map((s) => `<option value="${s}" ${s === payoutsFilterStatus ? "selected" : ""}>${labelize(s)}</option>`).join("")}
+                  </select>
+                </div>
+              </form>
+              <div id="payouts-table-slot">${renderPayoutsTable()}</div>
             </div>
           `;
         } catch (err) {
@@ -972,6 +1139,23 @@
           showError(err);
         }
       }
+
+      root.addEventListener("input", (event) => {
+        if (event.target.closest("#payouts-filter-query") === null) return;
+        payoutsFilterQuery = event.target.value;
+        document.getElementById("payouts-table-slot").innerHTML = renderPayoutsTable();
+      });
+
+      root.addEventListener("change", (event) => {
+        if (event.target.closest("#payouts-filter-status") === null) return;
+        payoutsFilterStatus = event.target.value;
+        document.getElementById("payouts-table-slot").innerHTML = renderPayoutsTable();
+      });
+
+      root.addEventListener("submit", (event) => {
+        if (event.target.closest("#payouts-filter-form") === null) return;
+        event.preventDefault();
+      });
 
       root.addEventListener("click", async (event) => {
         const button = event.target.closest(".admin-payout-action");
@@ -1006,7 +1190,7 @@
             : "";
         return `
           <tr data-request-id="${NSAA.escapeAttr(request._id)}">
-            <td>${NSAA.escapeHtml(request.eventId)}</td>
+            <td>${NSAA.escapeHtml(request.eventTitle)}</td>
             <td class="text-end">${NSAA.money(request.amountGHS)}</td>
             <td class="text-end">${NSAA.money(request.eligibleGHSAtRequest)}</td>
             <td>${statusChip(request.status)}${note}</td>
@@ -1016,20 +1200,52 @@
         `;
       }
 
+      let payoutRequestsCache = [];
+      let payoutRequestsFilterQuery = "";
+      let payoutRequestsFilterStatus = "";
+
+      function filteredPayoutRequests() {
+        const query = payoutRequestsFilterQuery.trim().toLowerCase();
+        return payoutRequestsCache.filter((request) => {
+          if (payoutRequestsFilterStatus && request.status !== payoutRequestsFilterStatus) return false;
+          if (!query) return true;
+          return request.eventTitle.toLowerCase().includes(query);
+        });
+      }
+
+      function renderPayoutRequestsTable() {
+        const rows = filteredPayoutRequests();
+        return `
+          <div class="table-responsive nsaa-table-scroll-hint">
+            <table class="table align-middle mb-0">
+              <thead><tr><th>Event</th><th class="text-end">Requested</th><th class="text-end">Eligible at request</th><th>Status</th><th>Date</th><th class="text-end">Review</th></tr></thead>
+              <tbody>${rows.length ? rows.map(payoutRequestRowHtml).join("") : '<tr><td colspan="6" class="nsaa-muted">No payout requests match.</td></tr>'}</tbody>
+            </table>
+          </div>
+        `;
+      }
+
       async function renderPayoutRequestsTab() {
         root.innerHTML = NSAA.loading("Loading payout requests");
         try {
           const data = await client.query("ops:overview", {});
+          payoutRequestsCache = data.payoutRequests;
           root.innerHTML = `
             <div class="nsaa-panel">
               <h2 class="h5 mb-3">Payout requests</h2>
               <p class="nsaa-muted small">Pro/Custom plan organizers can request part of their accrued ticket revenue while sales are still running. Approving transfers the amount immediately via Moolre (same rails as a scheduled payout); rejecting just records a reason - no money moves.</p>
-              <div class="table-responsive nsaa-table-scroll-hint">
-                <table class="table align-middle mb-0">
-                  <thead><tr><th>Event</th><th class="text-end">Requested</th><th class="text-end">Eligible at request</th><th>Status</th><th>Date</th><th class="text-end">Review</th></tr></thead>
-                  <tbody>${data.payoutRequests.map(payoutRequestRowHtml).join("") || '<tr><td colspan="6" class="nsaa-muted">No payout requests yet.</td></tr>'}</tbody>
-                </table>
-              </div>
+              <form id="payout-requests-filter-form" class="row g-2 mb-3">
+                <div class="col-md-8">
+                  <input class="form-control form-control-nsaa form-control-sm" id="payout-requests-filter-query" placeholder="Search event" value="${NSAA.escapeAttr(payoutRequestsFilterQuery)}" />
+                </div>
+                <div class="col-md-4">
+                  <select class="form-select form-select-nsaa form-select-sm" id="payout-requests-filter-status">
+                    <option value="">All statuses</option>
+                    ${["pending", "approved", "rejected"].map((s) => `<option value="${s}" ${s === payoutRequestsFilterStatus ? "selected" : ""}>${labelize(s)}</option>`).join("")}
+                  </select>
+                </div>
+              </form>
+              <div id="payout-requests-table-slot">${renderPayoutRequestsTable()}</div>
             </div>
           `;
         } catch (err) {
@@ -1037,6 +1253,23 @@
           showError(err);
         }
       }
+
+      root.addEventListener("input", (event) => {
+        if (event.target.closest("#payout-requests-filter-query") === null) return;
+        payoutRequestsFilterQuery = event.target.value;
+        document.getElementById("payout-requests-table-slot").innerHTML = renderPayoutRequestsTable();
+      });
+
+      root.addEventListener("change", (event) => {
+        if (event.target.closest("#payout-requests-filter-status") === null) return;
+        payoutRequestsFilterStatus = event.target.value;
+        document.getElementById("payout-requests-table-slot").innerHTML = renderPayoutRequestsTable();
+      });
+
+      root.addEventListener("submit", (event) => {
+        if (event.target.closest("#payout-requests-filter-form") === null) return;
+        event.preventDefault();
+      });
 
       root.addEventListener("click", async (event) => {
         const button = event.target.closest(".admin-payout-request-action");

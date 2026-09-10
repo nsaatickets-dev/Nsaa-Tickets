@@ -78,11 +78,17 @@ export const overview = query({
   handler: async (ctx) => {
     await requireAdmin(ctx);
 
+    // Every one of these used to be collect()'d in full then sorted and
+    // sliced in memory - re-reading the entire table on every admin
+    // console load, and again on every reactive re-run, forever growing
+    // with the table regardless of how many rows are actually shown.
+    // _creationTime's built-in index (same fix already applied to
+    // payouts below) bounds each to exactly the rows displayed.
     const [organizerInquiries, contactMessages, events, payouts, serviceFeeTransfers, payoutRequests] =
       await Promise.all([
-        ctx.db.query("organizerInquiries").collect(),
-        ctx.db.query("contactMessages").collect(),
-        ctx.db.query("events").collect(),
+        ctx.db.query("organizerInquiries").order("desc").take(80),
+        ctx.db.query("contactMessages").order("desc").take(80),
+        ctx.db.query("events").order("desc").take(120),
         // A repeatedly-failing automatic payout can pile up hundreds of
         // rows for a single event (see payouts.ts's MAX_AUTO_PAYOUT_ATTEMPTS
         // comment) - collect()ing the whole table here re-reads all of
@@ -91,17 +97,33 @@ export const overview = query({
         // payout row changes). _creationTime's built-in index bounds this
         // to the 120 rows actually shown, regardless of table size.
         ctx.db.query("payouts").order("desc").take(120),
-        ctx.db.query("serviceFeeTransfers").collect(),
-        ctx.db.query("payoutRequests").collect(),
+        ctx.db.query("serviceFeeTransfers").order("desc").take(120),
+        ctx.db.query("payoutRequests").order("desc").take(120),
       ]);
 
+    // The admin console only ever had the raw eventId to show next to a
+    // payout or payout request - meaningless at a glance. Look up each
+    // distinct event referenced in this bounded window once (not once per
+    // row) and attach its title.
+    const eventIds = new Set([...payouts.map((p) => p.eventId), ...payoutRequests.map((r) => r.eventId)]);
+    const eventTitleById = new Map<string, string>();
+    await Promise.all(
+      [...eventIds].map(async (eventId) => {
+        const event = await ctx.db.get(eventId);
+        if (event) eventTitleById.set(eventId, event.title);
+      }),
+    );
+
     return {
-      organizerInquiries: organizerInquiries.sort((a, b) => b.createdAt - a.createdAt).slice(0, 80),
-      contactMessages: contactMessages.sort((a, b) => b.createdAt - a.createdAt).slice(0, 80),
-      events: events.sort((a, b) => b.createdAt - a.createdAt).slice(0, 120),
-      payouts,
-      serviceFeeTransfers: serviceFeeTransfers.sort((a, b) => b.createdAt - a.createdAt).slice(0, 120),
-      payoutRequests: payoutRequests.sort((a, b) => b.requestedAt - a.requestedAt).slice(0, 120),
+      organizerInquiries,
+      contactMessages,
+      events,
+      payouts: payouts.map((p) => ({ ...p, eventTitle: eventTitleById.get(p.eventId) ?? "Unknown event" })),
+      serviceFeeTransfers,
+      payoutRequests: payoutRequests.map((r) => ({
+        ...r,
+        eventTitle: eventTitleById.get(r.eventId) ?? "Unknown event",
+      })),
     };
   },
 });
