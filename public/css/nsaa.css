@@ -92,8 +92,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-body.checkout-body,
-body.scanner-body {
+body.checkout-body {
   background-color: #f7f1e6;
   background-image:
     linear-gradient(180deg, #fffaf2 0%, #f2e8da 100%);
@@ -3000,43 +2999,300 @@ body.nsaa-modal-open {
   color: var(--nsaa-danger);
 }
 
-#scanner-video {
-  width: 100%;
-  aspect-ratio: 3 / 4;
-  background: var(--nsaa-charcoal);
-  border: 1px solid var(--nsaa-border);
-  border-radius: 8px;
+/* ===== Secure Scanner - dark security-console theme =====
+   Colors are exclusively the existing --nsaa-* variables (charcoal,
+   gold, coral, the same teal/brick-red used for success/danger
+   everywhere else) - a dark, high-security *feel* without introducing
+   an off-brand palette. Font inherits the site default (no overrides
+   here), same Archivo/IBM Plex Sans as every other page. */
+
+body.scanner-body {
+  background: linear-gradient(180deg, var(--nsaa-charcoal-soft) 0%, var(--nsaa-charcoal) 100%);
+  background-attachment: fixed;
+  color: var(--nsaa-on-charcoal);
+  min-height: 100vh;
+}
+
+.scanner-shell {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 3rem;
+}
+
+.scanner-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 1.25rem;
+  margin-bottom: 1.25rem;
+  border-bottom: 1px solid var(--nsaa-on-charcoal-border);
+}
+
+.scanner-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.scanner-brand-mark {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
   object-fit: cover;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 1px var(--nsaa-on-charcoal-border), 0 4px 14px rgba(0, 0, 0, 0.4);
 }
 
-.scanner-console {
-  min-height: 132px;
-  display: grid;
-  place-items: center;
+.scanner-brand-title {
+  margin: 0;
+  font-weight: 800;
+  font-size: 0.98rem;
+  letter-spacing: 0.01em;
+  color: var(--nsaa-on-charcoal);
 }
 
-.scan-result-ok,
-.scan-result-fail,
-.scan-result-wait {
-  border-radius: 8px;
+.scanner-brand-sub {
+  margin: 0.1rem 0 0;
+  font-size: 0.72rem;
+  color: var(--nsaa-on-charcoal-muted);
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
 }
 
-.scan-result-ok {
-  background-color: var(--nsaa-success-bg);
-  border: 1px solid rgba(39, 148, 133, 0.4);
+.scanner-brand-sub i {
   color: var(--nsaa-success);
 }
 
-.scan-result-fail {
-  background-color: var(--nsaa-danger-bg);
-  border: 1px solid rgba(196, 61, 61, 0.4);
-  color: var(--nsaa-danger);
+.scanner-live-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  background: var(--nsaa-success-bg);
+  border: 1px solid rgba(39, 148, 133, 0.35);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: var(--nsaa-success);
+  flex-shrink: 0;
 }
 
-.scan-result-wait {
-  background: rgba(36, 31, 26, 0.03);
-  border: 1px solid var(--nsaa-border);
-  color: var(--nsaa-ink-muted);
+.scanner-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--nsaa-success);
+  animation: scanner-pulse-dot 1.8s infinite;
+}
+
+@keyframes scanner-pulse-dot {
+  0% { box-shadow: 0 0 0 0 rgba(39, 148, 133, 0.55); }
+  70% { box-shadow: 0 0 0 7px rgba(39, 148, 133, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(39, 148, 133, 0); }
+}
+
+.scanner-field-label {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--nsaa-on-charcoal-muted);
+  margin-bottom: 0.4rem;
+}
+
+.scanner-input.form-control {
+  background: rgba(247, 241, 230, 0.05);
+  border: 1px solid var(--nsaa-on-charcoal-border);
+  color: var(--nsaa-on-charcoal);
+  border-radius: 6px;
+  padding: 0.65rem 0.9rem;
+}
+
+.scanner-input.form-control::placeholder {
+  color: var(--nsaa-on-charcoal-muted);
+  opacity: 0.7;
+}
+
+.scanner-input.form-control:focus {
+  background: rgba(247, 241, 230, 0.08);
+  border-color: var(--nsaa-gold);
+  box-shadow: 0 0 0 3px rgba(217, 164, 65, 0.18);
+  color: var(--nsaa-on-charcoal);
+}
+
+.scanner-viewport {
+  position: relative;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #000;
+  box-shadow: 0 0 0 1px var(--nsaa-on-charcoal-border), 0 20px 50px rgba(0, 0, 0, 0.55);
+}
+
+#scanner-video {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  display: block;
+  object-fit: cover;
+  filter: brightness(0.96) contrast(1.05);
+}
+
+.scanner-frame {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.scanner-corner {
+  position: absolute;
+  width: 34px;
+  height: 34px;
+  border: 3px solid var(--nsaa-gold);
+  transition: border-color 0.25s ease;
+}
+
+.scanner-corner.tl { top: 14%; left: 8%; border-right: none; border-bottom: none; border-radius: 8px 0 0 0; }
+.scanner-corner.tr { top: 14%; right: 8%; border-left: none; border-bottom: none; border-radius: 0 8px 0 0; }
+.scanner-corner.bl { bottom: 14%; left: 8%; border-right: none; border-top: none; border-radius: 0 0 0 8px; }
+.scanner-corner.br { bottom: 14%; right: 8%; border-left: none; border-top: none; border-radius: 0 0 8px 0; }
+
+.scanner-frame-ok .scanner-corner { border-color: var(--nsaa-success); }
+.scanner-frame-fail .scanner-corner { border-color: var(--nsaa-danger); }
+
+.scanner-scanline {
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  top: 14%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--nsaa-gold), transparent);
+  box-shadow: 0 0 12px 2px rgba(217, 164, 65, 0.55);
+  animation: scanner-sweep 2.4s ease-in-out infinite;
+}
+
+.scanner-frame-ok .scanner-scanline,
+.scanner-frame-fail .scanner-scanline {
+  animation: none;
+  opacity: 0;
+}
+
+@keyframes scanner-sweep {
+  0%, 100% { top: 14%; opacity: 0.9; }
+  50% { top: 84%; opacity: 0.9; }
+}
+
+.scan-status {
+  margin-top: 1rem;
+  border-radius: 10px;
+  padding: 1.5rem 1.25rem;
+  text-align: center;
+  display: grid;
+  gap: 0.35rem;
+  justify-items: center;
+  min-height: 148px;
+  align-content: center;
+  transition: background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.scan-status-icon {
+  font-size: 2.1rem;
+  line-height: 1;
+  margin-bottom: 0.15rem;
+}
+
+.scan-status-title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  color: var(--nsaa-on-charcoal);
+}
+
+.scan-status-body {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--nsaa-on-charcoal-muted);
+  max-width: 34ch;
+}
+
+.scan-status-wait {
+  background: rgba(247, 241, 230, 0.03);
+  border: 1px solid var(--nsaa-on-charcoal-border);
+}
+.scan-status-wait .scan-status-icon { color: var(--nsaa-gold); }
+
+.scan-status-ok {
+  background: var(--nsaa-success-bg);
+  border: 1px solid rgba(39, 148, 133, 0.4);
+  box-shadow: 0 0 40px -10px rgba(39, 148, 133, 0.4);
+  animation: scanner-flash-ok 0.4s ease;
+}
+.scan-status-ok .scan-status-icon { color: var(--nsaa-success); }
+.scan-status-ok .scan-status-title { color: var(--nsaa-success); }
+
+.scan-status-fail {
+  background: var(--nsaa-danger-bg);
+  border: 1px solid rgba(196, 61, 61, 0.4);
+  box-shadow: 0 0 40px -10px rgba(196, 61, 61, 0.4);
+  animation: scanner-flash-fail 0.4s ease;
+}
+.scan-status-fail .scan-status-icon { color: var(--nsaa-danger); }
+.scan-status-fail .scan-status-title { color: var(--nsaa-danger); }
+
+@keyframes scanner-flash-ok {
+  0% { transform: scale(0.97); }
+  50% { transform: scale(1.015); }
+  100% { transform: scale(1); }
+}
+
+@keyframes scanner-flash-fail {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+}
+
+.scanner-footnote {
+  margin: 1rem 0 0;
+  font-size: 0.72rem;
+  color: var(--nsaa-on-charcoal-muted);
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+}
+
+.scanner-panel {
+  background: rgba(247, 241, 230, 0.03);
+  border: 1px solid var(--nsaa-on-charcoal-border);
+  border-radius: 10px;
+  padding: 2rem 1.5rem;
+  text-align: center;
+}
+
+.scanner-panel-icon {
+  font-size: 2.4rem;
+  color: var(--nsaa-gold);
+  margin-bottom: 0.75rem;
+}
+
+.scanner-panel-title {
+  font-weight: 800;
+  font-size: 1.3rem;
+  color: var(--nsaa-on-charcoal);
+  margin-bottom: 0.5rem;
+}
+
+.scanner-panel-copy {
+  color: var(--nsaa-on-charcoal-muted);
+  font-size: 0.88rem;
+  margin-bottom: 1.25rem;
 }
 
 .nsaa-empty {
