@@ -3,6 +3,8 @@
 // directly, so every mutation that accepts free-text input validates it
 // again here before it touches the database.
 
+import { detectMoolreTransferChannel } from "./moolre/client";
+
 export function requireNonEmpty(value: string, field: string, maxLength = 200): string {
   const trimmed = value.trim();
   if (!trimmed) throw new Error(`${field} is required.`);
@@ -49,6 +51,17 @@ export function requireValidGhanaPhone(value: string): string {
   const local = clean.startsWith("233") ? `0${clean.slice(3)}` : clean;
   if (!/^0\d{9}$/.test(local)) {
     throw new Error("A valid Ghanaian phone number is required.");
+  }
+  return local;
+}
+
+// For the organizer's backup MTN payout number - a valid Ghana number
+// alone isn't enough here, since the whole point is a number Moolre can
+// reliably transfer to (see moolre/client.ts's transferChannelsToTry).
+export function requireMtnGhanaPhone(value: string): string {
+  const local = requireValidGhanaPhone(value);
+  if (detectMoolreTransferChannel(local) !== "1") {
+    throw new Error("This must be an MTN Mobile Money number.");
   }
   return local;
 }

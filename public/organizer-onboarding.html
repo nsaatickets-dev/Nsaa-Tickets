@@ -123,6 +123,11 @@
                       <label class="form-label nsaa-muted small" for="ob-payout-phone">Payout Mobile Money number optional</label>
                       <input id="ob-payout-phone" class="form-control form-control-nsaa" type="tel" value="${NSAA.escapeAttr(profile?.payoutPhone || "")}" placeholder="024 000 0000" />
                     </div>
+                    <div class="col-md-6" id="ob-backup-payout-wrap">
+                      <label class="form-label nsaa-muted small" for="ob-backup-payout-phone">Backup MTN Mobile Money number</label>
+                      <input id="ob-backup-payout-phone" class="form-control form-control-nsaa" type="tel" value="${NSAA.escapeAttr(profile?.backupPayoutPhoneMtn || "")}" placeholder="024 000 0000" />
+                      <p id="ob-backup-payout-hint" class="nsaa-faint small mt-1 mb-0"></p>
+                    </div>
                     <div class="col-md-6">
                       <label class="form-label nsaa-muted small" for="ob-website">Website or social link optional</label>
                       <input id="ob-website" class="form-control form-control-nsaa" type="url" value="${NSAA.escapeAttr(profile?.websiteUrl || "")}" placeholder="https://instagram.com/yourbrand" />
@@ -168,6 +173,23 @@
             });
           });
         });
+
+        // Moolre currently only transfers reliably over MTN - the backup
+        // field is only actually required once the main payout number is
+        // entered and isn't MTN itself (see events.ts's
+        // requireBackupMtnIfNeeded, which is the real enforcement; this is
+        // just earlier feedback so the error doesn't only show up on submit).
+        const payoutPhoneInput = document.getElementById("ob-payout-phone");
+        const backupHint = document.getElementById("ob-backup-payout-hint");
+        function refreshBackupPayoutHint() {
+          const phone = payoutPhoneInput.value.trim();
+          const needsBackup = phone && NSAA.isValidGhanaPhone(phone) && !NSAA.isMtnGhanaPhone(phone);
+          backupHint.textContent = needsBackup
+            ? "Required: your payout number isn't on MTN, and MTN is currently the only network Moolre can transfer to reliably."
+            : "Optional - used automatically if your main payout number's network can't be reached.";
+        }
+        refreshBackupPayoutHint();
+        payoutPhoneInput.addEventListener("input", refreshBackupPayoutHint);
       }
 
       function readPayload() {
@@ -177,6 +199,7 @@
           contactPhone: document.getElementById("ob-phone").value.trim(),
           city: document.getElementById("ob-city").value,
           payoutPhone: document.getElementById("ob-payout-phone").value.trim() || undefined,
+          backupPayoutPhoneMtn: document.getElementById("ob-backup-payout-phone").value.trim() || undefined,
           websiteUrl: document.getElementById("ob-website").value.trim() || undefined,
           primaryEventType: document.getElementById("ob-event-type").value || undefined,
           tier: document.querySelector('input[name="organizer-tier"]:checked')?.value || "essential",
@@ -192,6 +215,12 @@
         }
         if (payload.payoutPhone && !NSAA.isValidGhanaPhone(payload.payoutPhone)) {
           return "Enter a valid Ghanaian payout Mobile Money number.";
+        }
+        if (payload.backupPayoutPhoneMtn && !NSAA.isMtnGhanaPhone(payload.backupPayoutPhoneMtn)) {
+          return "The backup payout number must be a valid MTN Mobile Money number.";
+        }
+        if (payload.payoutPhone && NSAA.isValidGhanaPhone(payload.payoutPhone) && !NSAA.isMtnGhanaPhone(payload.payoutPhone) && !payload.backupPayoutPhoneMtn) {
+          return "Your payout number isn't on MTN, and MTN is currently the only network Moolre can transfer to reliably. Add a backup MTN Mobile Money number.";
         }
         if (payload.websiteUrl && !/^https?:\/\//i.test(payload.websiteUrl)) {
           return "Website or social link must start with http:// or https://.";

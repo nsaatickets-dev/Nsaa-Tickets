@@ -932,11 +932,20 @@
       const TIER_OPTIONS = ["free", "essential", "pro", "custom"];
 
       function organizerRowHtml(org) {
+        // Moolre currently only transfers reliably over MTN - flag any
+        // organizer whose payout number isn't MTN and has no backup on
+        // file, since that combination shouldn't exist going forward
+        // (see events.ts's requireBackupMtnIfNeeded) but could still be
+        // true for an organizer who onboarded before this existed.
+        const payoutNeedsBackup =
+          org.payoutPhone && !NSAA.isMtnGhanaPhone(org.payoutPhone) && !org.backupPayoutPhoneMtn;
         return `
           <tr data-organizer-id="${NSAA.escapeAttr(org.organizerClerkUserId)}">
             <td>
               <strong>${NSAA.escapeHtml(org.displayName)}</strong>
               <div class="nsaa-faint small">${NSAA.escapeHtml(org.organizerClerkUserId)}</div>
+              ${org.payoutPhone ? `<div class="nsaa-faint small">Payout: ${NSAA.escapeHtml(org.payoutPhone)}${org.backupPayoutPhoneMtn ? ` &middot; backup ${NSAA.escapeHtml(org.backupPayoutPhoneMtn)}` : ""}</div>` : ""}
+              ${payoutNeedsBackup ? `<div class="small" style="color: var(--nsaa-danger);">No MTN backup on file - non-MTN transfers aren't reliable right now</div>` : ""}
               ${org.suspended ? `<div class="small" style="color: var(--nsaa-danger);">Suspended: ${NSAA.escapeHtml(org.suspendedReason || "")}</div>` : ""}
             </td>
             <td>${org.eventCount}</td>

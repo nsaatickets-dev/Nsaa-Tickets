@@ -282,6 +282,13 @@ export default defineSchema({
     contactPhone: v.optional(v.string()),
     city: v.optional(v.string()),
     payoutPhone: v.optional(v.string()),
+    // Moolre currently only transfers reliably over MTN - AT and Telecel
+    // attempts get rejected or (worse) silently accepted and never
+    // delivered (see moolre/client.ts's transferChannelsToTry). Required
+    // whenever payoutPhone isn't itself an MTN number (see events.ts's
+    // requireBackupMtnIfNeeded), so a failed primary transfer always has
+    // a real number to fall back to.
+    backupPayoutPhoneMtn: v.optional(v.string()),
     websiteUrl: v.optional(v.string()),
     primaryEventType: v.optional(v.string()),
     onboardingCompletedAt: v.optional(v.number()),
@@ -330,6 +337,12 @@ export default defineSchema({
     // phone number's prefix would suggest (numbers get ported between
     // MTN/Telecel/AT and keep their original prefix).
     channel: v.optional(v.string()),
+    // The number that actually received the money, when it differs from
+    // organizerPayoutPhone above - set when the primary number's transfer
+    // failed and the organizer's on-file backup MTN number (see
+    // organizerProfiles.backupPayoutPhoneMtn) was used instead. Unset
+    // means the primary number was paid, same as organizerPayoutPhone.
+    payoutPhoneUsed: v.optional(v.string()),
   })
     .index("by_event", ["eventId"])
     .index("by_status_created", ["status", "createdAt"])

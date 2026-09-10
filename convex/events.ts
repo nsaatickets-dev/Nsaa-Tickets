@@ -9,9 +9,11 @@ import {
   requireNonEmpty,
   optionalTrimmed,
   requireValidGhanaPhone,
+  requireMtnGhanaPhone,
   requirePositiveNumber,
   requirePositiveInteger,
 } from "./validation";
+import { detectMoolreTransferChannel } from "./moolre/client";
 
 // Organizer pricing tiers. Essential is a flat 4.5% - enough room for
 // Moolre's processing share plus Nsaa's margin, while staying at/below the
@@ -202,6 +204,7 @@ export const completeOrganizerOnboarding = mutation({
     contactPhone: v.string(),
     city: v.string(),
     payoutPhone: v.optional(v.string()),
+    backupPayoutPhoneMtn: v.optional(v.string()),
     websiteUrl: v.optional(v.string()),
     primaryEventType: v.optional(v.string()),
     tier: v.union(v.literal("free"), v.literal("essential"), v.literal("pro")),
@@ -435,6 +438,8 @@ export const adminListOrganizers = query({
         suspended: profile?.suspended ?? false,
         suspendedReason: profile?.suspendedReason,
         eventCount: derived?.count ?? 0,
+        payoutPhone: profile?.payoutPhone,
+        backupPayoutPhoneMtn: profile?.backupPayoutPhoneMtn,
       };
     });
   },
@@ -1127,6 +1132,7 @@ interface RawOrganizerProfileFields {
   contactPhone: string;
   city: string;
   payoutPhone?: string;
+  backupPayoutPhoneMtn?: string;
   websiteUrl?: string;
   primaryEventType?: string;
 }
@@ -1137,14 +1143,23 @@ function sanitizeOrganizerProfileFields(fields: RawOrganizerProfileFields) {
     throw new Error("Website must start with http:// or https://.");
   }
 
+  const payoutPhone = fields.payoutPhone ? requireValidGhanaPhone(fields.payoutPhone) : undefined;
+  const backupPayoutPhoneMtn = fields.backupPayoutPhoneMtn
+    ? requireMtnGhanaPhone(fields.backupPayoutPhoneMtn)
+    : undefined;
+  if (payoutPhone && detectMoolreTransferChannel(payoutPhone) !== "1" && !backupPayoutPhoneMtn) {
+    throw new Error(
+      "Your payout number isn't on MTN, and MTN is currently the only network Moolre can transfer to reliably. Add a backup MTN Mobile Money number.",
+    );
+  }
+
   return {
     displayName: requireNonEmpty(fields.displayName, "Organizer display name", 140),
     contactName: optionalTrimmed(fields.contactName, 140),
     contactPhone: requireValidGhanaPhone(fields.contactPhone),
     city: requireNonEmpty(fields.city, "City", 80),
-    payoutPhone: fields.payoutPhone
-      ? requireValidGhanaPhone(fields.payoutPhone)
-      : undefined,
+    payoutPhone,
+    backupPayoutPhoneMtn,
     websiteUrl,
     primaryEventType: optionalTrimmed(fields.primaryEventType, 40),
   };
@@ -1252,6 +1267,30 @@ async function requireNotSuspended(ctx: MutationCtx, organizerClerkUserId: strin
   }
 }
 
+// Moolre currently only transfers reliably over MTN - AT and Telecel
+// attempts get rejected or, worse, silently accepted and never delivered
+// (see moolre/client.ts's transferChannelsToTry, fixed 2026-09-10 after a
+// stuck AT payout). An event whose effective payout number isn't MTN
+// needs the organizer's on-file backup MTN number as a real fallback -
+// checked here (not just at onboarding) because the payout phone can
+// also be overridden per event, independent of the profile's own number.
+async function requireBackupMtnIfNeeded(
+  ctx: MutationCtx,
+  organizerClerkUserId: string,
+  payoutPhone: string | undefined,
+) {
+  if (!payoutPhone || detectMoolreTransferChannel(payoutPhone) === "1") return;
+  const profile = await ctx.db
+    .query("organizerProfiles")
+    .withIndex("by_organizer", (q) => q.eq("organizerClerkUserId", organizerClerkUserId))
+    .unique();
+  if (!profile?.backupPayoutPhoneMtn) {
+    throw new Error(
+      "This event's payout number isn't on MTN, and MTN is currently the only network Moolre can transfer to reliably. Add a backup MTN Mobile Money number to your organizer profile before continuing.",
+    );
+  }
+}
+
 export const createEvent = mutation({
   args: eventFields,
   handler: async (ctx, args) => {
@@ -1260,6 +1299,7 @@ export const createEvent = mutation({
     await requireNotSuspended(ctx, identity.subject);
 
     const eventFields = sanitizeEventFields(args);
+    await requireBackupMtnIfNeeded(ctx, identity.subject, eventFields.organizerPayoutPhone);
     const eventId = await ctx.db.insert("events", {
       ...eventFields,
       status: "draft",
@@ -1282,6 +1322,7 @@ export const createEventWithStarterTicket = mutation({
     await requireNotSuspended(ctx, identity.subject);
     const [starterTicket] = sanitizeTicketTypes([args.starterTicket], args);
     const eventFields = sanitizeEventFields(args);
+    await requireBackupMtnIfNeeded(ctx, identity.subject, eventFields.organizerPayoutPhone);
 
     const eventId = await ctx.db.insert("events", {
       ...eventFields,
@@ -1311,6 +1352,7 @@ export const createEventWithTicketTypes = mutation({
     await requireNotSuspended(ctx, identity.subject);
     const ticketTypes = sanitizeTicketTypes(args.ticketTypes, args);
     const eventFields = sanitizeEventFields(args);
+    await requireBackupMtnIfNeeded(ctx, identity.subject, eventFields.organizerPayoutPhone);
 
     const eventId = await ctx.db.insert("events", {
       ...eventFields,
@@ -1334,8 +1376,9 @@ export const createEventWithTicketTypes = mutation({
 export const updateEvent = mutation({
   args: { eventId: v.id("events"), ...eventFields },
   handler: async (ctx, { eventId, ...fields }) => {
-    const { event: existingEvent } = await requireOwnedEvent(ctx, eventId);
+    const { identity, event: existingEvent } = await requireOwnedEvent(ctx, eventId);
     const eventFields = sanitizeEventFields(fields);
+    await requireBackupMtnIfNeeded(ctx, identity.subject, eventFields.organizerPayoutPhone);
     await ctx.db.patch(eventId, eventFields);
     await scheduleAutoPayoutAtEventEnd(ctx, eventId, {
       ...eventFields,

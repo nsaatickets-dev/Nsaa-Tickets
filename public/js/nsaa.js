@@ -480,6 +480,19 @@
     return false;
   }
 
+  // UX-only mirror of detectMoolreTransferChannel in convex/moolre/client.ts
+  // (the server re-validates independently) - lets a payout-phone field
+  // warn immediately that a backup MTN number is needed, instead of only
+  // after a round trip. Mirrors that file's own prefix-is-inherently-
+  // unreliable caveat: this is a best-effort guess, not a guarantee.
+  function isMtnGhanaPhone(phone) {
+    if (!isValidGhanaPhone(phone)) return false;
+    const clean = phone.replace(/[\s\-\+\(\)]/g, "");
+    const local = clean.startsWith("233") ? `0${clean.slice(3)}` : clean;
+    const mtnPrefixes = ["024", "025", "053", "054", "055", "059"];
+    return mtnPrefixes.includes(local.slice(0, 3));
+  }
+
   function isValidEmail(email) {
     if (!email) return true; // optional
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -848,6 +861,7 @@
     setupNotice,
     titleCase,
     isValidGhanaPhone,
+    isMtnGhanaPhone,
     isValidEmail,
     skeletonCards,
     skeletonTickets,

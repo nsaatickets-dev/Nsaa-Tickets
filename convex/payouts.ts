@@ -221,14 +221,18 @@ async function attemptMoolreTransfer(params: {
   organizerPayoutPhone: string;
   amountGHS: number;
   channel: string;
+  externalRefTag?: string;
 }): Promise<{ accepted: boolean; externalref: string; failureReason?: string }> {
-  const { payoutId, organizerPayoutPhone, amountGHS, channel } = params;
+  const { payoutId, organizerPayoutPhone, amountGHS, channel, externalRefTag } = params;
 
   // Channel-suffixed so each attempt gets its own externalref - required
   // ("unique ID to identify the transfer" per Moolre's docs) and correct,
   // since a rejected attempt on one channel and a fresh attempt on another
   // are genuinely different requests, not retries of the same one.
-  const externalref = `payout:${payoutId}:${channel}`;
+  // externalRefTag additionally distinguishes a backup-number attempt from
+  // the primary's, since both could otherwise land on the same channel
+  // (e.g. the primary's own MTN number failing, backup MTN succeeding).
+  const externalref = `payout:${payoutId}:${channel}${externalRefTag ? `-${externalRefTag}` : ""}`;
   const config = requireMoolreEnv([
     "MOOLRE_API_BASE",
     "MOOLRE_API_USER",
@@ -250,23 +254,65 @@ async function attemptMoolreTransfer(params: {
   };
 }
 
+// Tries every channel transferChannelsToTry returns for one phone number,
+// stopping early on our own wallet running short (trying another channel,
+// or the backup number, can't fix that) and stopping immediately on
+// acceptance. Shared by the primary and backup attempts below.
+async function tryTransferToPhone(
+  ctx: any,
+  params: { payoutId: any; phone: string; amountGHS: number; externalRefTag?: string },
+): Promise<{ accepted: boolean; failureReason?: string }> {
+  const { payoutId, phone, amountGHS, externalRefTag } = params;
+  let lastFailureReason: string | undefined;
+  for (const channel of transferChannelsToTry(phone)) {
+    const result = await attemptMoolreTransfer({
+      payoutId,
+      organizerPayoutPhone: phone,
+      amountGHS,
+      channel,
+      externalRefTag,
+    });
+    if (result.accepted) {
+      await ctx.runMutation(internal.payouts.setPayoutAcceptedChannel, {
+        payoutId,
+        externalRef: result.externalref,
+        channel,
+        payoutPhoneUsed: phone,
+      });
+      return { accepted: true };
+    }
+    lastFailureReason = result.failureReason;
+    if (lastFailureReason && /balance/i.test(lastFailureReason)) break;
+  }
+  return { accepted: false, failureReason: lastFailureReason };
+}
+
 // Shared by both the admin-triggered action below and the automatic cron
 // job (autoPayoutEndedEvents) - creates the pending payout record and
-// fires the real Moolre transfer, falling back to the other two networks
-// if the prefix-guessed one is rejected. Never throws on a Moolre-side
-// rejection (marks the payout "failed" and returns that instead) so a
-// batch of automatic payouts can keep going after one event's transfer is
+// fires the real Moolre transfer. Never throws on a Moolre-side rejection
+// (marks the payout "failed" and returns that instead) so a batch of
+// automatic payouts can keep going after one event's transfer is
 // rejected, rather than the whole cron run aborting.
+//
+// If the primary number's transfer is rejected, falls back once to the
+// organizer's on-file backup MTN number (organizerProfiles.
+// backupPayoutPhoneMtn) - required at event-creation time whenever the
+// primary isn't itself MTN (see events.ts's requireBackupMtnIfNeeded), so
+// this is the other half of that safety net actually paying out. Skipped
+// entirely if the primary failure was our own wallet balance (a different
+// number can't fix that) or if there's no organizerClerkUserId to look a
+// profile up for (pre-v1 seeded/manual events).
 async function sendOrganizerPayoutTransfer(
   ctx: any,
   params: {
     eventId: any;
+    organizerClerkUserId?: string;
     organizerPayoutPhone: string;
     amountGHS: number;
     kind?: "interim" | "final";
   },
 ): Promise<{ payoutId: any; accepted: boolean; failureReason?: string }> {
-  const { eventId, organizerPayoutPhone, amountGHS, kind } = params;
+  const { eventId, organizerClerkUserId, organizerPayoutPhone, amountGHS, kind } = params;
 
   const payoutId = await ctx.runMutation(internal.payouts.createPendingPayout, {
     eventId,
@@ -275,29 +321,31 @@ async function sendOrganizerPayoutTransfer(
     kind,
   });
 
-  let lastFailureReason: string | undefined;
-  for (const channel of transferChannelsToTry(organizerPayoutPhone)) {
-    const result = await attemptMoolreTransfer({ payoutId, organizerPayoutPhone, amountGHS, channel });
-    if (result.accepted) {
-      await ctx.runMutation(internal.payouts.setPayoutAcceptedChannel, {
+  const primaryResult = await tryTransferToPhone(ctx, { payoutId, phone: organizerPayoutPhone, amountGHS });
+  if (primaryResult.accepted) return { payoutId, accepted: true };
+
+  const isBalanceIssue = Boolean(primaryResult.failureReason && /balance/i.test(primaryResult.failureReason));
+  let backupResult: { accepted: boolean; failureReason?: string } | undefined;
+
+  if (!isBalanceIssue && organizerClerkUserId) {
+    const profile = await ctx.runQuery(internal.payouts.getOrganizerBackupPayoutPhone, { organizerClerkUserId });
+    const backupPhone = profile?.backupPayoutPhoneMtn;
+    if (backupPhone && backupPhone !== organizerPayoutPhone) {
+      backupResult = await tryTransferToPhone(ctx, {
         payoutId,
-        externalRef: result.externalref,
-        channel,
+        phone: backupPhone,
+        amountGHS,
+        externalRefTag: "backup",
       });
-      return { payoutId, accepted: true };
+      if (backupResult.accepted) return { payoutId, accepted: true };
     }
-    lastFailureReason = result.failureReason;
-    // Insufficient balance is about our own wallet, not the recipient's
-    // network - trying the other two channels can't fix that, so stop
-    // instead of spending two more calls on a guaranteed-identical result.
-    if (lastFailureReason && /balance/i.test(lastFailureReason)) break;
   }
 
   await ctx.runMutation(internal.payouts.markPayoutFailed, { payoutId });
   return {
     payoutId,
     accepted: false,
-    failureReason: lastFailureReason || "Payout could not be started.",
+    failureReason: backupResult?.failureReason || primaryResult.failureReason || "Payout could not be started.",
   };
 }
 
@@ -372,6 +420,7 @@ async function payoutEventIfDue(
 
   const result = await sendOrganizerPayoutTransfer(ctx, {
     eventId,
+    organizerClerkUserId: event.organizerClerkUserId,
     organizerPayoutPhone: event.organizerPayoutPhone,
     amountGHS,
   });
@@ -552,6 +601,7 @@ export const runApprovedInterimPayout = internalAction({
     // recent-failure backoff apply here.
     const result = await sendOrganizerPayoutTransfer(ctx, {
       eventId: request.eventId,
+      organizerClerkUserId: request.organizerClerkUserId,
       organizerPayoutPhone: request.organizerPayoutPhone,
       amountGHS: request.amountGHS,
       kind: "interim",
@@ -784,9 +834,28 @@ export const markPayoutFailed = internalMutation({
 // status verification (webhook or the verifyPendingPayouts sweep) has to
 // use the exact externalref that was accepted, not a reconstructed guess.
 export const setPayoutAcceptedChannel = internalMutation({
-  args: { payoutId: v.id("payouts"), externalRef: v.string(), channel: v.string() },
-  handler: async (ctx, { payoutId, externalRef, channel }) => {
-    await ctx.db.patch(payoutId, { externalRef, channel });
+  args: {
+    payoutId: v.id("payouts"),
+    externalRef: v.string(),
+    channel: v.string(),
+    payoutPhoneUsed: v.optional(v.string()),
+  },
+  handler: async (ctx, { payoutId, externalRef, channel, payoutPhoneUsed }) => {
+    await ctx.db.patch(payoutId, { externalRef, channel, payoutPhoneUsed });
+  },
+});
+
+// Looked up live (not snapshotted onto events/payoutRequests) so an
+// organizer correcting their backup number takes effect on the very next
+// payout attempt, not just future events.
+export const getOrganizerBackupPayoutPhone = internalQuery({
+  args: { organizerClerkUserId: v.string() },
+  handler: async (ctx, { organizerClerkUserId }) => {
+    const profile = await ctx.db
+      .query("organizerProfiles")
+      .withIndex("by_organizer", (q) => q.eq("organizerClerkUserId", organizerClerkUserId))
+      .unique();
+    return profile ? { backupPayoutPhoneMtn: profile.backupPayoutPhoneMtn } : null;
   },
 });
 
