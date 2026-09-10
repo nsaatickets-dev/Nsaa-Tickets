@@ -263,7 +263,10 @@ export async function createHostedCheckoutLink(
       // can't be relied on here.
       email: "tickets@nsaatickets.com",
       externalref: params.externalref,
-      reusable: 0,
+      // Moolre's own docs and example request show this as the STRING
+      // "0"/"1", not a JSON number - sending 0 (number) worked, but
+      // didn't match their documented type for this field.
+      reusable: "0",
       currency: "GHS",
       accountnumber: config.MOOLRE_ACCOUNT_NUMBER,
       callback: params.callback,
