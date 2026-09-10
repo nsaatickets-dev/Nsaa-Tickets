@@ -71,12 +71,17 @@ crons.interval(
 // Moolre webhook callback silently pointed at a dead dev deployment for an
 // unknown period, and nothing noticed until payouts/orders started
 // staying stuck "pending" with no confirmation ever arriving. Re-asserting
-// the same correct callback URL every day is a no-op when nothing's
-// wrong, and fixes it automatically if a future dev-testing session
-// forgets to point the callback back at prod afterward.
+// the same correct callback URL is a no-op when nothing's wrong, and
+// fixes it automatically if a future dev-testing session forgets to
+// point the callback back at prod afterward. Tightened from 24h to
+// hourly after the callback drifted back to dev mid-session on 2026-09-10
+// - the daily interval left too wide a window during active dev/prod
+// switching. Two lightweight Moolre HTTP calls per run, no Convex
+// database reads/writes - negligible against Convex's own usage limits
+// even at this frequency (~720 runs/month vs. 30 before).
 crons.interval(
   "reassert Moolre webhook callback",
-  { hours: 24 },
+  { hours: 1 },
   internal.moolre.diagnostics.reassertMoolreCallback,
 );
 
