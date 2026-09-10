@@ -882,6 +882,12 @@ export const verifyAndProcessPayout = internalAction({
     await ctx.runMutation(internal.payouts.applyVerifiedPayoutStatus, {
       payoutId,
       isSuccess: isMoolreAccepted(txstatus),
+      // Moolre's own Transfer Status docs document txstatus 1=Successful,
+      // 0=Pending, 2=Failed, 3=Unknown - confirmed for real against a
+      // transfer that sat "Pending" for hours before Moolre's own side
+      // resolved it to 2. Only 2 is treated as definite; 0/3 stay pending
+      // rather than guess.
+      isDefiniteFailure: txstatus === 2,
       transactionId,
     });
   },
@@ -891,25 +897,49 @@ export const applyVerifiedPayoutStatus = internalMutation({
   args: {
     payoutId: v.id("payouts"),
     isSuccess: v.boolean(),
+    isDefiniteFailure: v.optional(v.boolean()),
     transactionId: v.optional(v.string()),
   },
-  handler: async (ctx, { payoutId, isSuccess, transactionId }) => {
-    // Not a confirmed success - Moolre's docs don't document failure-state
-    // txstatus values for transfers either, so leave it pending rather
-    // than guess. A stuck "pending" payout is a support/ops question, not
-    // something to silently resolve.
-    if (!isSuccess) return;
-
+  handler: async (ctx, { payoutId, isSuccess, isDefiniteFailure, transactionId }) => {
     const payout = await ctx.db.get(payoutId);
     if (!payout || payout.status !== "pending") return;
 
-    await ctx.db.patch(payoutId, {
-      status: "paid",
-      moolreReference: transactionId,
-      paidAt: Date.now(),
-    });
+    if (isSuccess) {
+      await ctx.db.patch(payoutId, {
+        status: "paid",
+        moolreReference: transactionId,
+        paidAt: Date.now(),
+      });
+      await ctx.scheduler.runAfter(0, internal.payouts.sendPayoutNotification, { payoutId });
+      return;
+    }
 
-    await ctx.scheduler.runAfter(0, internal.payouts.sendPayoutNotification, { payoutId });
+    if (!isDefiniteFailure) {
+      // Genuinely unclear (still pending on Moolre's side, or an
+      // undocumented status) - leave it pending rather than guess. A
+      // stuck "pending" payout is a support/ops question, not something
+      // to silently resolve.
+      return;
+    }
+
+    await ctx.db.patch(payoutId, { status: "failed" });
+
+    // This payout's amount was counted as "already accounted for" while
+    // pending (see eligiblePayoutAmount), which can make the automatic
+    // sweep believe the event has nothing left to pay out and mark it
+    // settled. Now that Moolre has confirmed the money never actually
+    // moved, un-settle the event so the sweep picks it back up and
+    // retries - same pattern as a late-arriving paid order (see
+    // moolre/webhook.ts's applyVerifiedStatus).
+    const event = await ctx.db.get(payout.eventId);
+    if (event?.payoutSettledAt !== undefined) {
+      await ctx.db.patch(payout.eventId, { payoutSettledAt: undefined });
+    }
+
+    await alertCritical(
+      "Moolre payout confirmed failed after being pending",
+      `Payout ${payoutId} for event ${payout.eventId} (GHS ${payout.amountGHS} to ${payout.organizerPayoutPhone}) was confirmed FAILED by Moolre (txstatus 2) after sitting pending. Marked failed and re-queued the event for automatic retry.`,
+    );
   },
 });
 
