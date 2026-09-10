@@ -539,6 +539,7 @@
 
       function setPaymentState(kind, title, body) {
         const box = document.getElementById("payment-status");
+        if (!box) return;
         box.className = `nsaa-status-box ${kind} mb-3`;
         box.innerHTML = `
         <p class="fw-semibold mb-1">${NSAA.escapeHtml(title)} ${kind === "waiting" ? '<span class="nsaa-progress-dots" aria-hidden="true"><span></span><span></span><span></span></span>' : ""}</p>
@@ -825,6 +826,13 @@
               (item) => item._id === ticketTypeId,
             );
             if (ticketTypes && !ticketType) {
+              // A ticket type can disappear out from under an open checkout
+              // tab (organizer edits/removes it mid-session) - stop the
+              // reservation countdown and payment poll before tearing down
+              // their DOM targets, so they don't fire into markup that no
+              // longer exists.
+              if (reservationTimer) window.clearInterval(reservationTimer);
+              stopPaymentPolling();
               root.innerHTML = NSAA.emptyState(
                 "Ticket type not found",
                 "This ticket may no longer be available for the selected event.",
