@@ -224,3 +224,21 @@ export const reconcilePayoutFromLedger = internalMutation({
     await ctx.db.patch(payoutId, { status: "pending", externalRef, channel, moolreReference });
   },
 });
+
+// TEMPORARY - test-only helper (2026-09-11): sets a contact email on one
+// organizer profile so the payout-failed notification email can be
+// verified end-to-end against a real inbox. This test organizer's
+// profile predates contactEmail being captured at onboarding, so
+// sendPayoutFailedNotification has nowhere to send to. Revert this export
+// once the test email is confirmed delivered.
+export const setOrganizerContactEmailForTest = internalMutation({
+  args: { organizerClerkUserId: v.string(), contactEmail: v.string() },
+  handler: async (ctx, { organizerClerkUserId, contactEmail }) => {
+    const profile = await ctx.db
+      .query("organizerProfiles")
+      .withIndex("by_organizer", (q) => q.eq("organizerClerkUserId", organizerClerkUserId))
+      .unique();
+    if (!profile) throw new Error("Organizer profile not found.");
+    await ctx.db.patch(profile._id, { contactEmail });
+  },
+});
