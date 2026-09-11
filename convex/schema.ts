@@ -343,6 +343,11 @@ export default defineSchema({
     // organizerProfiles.backupPayoutPhoneMtn) was used instead. Unset
     // means the primary number was paid, same as organizerPayoutPhone.
     payoutPhoneUsed: v.optional(v.string()),
+    // Set when the organizer clicks "Request payout retry" on a failed
+    // payout (see payouts.ts:requestPayoutRetry) - emails an admin to
+    // manually retry from the ops console, and doubles as a spam guard so
+    // repeated clicks don't send repeated emails.
+    retryRequestedAt: v.optional(v.number()),
   })
     .index("by_event", ["eventId"])
     .index("by_status_created", ["status", "createdAt"])

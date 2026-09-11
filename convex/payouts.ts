@@ -148,6 +148,39 @@ export const payoutsForEvent = query({
   },
 });
 
+// Organizer-facing: the self-serve escalation path for a payout that
+// failed and has exhausted (or is still within) its automatic retry
+// attempts (see payouts.ts's MAX_AUTO_PAYOUT_ATTEMPTS). Doesn't move any
+// money itself - it emails an admin to review and retry from the ops
+// console (queueOrganizerPayout), matching this app's existing
+// all-admin-gated design for anything that actually transfers money out.
+// retryRequestedAt doubles as a spam guard so repeated clicks (or a
+// flaky network retry) don't fire repeated emails.
+export const requestPayoutRetry = mutation({
+  args: { payoutId: v.id("payouts") },
+  handler: async (ctx, { payoutId }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Sign in required.");
+
+    const payout = await ctx.db.get(payoutId);
+    if (!payout) throw new Error("Payout not found.");
+    const event = await ctx.db.get(payout.eventId);
+    if (!event || event.organizerClerkUserId !== identity.subject) {
+      throw new Error("You do not have access to this payout.");
+    }
+    if (payout.status !== "failed") {
+      throw new Error("Only a failed payout can be requested for retry.");
+    }
+    const RETRY_REQUEST_COOLDOWN_MS = 30 * 60 * 1000;
+    if (payout.retryRequestedAt && Date.now() - payout.retryRequestedAt < RETRY_REQUEST_COOLDOWN_MS) {
+      throw new Error("A retry was already requested recently - an admin has been notified and will follow up.");
+    }
+
+    await ctx.db.patch(payoutId, { retryRequestedAt: Date.now() });
+    await ctx.scheduler.runAfter(0, internal.payouts.sendPayoutRetryRequestedAlert, { payoutId });
+  },
+});
+
 // Organizer-facing, dashboard-wide (not scoped to one event) - powers the
 // top-level "payout failed" banner so an organizer notices without having
 // to open each event's Payouts tab individually. Checks the MOST RECENT
@@ -1180,6 +1213,42 @@ export const sendPayoutFailedNotification = internalAction({
           `<p style="margin:0 0 18px;"><a href="${editProfileUrl}" style="display:inline-block; background:#ff8a00; color:#241f1a; text-decoration:none; font-weight:800; padding:12px 16px; border-radius:4px;">Update payout number</a></p>` +
           paragraph("We'll automatically retry once you've updated it. Our support team has also been notified."),
         footerNote: "This is about an organizer payout from Nsaa Tickets.",
+      }),
+    });
+  },
+});
+
+// Fired by requestPayoutRetry above - a plain admin-facing email (not
+// alertCritical, which is reserved for infrastructure/system failures we
+// lose visibility into, not routine organizer requests that need a human
+// decision). Points straight at what the admin needs to do: check whether
+// the organizer fixed their payout number, then retry from the ops
+// console's existing manual retry action (queueOrganizerPayout).
+export const sendPayoutRetryRequestedAlert = internalAction({
+  args: { payoutId: v.id("payouts") },
+  handler: async (ctx, { payoutId }) => {
+    const payout = await ctx.runQuery(internal.payouts.getPayoutInternal, { payoutId });
+    if (!payout) return;
+
+    const event = await ctx.runQuery(api.events.getById, { eventId: payout.eventId });
+    const eventTitle = event?.title ?? "an event";
+    const organizerName = event?.organizerName ?? "An organizer";
+    const adminEmail = process.env.ALERT_EMAIL || "support@nsaatickets.com";
+
+    await sendBrevoEmail({
+      sender: SENDERS.support,
+      to: [{ email: adminEmail }],
+      subject: `Payout retry requested: ${eventTitle}`,
+      htmlContent: renderEmailLayout({
+        heading: "An organizer requested a payout retry",
+        bodyHtml:
+          paragraph(
+            `${escapeHtml(organizerName)} requested a retry for their failed payout of GHS ${payout.amountGHS} on <strong>${escapeHtml(eventTitle)}</strong>.`,
+          ) +
+          paragraph(
+            "Check whether they've updated their payout number or added a backup MTN number, then retry from the admin ops console's Events tab.",
+          ),
+        footerNote: `Payout ID: ${payoutId}`,
       }),
     });
   },

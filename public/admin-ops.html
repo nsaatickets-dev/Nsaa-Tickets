@@ -1085,7 +1085,10 @@
             <td>${NSAA.escapeHtml(payout.eventTitle)}</td>
             <td>${NSAA.escapeHtml(payout.organizerPayoutPhone)}</td>
             <td class="text-end">${NSAA.money(payout.amountGHS)}</td>
-            <td>${statusChip(payout.status)}</td>
+            <td>
+              ${statusChip(payout.status)}
+              ${payout.retryRequestedAt ? `<p class="nsaa-faint small mb-0">Retry requested by organizer</p>` : ""}
+            </td>
             <td>${NSAA.escapeHtml(NSAA.formatDate(payout.createdAt))}</td>
             <td class="text-end"><div class="btn-group btn-group-sm">${actions.join("") || "-"}</div></td>
           </tr>

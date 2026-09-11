@@ -1040,7 +1040,8 @@
           `;
         }
         const sorted = [...payouts].sort((a, b) => b.createdAt - a.createdAt);
-        const mostRecentFailed = sorted[0]?.status === "failed";
+        const latestPayout = sorted[0];
+        const mostRecentFailed = latestPayout?.status === "failed";
         return `
           <div class="nsaa-panel mb-3">
             <h2 class="h5 mb-3">Payout status</h2>
@@ -1049,7 +1050,15 @@
                 ? `<div class="nsaa-status-box failed mb-3">
                     <p class="fw-semibold mb-1">Your latest payout failed</p>
                     <p class="mb-2">The Mobile Money transfer for this event couldn't be completed. We emailed you about it. Add or switch to a backup MTN number so we can retry.</p>
-                    <a class="btn btn-nsaa btn-sm" href="/organizer-onboarding?edit=1">Update payout number</a>
+                    <div class="d-flex flex-wrap align-items-center gap-2">
+                      <a class="btn btn-nsaa btn-sm" href="/organizer-onboarding?edit=1">Update payout number</a>
+                      ${
+                        latestPayout.retryRequestedAt
+                          ? `<span class="nsaa-faint small">Retry requested ${NSAA.escapeHtml(NSAA.formatDate(latestPayout.retryRequestedAt))} - an admin has been notified.</span>`
+                          : `<button class="btn btn-outline-nsaa btn-sm" type="button" data-request-payout-retry="${NSAA.escapeAttr(latestPayout._id)}">Request payout retry</button>`
+                      }
+                    </div>
+                    <div id="payout-retry-result" class="mt-2"></div>
                   </div>`
                 : ""
             }
@@ -1510,6 +1519,28 @@
           if (!slot) return;
           slot.innerHTML =
             payoutHistoryHtml(latestPayouts) + payoutPanelHtml(organizerProfile, latestEligibleGHS, latestPayoutRequests);
+
+          const retryBtn = slot.querySelector("[data-request-payout-retry]");
+          if (retryBtn) {
+            retryBtn.addEventListener("click", async () => {
+              const resultSlot = document.getElementById("payout-retry-result");
+              retryBtn.disabled = true;
+              try {
+                await client.mutation("payouts:requestPayoutRetry", {
+                  payoutId: retryBtn.dataset.requestPayoutRetry,
+                });
+                if (resultSlot) {
+                  resultSlot.innerHTML = `<div class="nsaa-status-box success"><p class="mb-0">Request sent - an admin has been notified and will follow up.</p></div>`;
+                }
+              } catch (err) {
+                retryBtn.disabled = false;
+                if (resultSlot) {
+                  resultSlot.innerHTML = NSAA.errorState("Could not send request", err.message || "Please try again.");
+                }
+              }
+            });
+          }
+
           const payoutForm = document.getElementById("payout-request-form");
           if (!payoutForm) return;
           payoutForm.addEventListener("submit", async (evt) => {
